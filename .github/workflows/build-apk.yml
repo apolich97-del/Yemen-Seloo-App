@@ -27,6 +27,19 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: توليد مجلد android/ إذا كان مفقودًا
+        run: |
+          if [ ! -d "android" ]; then
+            echo "android/ غير موجود — سيُنشأ تلقائيًا"
+            flutter create . \
+              --platforms=android \
+              --org com.yemenseloo \
+              --project-name yemen_seloo \
+              --no-pub
+          else
+            echo "android/ موجود مسبقًا"
+          fi
+
       - name: Flutter pub get
         run: flutter pub get
 
