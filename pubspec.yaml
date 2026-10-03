@@ -41,7 +41,7 @@ dependencies:
   url_launcher: ^6.3.1
   share_plus: ^10.0.2
   google_maps_flutter: ^2.9.0
-  google_places_autocomplete: ^0.1.2
+  fix: حذف google_places_autocomplete غير الموجود على pub.dev
   location: ^7.0.0
   flutter_local_notifications: ^17.2.3
   intl: ^0.19.0
