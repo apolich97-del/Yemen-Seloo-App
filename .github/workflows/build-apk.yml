@@ -37,7 +37,7 @@ jobs:
               --no-pub
           fi
 
-      - name: ترقية Kotlin و AGP و Gradle Wrapper و NDK
+      - name: ترقية Kotlin و AGP و Gradle Wrapper و NDK و minSdk
         run: |
           sed -i 's|id "org.jetbrains.kotlin.android" version "[^"]*"|id "org.jetbrains.kotlin.android" version "2.0.21"|g' android/settings.gradle
           sed -i 's|id "com.android.application" version "[^"]*"|id "com.android.application" version "8.3.0"|g' android/settings.gradle
@@ -55,7 +55,13 @@ jobs:
           else
             sed -i '/android {/a\    ndkVersion = "25.1.8937393"' android/app/build.gradle
           fi
-          grep -n "ndkVersion" android/app/build.gradle || true
+
+          echo "=== ترقية minSdkVersion إلى 23 ==="
+          if grep -q 'minSdkVersion' android/app/build.gradle; then
+            sed -i 's|minSdkVersion [0-9]*|minSdkVersion 23|g' android/app/build.gradle
+            sed -i 's|minSdk = [0-9]*|minSdk = 23|g' android/app/build.gradle
+          fi
+          grep -n "minSdk" android/app/build.gradle || true
 
       - name: Flutter pub get
         run: flutter pub get
