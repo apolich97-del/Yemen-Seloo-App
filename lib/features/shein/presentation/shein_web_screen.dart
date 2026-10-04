@@ -10,7 +10,6 @@ import '../../../core/config/seloo_config.dart';
 import '../../cart/application/cart_counter.dart';
 import 'shein_bridge_controller.dart';
 
-/// شاشة التصفّح: SHEIN داخل WebView، ومعها شريط سلة أصلي أسفل الشاشة.
 class SheinWebScreen extends StatefulWidget {
   const SheinWebScreen({super.key, this.initialUrl});
 
@@ -168,7 +167,7 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                     ) async {
                       final WebUri? target = action.request.url;
                       if (target == null) return NavigationActionPolicy.ALLOW;
-                      final Uri uri = target.uri;
+                      final Uri uri = Uri.parse(target.toString());
 
                       if (SheinNavigationPolicy.isExternalRedirect(uri)) {
                         await _openExternally(uri);
@@ -179,7 +178,7 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                         await _openExternally(uri);
                         return NavigationActionPolicy.CANCEL;
                       }
-                      return NavigationActionPolicy.decide(uri);
+                      return SheinNavigationPolicy.decide(uri);
                     },
                   ),
           ),
