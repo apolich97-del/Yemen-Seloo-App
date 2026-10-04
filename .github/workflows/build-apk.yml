@@ -30,15 +30,26 @@ jobs:
       - name: توليد مجلد android/ إذا كان مفقودًا
         run: |
           if [ ! -d "android" ]; then
-            echo "android/ غير موجود — سيُنشأ تلقائيًا"
             flutter create . \
               --platforms=android \
               --org com.yemenseloo \
               --project-name yemen_seloo \
               --no-pub
-          else
-            echo "android/ موجود مسبقًا"
           fi
+
+      - name: ترقية Kotlin إلى 2.1.0
+        run: |
+          echo "=== قبل الترقية ==="
+          cat android/settings.gradle || true
+
+          sed -i 's|id "org.jetbrains.kotlin.android" version "[^"]*"|id "org.jetbrains.kotlin.android" version "2.1.0"|g' android/settings.gradle
+
+          if [ -f android/build.gradle ]; then
+            sed -i 's|ext.kotlin_version = .*|ext.kotlin_version = "2.1.0"|g' android/build.gradle
+          fi
+
+          echo "=== بعد الترقية ==="
+          cat android/settings.gradle
 
       - name: Flutter pub get
         run: flutter pub get
