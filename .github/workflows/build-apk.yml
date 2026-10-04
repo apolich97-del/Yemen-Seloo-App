@@ -37,31 +37,23 @@ jobs:
 
       - name: إعادة إنشاء android/ من الصفر
         run: |
-          # حذف كل شيء
           rm -rf android/
-
-          # إنشاء نظيف
           flutter create . \
             --platforms=android \
             --org com.yemenseloo \
             --project-name yemen_seloo \
             --no-pub
-
-          echo "=== محتوى android/ ==="
-          ls -la android/app/src/main/kotlin/com/yemenseloo/yemen_seloo/ || true
-          echo "=== AndroidManifest.xml ==="
-          cat android/app/src/main/AndroidManifest.xml || true
+          echo "=== محتوى android/app ==="
+          ls -la android/app/
 
       - name: استعادة google-services.json
         run: |
           if [ -f "/tmp/seloo-backup/google-services.json" ]; then
             cp /tmp/seloo-backup/google-services.json android/app/google-services.json
-            echo "✓ استرجاع google-services.json"
           fi
 
       - name: ترقية Kotlin و AGP و Gradle
         run: |
-          # settings.gradle.kts
           if [ -f android/settings.gradle.kts ]; then
             sed -i 's|id("com.android.application") version "[^"]*"|id("com.android.application") version "8.3.0"|g' android/settings.gradle.kts || true
             sed -i 's|id("org.jetbrains.kotlin.android") version "[^"]*"|id("org.jetbrains.kotlin.android") version "2.0.21"|g' android/settings.gradle.kts || true
@@ -70,52 +62,56 @@ jobs:
             fi
           fi
 
-          # settings.gradle
           if [ -f android/settings.gradle ]; then
             sed -i 's|id "com.android.application" version "[^"]*"|id "com.android.application" version "8.3.0"|g' android/settings.gradle || true
             sed -i 's|id "org.jetbrains.kotlin.android" version "[^"]*"|id "org.jetbrains.kotlin.android" version "2.0.21"|g' android/settings.gradle || true
-            if ! grep -q 'com.google.gms.google-services' android/settings.gradle; then
-              sed -i '/id "com.android.application" version/a\        id "com.google.gms.google-services" version "4.4.2" apply false' android/settings.gradle || true
-            fi
           fi
 
-          # Gradle wrapper
           if [ -f android/gradle/wrapper/gradle-wrapper.properties ]; then
             sed -i 's|distributionUrl=.*gradle-[0-9.]*-all.zip|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-all.zip|g' android/gradle/wrapper/gradle-wrapper.properties || true
-            sed -i 's|distributionUrl=.*gradle-[0-9.]*-bin.zip|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-all.zip|g' android/gradle/wrapper/gradle-wrapper.properties || true
           fi
 
-      - name: ضبط build.gradle.kts / build.gradle
+      - name: ضبط minSdk و ndkVersion بـ Python (دقيق)
         run: |
-          # app/build.gradle.kts
-          if [ -f android/app/build.gradle.kts ]; then
-            if ! grep -q 'com.google.gms.google-services' android/app/build.gradle.kts; then
-              sed -i '/id("com.android.application")/a\    id("com.google.gms.google-services")' android/app/build.gradle.kts || true
-            fi
-            sed -i 's|minSdk = flutter.minSdkVersion|minSdk = 23|g' android/app/build.gradle.kts || true
-            sed -i 's|minSdk = [0-9]\+|minSdk = 23|g' android/app/build.gradle.kts || true
-            if grep -q 'ndkVersion' android/app/build.gradle.kts; then
-              sed -i 's|ndkVersion = .*|ndkVersion = "25.1.8937393"|' android/app/build.gradle.kts || true
-            else
-              sed -i '/android {/a\    ndkVersion = "25.1.8937393"' android/app/build.gradle.kts || true
-            fi
-            echo "=== build.gradle.kts النهائي ==="
-            cat android/app/build.gradle.kts
-          fi
+          python3 << 'PYEOF'
+          import re
+          from pathlib import Path
 
-          # app/build.gradle
-          if [ -f android/app/build.gradle ]; then
-            if ! grep -q 'com.google.gms.google-services' android/app/build.gradle; then
-              sed -i '/id "com.android.application"/a\    id "com.google.gms.google-services"' android/app/build.gradle || true
-            fi
-            sed -i 's|minSdkVersion flutter.minSdkVersion|minSdkVersion 23|g' android/app/build.gradle || true
-            sed -i 's|minSdkVersion [0-9]\+|minSdkVersion 23|g' android/app/build.gradle || true
-            if grep -q 'ndkVersion' android/app/build.gradle; then
-              sed -i 's|ndkVersion .*|ndkVersion = "25.1.8937393"|' android/app/build.gradle || true
-            else
-              sed -i '/android {/a\    ndkVersion = "25.1.8937393"' android/app/build.gradle || true
-            fi
-          fi
+          files = ['android/app/build.gradle.kts', 'android/app/build.gradle']
+          for f in files:
+              p = Path(f)
+              if not p.exists():
+                  continue
+              content = p.read_text()
+              print(f"\n=== {f} (قبل) ===")
+              for line in content.split('\n'):
+                  if 'minSdk' in line or 'ndkVersion' in line or 'google-services' in line:
+                      print(f"  > {line}")
+
+              # minSdk — كل الصيغ الممكنة
+              content = re.sub(r'minSdkVersion\s+\S+', 'minSdkVersion 23', content)
+              content = re.sub(r'minSdk\s*=\s*flutter\.minSdkVersion', 'minSdk = 23', content)
+              content = re.sub(r'minSdk\s*=\s*\d+', 'minSdk = 23', content)
+              content = re.sub(r'minSdkVersion\s+\d+', 'minSdkVersion 23', content)
+
+              # ndkVersion
+              if 'ndkVersion' in content:
+                  content = re.sub(r'ndkVersion\s*=?\s*"[^"]*"', 'ndkVersion = "25.1.8937393"', content)
+              else:
+                  # إضافة ndkVersion بعد "android {"
+                  content = re.sub(r'(android\s*\{)', r'\1\n    ndkVersion = "25.1.8937393"', content, count=1)
+
+              # google-services plugin
+              if 'com.google.gms.google-services' not in content:
+                  content = re.sub(r'(id\("com\.android\.application"\))', r'\1\n    id("com.google.gms.google-services")', content, count=1)
+                  content = re.sub(r'(id "com\.android\.application")', r'\1\n    id "com.google.gms.google-services"', content, count=1)
+
+              p.write_text(content)
+              print(f"=== {f} (بعد) ===")
+              for line in content.split('\n'):
+                  if 'minSdk' in line or 'ndkVersion' in line or 'google-services' in line:
+                      print(f"  > {line}")
+          PYEOF
 
       - name: Flutter pub get
         run: flutter pub get
