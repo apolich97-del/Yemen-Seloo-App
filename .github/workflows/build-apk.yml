@@ -37,11 +37,6 @@ jobs:
               --no-pub
           fi
 
-      - name: طباعة build.gradle الأصلي
-        run: |
-          echo "=== build.gradle الأصلي ==="
-          cat android/app/build.gradle
-
       - name: ترقية Kotlin و AGP و Gradle Wrapper و NDK
         run: |
           sed -i 's|id "org.jetbrains.kotlin.android" version "[^"]*"|id "org.jetbrains.kotlin.android" version "2.0.21"|g' android/settings.gradle
@@ -60,28 +55,26 @@ jobs:
             sed -i '/android {/a\    ndkVersion = "25.1.8937393"' android/app/build.gradle
           fi
 
-      - name: ترقية minSdk باستخدام awk (يلتقط كل الصيغ)
+      - name: إجبار minSdk=23 (كل الصيغ الممكنة)
         run: |
-          awk '
-            /^[[:space:]]*minSdkVersion[[:space:]]/ {
-              sub(/minSdkVersion[[:space:]]+[^[:space:]]+.*$/, "minSdkVersion 23")
-              print
-              next
-            }
-            /^[[:space:]]*minSdk[[:space:]]*=/ {
-              sub(/minSDk[[:space:]]*=[[:space:]]*[^[:space:]]+.*$/, "minSDk = 23")
-              print
-              next
-            }
-            { print }
-          ' android/app/build.gradle > android/app/build.gradle.tmp
-          mv android/app/build.gradle.tmp android/app/build.gradle
-
-          echo "=== build.gradle بعد التعديل ==="
-          cat android/app/build.gradle
+          F=android/app/build.gradle
+          echo "=== قبل التعديل ==="
+          cat "$F"
           echo ""
-          echo "=== أسطر minSDk ==="
-          grep -n "minSDk" android/app/build.gradle || echo "لم يُعثر على minSDk!"
+          echo "=== القيم الأصلية لـminSdk ==="
+          grep -n "minSdk" "$F" || echo "لم يُعثر"
+
+          # استبدال شامل: يغطي كل الصيغ
+          sed -i 's/flutter\.minSdkVersion/23/g' "$F"
+          sed -i 's/minSdkVersion[[:space:]]\+[0-9]\+/minSdkVersion 23/g' "$F"
+          sed -i 's/minSdk[[:space:]]*=[[:space:]]*[0-9]\+/minSdk = 23/g' "$F"
+
+          echo ""
+          echo "=== بعد التعديل ==="
+          cat "$F"
+          echo ""
+          echo "=== القيم الجديدة لـminSdk ==="
+          grep -n "minSdk" "$F" || echo "لم يُعثر"
 
       - name: Flutter pub get
         run: flutter pub get
