@@ -34,7 +34,7 @@ jobs:
             cp android/app/google-services.json /tmp/seloo-backup/google-services.json
           fi
 
-      - name: إعادة إنشاء android/ من الصفر
+      - name: إعادة إنشاء android/ بإعدادات Flutter الافتراضية
         run: |
           rm -rf android/
           flutter create . \
@@ -49,151 +49,100 @@ jobs:
             cp /tmp/seloo-backup/google-services.json android/app/google-services.json
           fi
 
-      - name: فرض Gradle 8.4 (استبدال الملف بالكامل)
+      - name: عرض الإعدادات الافتراضية
         run: |
-          cat > android/gradle/wrapper/gradle-wrapper.properties <<'EOF'
-          distributionBase=GRADLE_USER_HOME
-          distributionPath=wrapper/dists
-          zipStoreBase=GRADLE_USER_HOME
-          zipStorePath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-all.zip
-          EOF
+          echo "=== settings.gradle ==="
+          cat android/settings.gradle || true
+          echo ""
+          echo "=== app/build.gradle ==="
+          cat android/app/build.gradle || true
+          echo ""
           echo "=== gradle-wrapper.properties ==="
-          cat android/gradle/wrapper/gradle-wrapper.properties
+          cat android/gradle/wrapper/gradle-wrapper.properties || true
 
-      - name: تعديل settings.gradle (Groovy)
+      - name: إضافة google-services + minSdk 23 + NDK (بدون تغيير الإصدارات)
         run: |
           python3 << 'PYEOF'
           import re
           from pathlib import Path
 
+          # ============ settings.gradle ============
           p = Path('android/settings.gradle')
-          if not p.exists():
-              print("⚠ settings.gradle غير موجود")
-              exit(0)
+          if p.exists():
+              content = p.read_text()
+              if 'com.google.gms.google-services' not in content:
+                  # أضف بعد kotlin.android في plugins block
+                  content = re.sub(
+                      r'(id\s+"org\.jetbrains\.kotlin\.android"\s+version\s+"[^"]*"\s+apply\s+false)',
+                      r'\1\n    id "com.google.gms.google-services" version "4.4.2" apply false',
+                      content,
+                      count=1
+                  )
+              p.write_text(content)
+              print("=== settings.gradle (بعد) ===")
+              print(content)
 
-          content = p.read_text()
-          print("=== settings.gradle (قبل) ===")
-          print(content)
-
-          content = re.sub(
-              r'id\s+"org\.jetbrains\.kotlin\.android"\s+version\s+"[^"]*"',
-              'id "org.jetbrains.kotlin.android" version "1.9.24"',
-              content
-          )
-          content = re.sub(
-              r'id\s+"com\.android\.application"\s+version\s+"[^"]*"',
-              'id "com.android.application" version "8.1.4"',
-              content
-          )
-
-          if 'com.google.gms.google-services' not in content:
-              content = re.sub(
-                  r'(id\s+"com\.android\.application"\s+version\s+"[^"]*")',
-                  r'\1\n    id "com.google.gms.google-services" version "4.4.2" apply false',
-                  content
-              )
-
-          p.write_text(content)
-          print("=== settings.gradle (بعد) ===")
-          print(content)
-          PYEOF
-
-      - name: تعديل settings.gradle.kts (Kotlin DSL)
-        run: |
-          python3 << 'PYEOF'
-          import re
-          from pathlib import Path
-
-          p = Path('android/settings.gradle.kts')
-          if not p.exists():
-              print("⚠ settings.gradle.kts غير موجود")
-              exit(0)
-
-          content = p.read_text()
-          print("=== settings.gradle.kts (قبل) ===")
-          print(content)
-
-          content = re.sub(
-              r'id\("org\.jetbrains\.kotlin\.android"\)\s+version\s+"[^"]*"',
-              'id("org.jetbrains.kotlin.android") version "1.9.24"',
-              content
-          )
-          content = re.sub(
-              r'id\("com\.android\.application"\)\s+version\s+"[^"]*"',
-              'id("com.android.application") version "8.1.4"',
-              content
-          )
-
-          if 'com.google.gms.google-services' not in content:
-              content = re.sub(
-                  r'(id\("com\.android\.application"\)\s+version\s+"[^"]*")',
-                  r'\1\n    id("com.google.gms.google-services") version "4.4.2" apply false',
-                  content
-              )
-
-          p.write_text(content)
-          print("=== settings.gradle.kts (بعد) ===")
-          print(content)
-          PYEOF
-
-      - name: ضبط build.gradle (app)
-        run: |
-          python3 << 'PYEOF'
-          import re
-          from pathlib import Path
-
-          for path in ['android/app/build.gradle', 'android/app/build.gradle.kts']:
-              p = Path(path)
-              if not p.exists():
-                  continue
-              print(f"\n=== {path} ===")
+          # ============ app/build.gradle ============
+          p = Path('android/app/build.gradle')
+          if p.exists():
               lines = p.read_text().split('\n')
               out = []
-              has_ndk = False
               has_gs = False
+              has_ndk = False
+              in_android_block = False
+
               for line in lines:
                   s = line.strip()
                   ind = line[:len(line) - len(line.lstrip())]
 
-                  if s.startswith('ndkVersion'):
-                      out.append(f'{ind}ndkVersion = "25.1.8937393"')
-                      has_ndk = True
-                      continue
+                  # minSdkVersion
                   if re.match(r'^minSdkVersion\b', s):
                       out.append(f'{ind}minSdkVersion 23')
                       continue
+                  # minSdk = ...
                   if re.match(r'^minSdk\s*=', s):
                       out.append(f'{ind}minSdk = 23')
                       continue
-
+                  # ndkVersion
+                  if re.match(r'^ndkVersion\b', s):
+                      out.append(f'{ind}ndkVersion "25.1.8937393"')
+                      has_ndk = True
+                      continue
+                  # تتبع google-services
                   if 'com.google.gms.google-services' in s:
                       has_gs = True
 
                   out.append(line)
 
+                  # أضف ndkVersion بعد فتح android {
                   if re.search(r'^android\s*\{', s) and not has_ndk:
-                      out.append(f'{ind}    ndkVersion = "25.1.8937393"')
+                      out.append(f'{ind}    ndkVersion "25.1.8937393"')
                       has_ndk = True
                       continue
-                  if re.match(r'^id\s*\(?["\']com\.android\.application["\']\)?', s) and not has_gs:
-                      out.append(f'{ind}    id("com.google.gms.google-services")')
-                      has_gs = True
 
-              p.write_text('\n'.join(out))
-              print(p.read_text())
+              content = '\n'.join(out)
+
+              # أضف google-services plugin بعد kotlin-android
+              if not has_gs:
+                  content = re.sub(
+                      r'(id\s+"kotlin-android")',
+                      r'\1\n    id "com.google.gms.google-services"',
+                      content,
+                      count=1
+                  )
+
+              p.write_text(content)
+              print("\n=== app/build.gradle (بعد) ===")
+              print(content)
           PYEOF
 
-      - name: التحقق النهائي من الملفات
+      - name: التحقق النهائي
         run: |
-          echo "=== settings.gradle ==="
-          cat android/settings.gradle || true
+          echo "=== أسطر google-services ==="
+          grep -n "google-services" android/settings.gradle android/app/build.gradle || true
           echo ""
-          echo "=== gradle-wrapper.properties ==="
-          cat android/gradle/wrapper/gradle-wrapper.properties || true
-          echo ""
-          echo "=== build.gradle (app) — أسطر مهمة ==="
-          grep -n "minSdk\|ndk\|google-services" android/app/build.gradle || true
+          echo "=== أسطر minSdk و ndkVersion ==="
+          grep -n "minSdk\|ndkVersion" android/app/build.gradle || true
 
       - name: Flutter pub get
         run: flutter pub get
