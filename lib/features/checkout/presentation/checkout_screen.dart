@@ -5,6 +5,8 @@ import 'package:location/location.dart' as geo;
 import '../../../core/config/seloo_config.dart';
 import '../../cart/application/cart_counter.dart';
 import '../../cart/data/seloo_cart_service.dart';
+import '../../cart/domain/cart_item.dart';
+import '../../shein/domain/shein_draft.dart';
 
 /// شاشة إتمام الطلب: تجمع بيانات التوصيل ثم تُنشئ الطلب على الخادم.
 class CheckoutScreen extends StatefulWidget {
@@ -153,7 +155,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               decoration: const InputDecoration(
                 labelText: 'المدينة',
                 border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.location_city, color: Color(0xFF7C3AED)),
+                prefixIcon:
+                    Icon(Icons.location_city, color: Color(0xFF7C3AED)),
               ),
               validator: (String? value) =>
                   (value ?? '').trim().length < 2 ? 'المدينة مطلوبة' : null,
