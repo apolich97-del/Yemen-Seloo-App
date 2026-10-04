@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 
 import 'package:flutter/material.dart';
@@ -10,12 +11,6 @@ import '../../cart/application/cart_counter.dart';
 import 'shein_bridge_controller.dart';
 
 /// شاشة التصفّح: SHEIN داخل WebView، ومعها شريط سلة أصلي أسفل الشاشة.
-///
-/// ملاحظات معمارية:
-///   - نفس الـController يُعاد استخدامه عبر كل التنقّلات، فلا تُفقد الجلسة
-///     ولا الكوكيز عند الانتقال من منتج إلى آخر.
-///   - السكربت المحقون يُضاف كـUserScript فيُطبَّق على كل صفحة تلقائيًا.
-///   - شريط السلة يقرأ الحالة من Firestore لا من ذاكرة الواجهة.
 class SheinWebScreen extends StatefulWidget {
   const SheinWebScreen({super.key, this.initialUrl});
 
@@ -120,7 +115,6 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                       url: WebUri(widget.initialUrl ?? SheinWebConfig.homeAr),
                     ),
                     initialSettings: InAppWebViewSettings(
-                      // كوكيز وتخزين محلي: ضروريان لبقاء جلسة SHEIN.
                       domStorageEnabled: true,
                       databaseEnabled: true,
                       thirdPartyCookiesEnabled: true,
@@ -196,7 +190,6 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
   }
 }
 
-/// شريط السلة أسفل الشاشة.
 class _SelooCartBar extends StatelessWidget {
   const _SelooCartBar({required this.count});
 
