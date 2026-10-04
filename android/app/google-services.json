@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "580529134357",
+    "project_id": "yemen-seloo-app",
+    "storage_bucket": "yemen-seloo-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:580529134357:android:47521410ef2d77eba3671c",
+        "android_client_info": {
+          "package_name": "com.yemenseloo.yemen_seloo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA2aX5gDos7IBU3lkFM_i2nIpuAzMIsZgE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
