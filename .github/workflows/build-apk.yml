@@ -27,6 +27,14 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: نسخ google-services.json احتياطيًا
+        run: |
+          if [ -f "android/app/google-services.json" ]; then
+            mkdir -p /tmp/seloo-backup
+            cp android/app/google-services.json /tmp/seloo-backup/google-services.json
+            echo "✓ تم نسخ google-services.json"
+          fi
+
       - name: توليد مجلد android/ إذا كان مفقودًا
         run: |
           if [ ! -d "android" ]; then
@@ -36,45 +44,79 @@ jobs:
               --project-name yemen_seloo \
               --no-pub
           fi
+          echo "=== محتوى android/ ==="
+          ls -la android/
 
-      - name: ترقية Kotlin و AGP و Gradle Wrapper و NDK
+      - name: استعادة google-services.json
         run: |
-          sed -i 's|id "org.jetbrains.kotlin.android" version "[^"]*"|id "org.jetbrains.kotlin.android" version "2.0.21"|g' android/settings.gradle
-          sed -i 's|id "com.android.application" version "[^"]*"|id "com.android.application" version "8.3.0"|g' android/settings.gradle
-
-          if [ -f android/build.gradle ]; then
-            sed -i 's|ext.kotlin_version = .*|ext.kotlin_version = "2.0.21"|g' android/build.gradle
+          if [ -f "/tmp/seloo-backup/google-services.json" ]; then
+            mkdir -p android/app
+            cp /tmp/seloo-backup/google-services.json android/app/google-services.json
           fi
 
-          sed -i 's|distributionUrl=.*gradle-[0-9.]*-all.zip|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-all.zip|g' android/gradle/wrapper/gradle-wrapper.properties
-          sed -i 's|distributionUrl=.*gradle-[0-9.]*-bin.zip|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-all.zip|g' android/gradle/wrapper/gradle-wrapper.properties
-
-          if grep -q 'ndkVersion' android/app/build.gradle; then
-            sed -i -E 's|^([[:space:]]*)ndkVersion.*$|\1ndkVersion = "25.1.8937393"|g' android/app/build.gradle
-          else
-            sed -i '/android {/a\    ndkVersion = "25.1.8937393"' android/app/build.gradle
+      - name: ترقية Kotlin و AGP و Gradle
+        run: |
+          # --- settings.gradle.kts (Kotlin DSL) ---
+          if [ -f android/settings.gradle.kts ]; then
+            echo "→ استخدام settings.gradle.kts"
+            sed -i 's|id("com.android.application") version "[^"]*"|id("com.android.application") version "8.3.0"|g' android/settings.gradle.kts || true
+            sed -i 's|id("org.jetbrains.kotlin.android") version "[^"]*"|id("org.jetbrains.kotlin.android") version "2.0.21"|g' android/settings.gradle.kts || true
+            if ! grep -q 'com.google.gms.google-services' android/settings.gradle.kts; then
+              sed -i '/id("com.android.application") version/a\    id("com.google.gms.google-services") version "4.4.2" apply false' android/settings.gradle.kts || true
+            fi
           fi
 
-      - name: إجبار minSdk=23 (كل الصيغ الممكنة)
+          # --- settings.gradle (Groovy) ---
+          if [ -f android/settings.gradle ]; then
+            echo "→ استخدام settings.gradle"
+            sed -i 's|id "com.android.application" version "[^"]*"|id "com.android.application" version "8.3.0"|g' android/settings.gradle || true
+            sed -i 's|id "org.jetbrains.kotlin.android" version "[^"]*"|id "org.jetbrains.kotlin.android" version "2.0.21"|g' android/settings.gradle || true
+            if ! grep -q 'com.google.gms.google-services' android/settings.gradle; then
+              sed -i '/id "com.android.application" version/a\        id "com.google.gms.google-services" version "4.4.2" apply false' android/settings.gradle || true
+            fi
+          fi
+
+          # --- gradle wrapper ---
+          if [ -f android/gradle/wrapper/gradle-wrapper.properties ]; then
+            sed -i 's|distributionUrl=.*gradle-[0-9.]*-all.zip|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-all.zip|g' android/gradle/wrapper/gradle-wrapper.properties || true
+            sed -i 's|distributionUrl=.*gradle-[0-9.]*-bin.zip|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-all.zip|g' android/gradle/wrapper/gradle-wrapper.properties || true
+          fi
+
+      - name: ضبط build.gradle للتطبيق (كل الصيغ)
         run: |
-          F=android/app/build.gradle
-          echo "=== قبل التعديل ==="
-          cat "$F"
-          echo ""
-          echo "=== القيم الأصلية لـminSdk ==="
-          grep -n "minSdk" "$F" || echo "لم يُعثر"
+          # --- app/build.gradle.kts (Kotlin DSL) ---
+          if [ -f android/app/build.gradle.kts ]; then
+            echo "→ تطبيق على build.gradle.kts"
+            if ! grep -q 'com.google.gms.google-services' android/app/build.gradle.kts; then
+              sed -i '/id("com.android.application")/a\    id("com.google.gms.google-services")' android/app/build.gradle.kts || true
+            fi
+            sed -i 's|minSdk = flutter.minSdkVersion|minSdk = 23|g' android/app/build.gradle.kts || true
+            sed -i 's|minSdk = [0-9]\+|minSdk = 23|g' android/app/build.gradle.kts || true
+            if grep -q 'ndkVersion' android/app/build.gradle.kts; then
+              sed -i 's|ndkVersion = .*|ndkVersion = "25.1.8937393"|' android/app/build.gradle.kts || true
+            else
+              sed -i '/android {/a\    ndkVersion = "25.1.8937393"' android/app/build.gradle.kts || true
+            fi
+            echo "=== build.gradle.kts بعد التعديل ==="
+            cat android/app/build.gradle.kts
+          fi
 
-          # استبدال شامل: يغطي كل الصيغ
-          sed -i 's/flutter\.minSdkVersion/23/g' "$F"
-          sed -i 's/minSdkVersion[[:space:]]\+[0-9]\+/minSdkVersion 23/g' "$F"
-          sed -i 's/minSdk[[:space:]]*=[[:space:]]*[0-9]\+/minSdk = 23/g' "$F"
-
-          echo ""
-          echo "=== بعد التعديل ==="
-          cat "$F"
-          echo ""
-          echo "=== القيم الجديدة لـminSdk ==="
-          grep -n "minSdk" "$F" || echo "لم يُعثر"
+          # --- app/build.gradle (Groovy) ---
+          if [ -f android/app/build.gradle ]; then
+            echo "→ تطبيق على build.gradle"
+            if ! grep -q 'com.google.gms.google-services' android/app/build.gradle; then
+              sed -i '/id "com.android.application"/a\    id "com.google.gms.google-services"' android/app/build.gradle || true
+            fi
+            sed -i 's|minSdkVersion flutter.minSdkVersion|minSdkVersion 23|g' android/app/build.gradle || true
+            sed -i 's|minSdkVersion [0-9]\+|minSdkVersion 23|g' android/app/build.gradle || true
+            if grep -q 'ndkVersion' android/app/build.gradle; then
+              sed -i 's|ndkVersion .*|ndkVersion = "25.1.8937393"|' android/app/build.gradle || true
+            else
+              sed -i '/android {/a\    ndkVersion = "25.1.8937393"' android/app/build.gradle || true
+            fi
+            echo "=== build.gradle بعد التعديل ==="
+            cat android/app/build.gradle
+          fi
 
       - name: Flutter pub get
         run: flutter pub get
