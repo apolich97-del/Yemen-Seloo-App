@@ -37,27 +37,24 @@ jobs:
               --no-pub
           fi
 
-      - name: ترقية Kotlin و AGP إلى نسخ متوافقة
+      - name: ترقية Kotlin و AGP و Gradle Wrapper
         run: |
-          echo "=== قبل الترقية ==="
+          echo "=== settings.gradle قبل الترقية ==="
           cat android/settings.gradle
-          echo ""
-          echo "=== Gradle wrapper ==="
-          cat android/gradle/wrapper/gradle-wrapper.properties || true
 
-          # ترقية Kotlin
           sed -i 's|id "org.jetbrains.kotlin.android" version "[^"]*"|id "org.jetbrains.kotlin.android" version "2.0.21"|g' android/settings.gradle
-
-          # ترقية AGP
           sed -i 's|id "com.android.application" version "[^"]*"|id "com.android.application" version "8.3.0"|g' android/settings.gradle
 
-          # النمط القديم (ext.kotlin_version)
           if [ -f android/build.gradle ]; then
             sed -i 's|ext.kotlin_version = .*|ext.kotlin_version = "2.0.21"|g' android/build.gradle
           fi
 
-          echo "=== بعد الترقية ==="
-          cat android/settings.gradle
+          echo "=== ترقية Gradle Wrapper إلى 8.4 ==="
+          sed -i 's|distributionUrl=.*gradle-[0-9.]*-all.zip|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-all.zip|g' android/gradle/wrapper/gradle-wrapper.properties
+          sed -i 's|distributionUrl=.*gradle-[0-9.]*-bin.zip|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-all.zip|g' android/gradle/wrapper/gradle-wrapper.properties
+
+          echo "=== gradle-wrapper.properties بعد الترقية ==="
+          cat android/gradle/wrapper/gradle-wrapper.properties
 
       - name: Flutter pub get
         run: flutter pub get
