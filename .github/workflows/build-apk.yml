@@ -37,15 +37,23 @@ jobs:
               --no-pub
           fi
 
-      - name: ترقية Kotlin إلى 2.1.0
+      - name: ترقية Kotlin و AGP إلى نسخ متوافقة
         run: |
           echo "=== قبل الترقية ==="
-          cat android/settings.gradle || true
+          cat android/settings.gradle
+          echo ""
+          echo "=== Gradle wrapper ==="
+          cat android/gradle/wrapper/gradle-wrapper.properties || true
 
-          sed -i 's|id "org.jetbrains.kotlin.android" version "[^"]*"|id "org.jetbrains.kotlin.android" version "2.1.0"|g' android/settings.gradle
+          # ترقية Kotlin
+          sed -i 's|id "org.jetbrains.kotlin.android" version "[^"]*"|id "org.jetbrains.kotlin.android" version "2.0.21"|g' android/settings.gradle
 
+          # ترقية AGP
+          sed -i 's|id "com.android.application" version "[^"]*"|id "com.android.application" version "8.3.0"|g' android/settings.gradle
+
+          # النمط القديم (ext.kotlin_version)
           if [ -f android/build.gradle ]; then
-            sed -i 's|ext.kotlin_version = .*|ext.kotlin_version = "2.1.0"|g' android/build.gradle
+            sed -i 's|ext.kotlin_version = .*|ext.kotlin_version = "2.0.21"|g' android/build.gradle
           fi
 
           echo "=== بعد الترقية ==="
