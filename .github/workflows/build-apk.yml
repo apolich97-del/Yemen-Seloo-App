@@ -32,33 +32,37 @@ jobs:
           if [ -f "android/app/google-services.json" ]; then
             mkdir -p /tmp/seloo-backup
             cp android/app/google-services.json /tmp/seloo-backup/google-services.json
-            echo "✓ تم نسخ google-services.json"
+            echo "✓ احتياطي google-services.json"
           fi
 
-      - name: توليد مجلد android/ إذا كان مفقودًا
+      - name: إعادة إنشاء android/ من الصفر
         run: |
-          if [ ! -d "android" ]; then
-            flutter create . \
-              --platforms=android \
-              --org com.yemenseloo \
-              --project-name yemen_seloo \
-              --no-pub
-          fi
+          # حذف كل شيء
+          rm -rf android/
+
+          # إنشاء نظيف
+          flutter create . \
+            --platforms=android \
+            --org com.yemenseloo \
+            --project-name yemen_seloo \
+            --no-pub
+
           echo "=== محتوى android/ ==="
-          ls -la android/
+          ls -la android/app/src/main/kotlin/com/yemenseloo/yemen_seloo/ || true
+          echo "=== AndroidManifest.xml ==="
+          cat android/app/src/main/AndroidManifest.xml || true
 
       - name: استعادة google-services.json
         run: |
           if [ -f "/tmp/seloo-backup/google-services.json" ]; then
-            mkdir -p android/app
             cp /tmp/seloo-backup/google-services.json android/app/google-services.json
+            echo "✓ استرجاع google-services.json"
           fi
 
       - name: ترقية Kotlin و AGP و Gradle
         run: |
-          # --- settings.gradle.kts (Kotlin DSL) ---
+          # settings.gradle.kts
           if [ -f android/settings.gradle.kts ]; then
-            echo "→ استخدام settings.gradle.kts"
             sed -i 's|id("com.android.application") version "[^"]*"|id("com.android.application") version "8.3.0"|g' android/settings.gradle.kts || true
             sed -i 's|id("org.jetbrains.kotlin.android") version "[^"]*"|id("org.jetbrains.kotlin.android") version "2.0.21"|g' android/settings.gradle.kts || true
             if ! grep -q 'com.google.gms.google-services' android/settings.gradle.kts; then
@@ -66,9 +70,8 @@ jobs:
             fi
           fi
 
-          # --- settings.gradle (Groovy) ---
+          # settings.gradle
           if [ -f android/settings.gradle ]; then
-            echo "→ استخدام settings.gradle"
             sed -i 's|id "com.android.application" version "[^"]*"|id "com.android.application" version "8.3.0"|g' android/settings.gradle || true
             sed -i 's|id "org.jetbrains.kotlin.android" version "[^"]*"|id "org.jetbrains.kotlin.android" version "2.0.21"|g' android/settings.gradle || true
             if ! grep -q 'com.google.gms.google-services' android/settings.gradle; then
@@ -76,17 +79,16 @@ jobs:
             fi
           fi
 
-          # --- gradle wrapper ---
+          # Gradle wrapper
           if [ -f android/gradle/wrapper/gradle-wrapper.properties ]; then
             sed -i 's|distributionUrl=.*gradle-[0-9.]*-all.zip|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-all.zip|g' android/gradle/wrapper/gradle-wrapper.properties || true
             sed -i 's|distributionUrl=.*gradle-[0-9.]*-bin.zip|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-all.zip|g' android/gradle/wrapper/gradle-wrapper.properties || true
           fi
 
-      - name: ضبط build.gradle للتطبيق (كل الصيغ)
+      - name: ضبط build.gradle.kts / build.gradle
         run: |
-          # --- app/build.gradle.kts (Kotlin DSL) ---
+          # app/build.gradle.kts
           if [ -f android/app/build.gradle.kts ]; then
-            echo "→ تطبيق على build.gradle.kts"
             if ! grep -q 'com.google.gms.google-services' android/app/build.gradle.kts; then
               sed -i '/id("com.android.application")/a\    id("com.google.gms.google-services")' android/app/build.gradle.kts || true
             fi
@@ -97,13 +99,12 @@ jobs:
             else
               sed -i '/android {/a\    ndkVersion = "25.1.8937393"' android/app/build.gradle.kts || true
             fi
-            echo "=== build.gradle.kts بعد التعديل ==="
+            echo "=== build.gradle.kts النهائي ==="
             cat android/app/build.gradle.kts
           fi
 
-          # --- app/build.gradle (Groovy) ---
+          # app/build.gradle
           if [ -f android/app/build.gradle ]; then
-            echo "→ تطبيق على build.gradle"
             if ! grep -q 'com.google.gms.google-services' android/app/build.gradle; then
               sed -i '/id "com.android.application"/a\    id "com.google.gms.google-services"' android/app/build.gradle || true
             fi
@@ -114,8 +115,6 @@ jobs:
             else
               sed -i '/android {/a\    ndkVersion = "25.1.8937393"' android/app/build.gradle || true
             fi
-            echo "=== build.gradle بعد التعديل ==="
-            cat android/app/build.gradle
           fi
 
       - name: Flutter pub get
