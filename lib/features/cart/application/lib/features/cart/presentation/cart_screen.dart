@@ -6,7 +6,7 @@ import '../../../core/config/seloo_config.dart';
 import '../application/cart_counter.dart';
 import '../domain/cart_item.dart';
 
-/// شاشة سلة سيلو: سطور المنتجات + ملخّص التسعير من الخادم.
+/// شاشة سلة يمن سيلو: سطور المنتجات + ملخّص التسعير من الخادم.
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
 
@@ -30,10 +30,6 @@ class _CartScreenState extends State<CartScreen> {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(error)));
     }
-  }
-
-  void _openCheckout(BuildContext context) {
-    Get.toNamed('/checkoutScreen');
   }
 
   @override
