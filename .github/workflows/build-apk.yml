@@ -32,7 +32,6 @@ jobs:
           if [ -f "android/app/google-services.json" ]; then
             mkdir -p /tmp/seloo-backup
             cp android/app/google-services.json /tmp/seloo-backup/google-services.json
-            echo "✓ احتياطي google-services.json"
           fi
 
       - name: إعادة إنشاء android/ من الصفر
@@ -43,8 +42,6 @@ jobs:
             --org com.yemenseloo \
             --project-name yemen_seloo \
             --no-pub
-          echo "=== محتوى android/app ==="
-          ls -la android/app/
 
       - name: استعادة google-services.json
         run: |
@@ -62,55 +59,74 @@ jobs:
             fi
           fi
 
-          if [ -f android/settings.gradle ]; then
-            sed -i 's|id "com.android.application" version "[^"]*"|id "com.android.application" version "8.3.0"|g' android/settings.gradle || true
-            sed -i 's|id "org.jetbrains.kotlin.android" version "[^"]*"|id "org.jetbrains.kotlin.android" version "2.0.21"|g' android/settings.gradle || true
-          fi
-
           if [ -f android/gradle/wrapper/gradle-wrapper.properties ]; then
             sed -i 's|distributionUrl=.*gradle-[0-9.]*-all.zip|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-all.zip|g' android/gradle/wrapper/gradle-wrapper.properties || true
           fi
 
-      - name: ضبط minSdk و ndkVersion بـ Python (دقيق)
+      - name: ضبط build.gradle بـ Python سطرًا بسطر
         run: |
           python3 << 'PYEOF'
           import re
           from pathlib import Path
 
-          files = ['android/app/build.gradle.kts', 'android/app/build.gradle']
-          for f in files:
-              p = Path(f)
+          def process(path):
+              p = Path(path)
               if not p.exists():
-                  continue
-              content = p.read_text()
-              print(f"\n=== {f} (قبل) ===")
-              for line in content.split('\n'):
-                  if 'minSdk' in line or 'ndkVersion' in line or 'google-services' in line:
-                      print(f"  > {line}")
+                  print(f"⚠ {path} غير موجود")
+                  return
+              print(f"\n=== معالجة {path} ===")
+              lines = p.read_text().split('\n')
+              out = []
+              has_ndk = False
+              has_gs = False
+              for i, line in enumerate(lines):
+                  stripped = line.strip()
+                  indent = line[:len(line) - len(line.lstrip())]
 
-              # minSdk — كل الصيغ الممكنة
-              content = re.sub(r'minSdkVersion\s+\S+', 'minSdkVersion 23', content)
-              content = re.sub(r'minSdk\s*=\s*flutter\.minSdkVersion', 'minSdk = 23', content)
-              content = re.sub(r'minSdk\s*=\s*\d+', 'minSdk = 23', content)
-              content = re.sub(r'minSdkVersion\s+\d+', 'minSdkVersion 23', content)
+                  if stripped.startswith('ndkVersion'):
+                      out.append(f'{indent}ndkVersion = "25.1.8937393"')
+                      has_ndk = True
+                      print(f"  [ndk] {line}  →  {indent}ndkVersion = ...")
+                      continue
 
-              # ndkVersion
-              if 'ndkVersion' in content:
-                  content = re.sub(r'ndkVersion\s*=?\s*"[^"]*"', 'ndkVersion = "25.1.8937393"', content)
-              else:
-                  # إضافة ndkVersion بعد "android {"
-                  content = re.sub(r'(android\s*\{)', r'\1\n    ndkVersion = "25.1.8937393"', content, count=1)
+                  if re.match(r'^minSdkVersion\b', stripped):
+                      out.append(f'{indent}minSdkVersion 23')
+                      print(f"  [min] {line}  →  {indent}minSdkVersion 23")
+                      continue
 
-              # google-services plugin
-              if 'com.google.gms.google-services' not in content:
-                  content = re.sub(r'(id\("com\.android\.application"\))', r'\1\n    id("com.google.gms.google-services")', content, count=1)
-                  content = re.sub(r'(id "com\.android\.application")', r'\1\n    id "com.google.gms.google-services"', content, count=1)
+                  if re.match(r'^minSdk\s*=', stripped):
+                      out.append(f'{indent}minSdk = 23')
+                      print(f"  [min] {line}  →  {indent}minSdk = 23")
+                      continue
 
-              p.write_text(content)
-              print(f"=== {f} (بعد) ===")
-              for line in content.split('\n'):
-                  if 'minSdk' in line or 'ndkVersion' in line or 'google-services' in line:
-                      print(f"  > {line}")
+                  if 'com.google.gms.google-services' in stripped:
+                      has_gs = True
+
+                  out.append(line)
+
+                  if re.search(r'android\s*\{', stripped) and not has_ndk:
+                      out.append(f'{indent}    ndkVersion = "25.1.8937393"')
+                      has_ndk = True
+                      print(f"  [+ndk] أُضيف بعد android {{")
+                      continue
+
+                  if re.match(r'^id\s*\(?["\']com\.android\.application["\']\)?', stripped) and not has_gs:
+                      out.append(f'{indent}    id("com.google.gms.google-services")')
+                      has_gs = True
+                      print(f"  [+gs] أُضيف بعد id(com.android.application)")
+
+              p.write_text('\n'.join(out))
+              print(f"=== {path} — انتهى ===")
+
+          process('android/app/build.gradle.kts')
+          process('android/app/build.gradle')
+
+          print("\n===== محتوى build.gradle النهائي =====")
+          import os
+          for f in ['android/app/build.gradle.kts', 'android/app/build.gradle']:
+              if os.path.exists(f):
+                  print(f"\n--- {f} ---")
+                  print(Path(f).read_text())
           PYEOF
 
       - name: Flutter pub get
