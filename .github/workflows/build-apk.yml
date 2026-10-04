@@ -34,7 +34,7 @@ jobs:
             cp android/app/google-services.json /tmp/seloo-backup/google-services.json
           fi
 
-      - name: إعادة إنشاء android/ بإعدادات Flutter الافتراضية
+      - name: إعادة إنشاء android/
         run: |
           rm -rf android/
           flutter create . \
@@ -49,100 +49,96 @@ jobs:
             cp /tmp/seloo-backup/google-services.json android/app/google-services.json
           fi
 
-      - name: عرض الإعدادات الافتراضية
-        run: |
-          echo "=== settings.gradle ==="
-          cat android/settings.gradle || true
-          echo ""
-          echo "=== app/build.gradle ==="
-          cat android/app/build.gradle || true
-          echo ""
-          echo "=== gradle-wrapper.properties ==="
-          cat android/gradle/wrapper/gradle-wrapper.properties || true
-
-      - name: إضافة google-services + minSdk 23 + NDK (بدون تغيير الإصدارات)
+      - name: تعديل settings.gradle
         run: |
           python3 << 'PYEOF'
           import re
           from pathlib import Path
 
-          # ============ settings.gradle ============
           p = Path('android/settings.gradle')
-          if p.exists():
-              content = p.read_text()
-              if 'com.google.gms.google-services' not in content:
-                  # أضف بعد kotlin.android في plugins block
-                  content = re.sub(
-                      r'(id\s+"org\.jetbrains\.kotlin\.android"\s+version\s+"[^"]*"\s+apply\s+false)',
-                      r'\1\n    id "com.google.gms.google-services" version "4.4.2" apply false',
-                      content,
-                      count=1
-                  )
-              p.write_text(content)
-              print("=== settings.gradle (بعد) ===")
-              print(content)
+          content = p.read_text()
+          print("=== قبل ===")
+          print(content)
 
-          # ============ app/build.gradle ============
-          p = Path('android/app/build.gradle')
-          if p.exists():
-              lines = p.read_text().split('\n')
-              out = []
-              has_gs = False
-              has_ndk = False
-              in_android_block = False
+          # رفع Kotlin إلى 1.9.24
+          content = re.sub(
+              r'id\s+"org\.jetbrains\.kotlin\.android"\s+version\s+"[^"]*"',
+              'id "org.jetbrains.kotlin.android" version "1.9.24"',
+              content
+          )
 
-              for line in lines:
-                  s = line.strip()
-                  ind = line[:len(line) - len(line.lstrip())]
+          # إضافة google-services
+          if 'com.google.gms.google-services' not in content:
+              content = re.sub(
+                  r'(id\s+"org\.jetbrains\.kotlin\.android"\s+version\s+"[^"]*"\s+apply\s+false)',
+                  r'\1\n    id "com.google.gms.google-services" version "4.4.2" apply false',
+                  content,
+                  count=1
+              )
 
-                  # minSdkVersion
-                  if re.match(r'^minSdkVersion\b', s):
-                      out.append(f'{ind}minSdkVersion 23')
-                      continue
-                  # minSdk = ...
-                  if re.match(r'^minSdk\s*=', s):
-                      out.append(f'{ind}minSdk = 23')
-                      continue
-                  # ndkVersion
-                  if re.match(r'^ndkVersion\b', s):
-                      out.append(f'{ind}ndkVersion "25.1.8937393"')
-                      has_ndk = True
-                      continue
-                  # تتبع google-services
-                  if 'com.google.gms.google-services' in s:
-                      has_gs = True
-
-                  out.append(line)
-
-                  # أضف ndkVersion بعد فتح android {
-                  if re.search(r'^android\s*\{', s) and not has_ndk:
-                      out.append(f'{ind}    ndkVersion "25.1.8937393"')
-                      has_ndk = True
-                      continue
-
-              content = '\n'.join(out)
-
-              # أضف google-services plugin بعد kotlin-android
-              if not has_gs:
-                  content = re.sub(
-                      r'(id\s+"kotlin-android")',
-                      r'\1\n    id "com.google.gms.google-services"',
-                      content,
-                      count=1
-                  )
-
-              p.write_text(content)
-              print("\n=== app/build.gradle (بعد) ===")
-              print(content)
+          p.write_text(content)
+          print("=== بعد ===")
+          print(content)
           PYEOF
 
-      - name: التحقق النهائي
+      - name: تعديل app/build.gradle
         run: |
-          echo "=== أسطر google-services ==="
-          grep -n "google-services" android/settings.gradle android/app/build.gradle || true
+          python3 << 'PYEOF'
+          import re
+          from pathlib import Path
+
+          p = Path('android/app/build.gradle')
+          lines = p.read_text().split('\n')
+          out = []
+          has_gs = False
+          has_ndk = False
+
+          for line in lines:
+              s = line.strip()
+              ind = line[:len(line) - len(line.lstrip())]
+
+              if re.match(r'^minSdkVersion\b', s):
+                  out.append(f'{ind}minSdkVersion 23')
+                  continue
+              if re.match(r'^minSdk\s*=', s):
+                  out.append(f'{ind}minSdk = 23')
+                  continue
+              if re.match(r'^ndkVersion\b', s):
+                  out.append(f'{ind}ndkVersion "25.1.8937393"')
+                  has_ndk = True
+                  continue
+              if 'com.google.gms.google-services' in s:
+                  has_gs = True
+
+              out.append(line)
+
+              if re.search(r'^android\s*\{', s) and not has_ndk:
+                  out.append(f'{ind}    ndkVersion "25.1.8937393"')
+                  has_ndk = True
+                  continue
+
+          content = '\n'.join(out)
+
+          if not has_gs:
+              content = re.sub(
+                  r'(id\s+"kotlin-android")',
+                  r'\1\n    id "com.google.gms.google-services"',
+                  content,
+                  count=1
+              )
+
+          p.write_text(content)
+          print("=== build.gradle بعد ===")
+          print(content)
+          PYEOF
+
+      - name: التحقق
+        run: |
+          echo "=== settings.gradle ==="
+          cat android/settings.gradle
           echo ""
-          echo "=== أسطر minSdk و ndkVersion ==="
-          grep -n "minSdk\|ndkVersion" android/app/build.gradle || true
+          echo "=== minSdk/ndk/google-services ==="
+          grep -n "minSdk\|ndkVersion\|google-services" android/app/build.gradle
 
       - name: Flutter pub get
         run: flutter pub get
