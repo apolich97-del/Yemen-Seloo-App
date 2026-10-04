@@ -37,39 +37,51 @@ jobs:
               --no-pub
           fi
 
-      - name: ترقية Kotlin و AGP و Gradle Wrapper و NDK و minSdk
+      - name: طباعة build.gradle الأصلي
         run: |
-          # Kotlin
-          sed -i 's|id "org.jetbrains.kotlin.android" version "[^"]*"|id "org.jetbrains.kotlin.android" version "2.0.21"|g' android/settings.gradle
+          echo "=== build.gradle الأصلي ==="
+          cat android/app/build.gradle
 
-          # AGP
+      - name: ترقية Kotlin و AGP و Gradle Wrapper و NDK
+        run: |
+          sed -i 's|id "org.jetbrains.kotlin.android" version "[^"]*"|id "org.jetbrains.kotlin.android" version "2.0.21"|g' android/settings.gradle
           sed -i 's|id "com.android.application" version "[^"]*"|id "com.android.application" version "8.3.0"|g' android/settings.gradle
 
-          # Old kotlin ext
           if [ -f android/build.gradle ]; then
             sed -i 's|ext.kotlin_version = .*|ext.kotlin_version = "2.0.21"|g' android/build.gradle
           fi
 
-          # Gradle wrapper
           sed -i 's|distributionUrl=.*gradle-[0-9.]*-all.zip|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-all.zip|g' android/gradle/wrapper/gradle-wrapper.properties
           sed -i 's|distributionUrl=.*gradle-[0-9.]*-bin.zip|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-all.zip|g' android/gradle/wrapper/gradle-wrapper.properties
 
-          # NDK
           if grep -q 'ndkVersion' android/app/build.gradle; then
             sed -i -E 's|^([[:space:]]*)ndkVersion.*$|\1ndkVersion = "25.1.8937393"|g' android/app/build.gradle
           else
             sed -i '/android {/a\    ndkVersion = "25.1.8937393"' android/app/build.gradle
           fi
 
-          # minSdk — استبدال السطر بالكامل (بدل تطابق جزئي مدمّر)
-          sed -i -E 's|^([[:space:]]*)minSdkVersion[[:space:]]+.+$|\1minSdkVersion 23|g' android/app/build.gradle
+      - name: ترقية minSdk باستخدام awk (يلتقط كل الصيغ)
+        run: |
+          awk '
+            /^[[:space:]]*minSdkVersion[[:space:]]/ {
+              sub(/minSdkVersion[[:space:]]+[^[:space:]]+.*$/, "minSdkVersion 23")
+              print
+              next
+            }
+            /^[[:space:]]*minSdk[[:space:]]*=/ {
+              sub(/minSDk[[:space:]]*=[[:space:]]*[^[:space:]]+.*$/, "minSDk = 23")
+              print
+              next
+            }
+            { print }
+          ' android/app/build.gradle > android/app/build.gradle.tmp
+          mv android/app/build.gradle.tmp android/app/build.gradle
 
           echo "=== build.gradle بعد التعديل ==="
           cat android/app/build.gradle
-
           echo ""
-          echo "=== التحقق من minSdk ==="
-          grep -n "minSdk" android/app/build.gradle
+          echo "=== أسطر minSDk ==="
+          grep -n "minSDk" android/app/build.gradle || echo "لم يُعثر على minSDk!"
 
       - name: Flutter pub get
         run: flutter pub get
