@@ -27,7 +27,7 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: كتابة google-services.json (من الـworkflow مباشرة)
+      - name: كتابة google-services.json
         run: |
           mkdir -p /tmp/seloo-backup
           cat > /tmp/seloo-backup/google-services.json <<'JSON_EOF'
@@ -61,7 +61,7 @@ jobs:
             "configuration_version": "1"
           }
           JSON_EOF
-          echo "✓ google-services.json مكتوب في /tmp/seloo-backup/"
+          echo "✓ google-services.json مكتوب"
           cat /tmp/seloo-backup/google-services.json
 
       - name: إعادة إنشاء android/
@@ -77,9 +77,15 @@ jobs:
         run: |
           mkdir -p android/app
           cp /tmp/seloo-backup/google-services.json android/app/google-services.json
-          echo "=== التحقق من الملف ==="
+          echo "=== التحقق ==="
           ls -la android/app/google-services.json
-          cat android/app/google-services.json
+
+      - name: تصحيح اسم التطبيق في AndroidManifest
+        run: |
+          F=android/app/src/main/AndroidManifest.xml
+          sed -i 's|android:label="[^"]*"|android:label="يمن سيلو"|' "$F"
+          echo "=== السطر المعدّل ==="
+          grep -n "android:label" "$F"
 
       - name: تعديل settings.gradle (Kotlin + google-services)
         run: |
@@ -164,8 +170,11 @@ jobs:
 
       - name: التحقق النهائي
         run: |
-          echo "=== google-services.json موجود؟ ==="
+          echo "=== google-services.json ==="
           ls -la android/app/google-services.json
+          echo ""
+          echo "=== اسم التطبيق ==="
+          grep "android:label" android/app/src/main/AndroidManifest.xml
           echo ""
           echo "=== settings.gradle ==="
           cat android/settings.gradle
