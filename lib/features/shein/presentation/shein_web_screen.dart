@@ -39,18 +39,28 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
   }
 
   Future<void> _loadOverlayScript() async {
-    final String source = await _bridge.loadOverlayScript();
-    if (!mounted) return;
-    setState(() => _overlayScript = source);
+    try {
+      final String source = await _bridge.loadOverlayScript();
+      if (!mounted) return;
+      setState(() => _overlayScript = source);
+    } catch (e) {
+      debugPrint('فشل تحميل السكربت: $e');
+      if (!mounted) return;
+      setState(() => _overlayScript = '');
+    }
   }
 
   void _listenToCart() {
-    final CartCounter cart = Get.find<CartCounter>();
-    _cartSubscription = cart.stream.listen((int value) {
-      if (!mounted) return;
-      setState(() => _cartCount = value);
-      _bridge.pushCartCountToPage();
-    });
+    try {
+      final CartCounter cart = Get.find<CartCounter>();
+      _cartSubscription = cart.stream.listen((int value) {
+        if (!mounted) return;
+        setState(() => _cartCount = value);
+        _bridge.pushCartCountToPage();
+      });
+    } catch (e) {
+      debugPrint('لم يتم تسجيل CartCounter بعد: $e');
+    }
   }
 
   @override
@@ -61,7 +71,7 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
 
   Future<void> _openExternally(Uri uri) async {
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      debugPrint('تعذّر فتح الرابط خارجيًا: $uri');
+      debugPrint('تعذّر فتح الرابط: $uri');
     }
   }
 
@@ -71,13 +81,33 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF7C3AED),
         foregroundColor: Colors.white,
-        title: const Row(
+        titleSpacing: 12,
+        title: Row(
           children: <Widget>[
-            Icon(Icons.shopping_bag, size: 22),
-            SizedBox(width: 8),
-            Text(
+            Container(
+              width: 38,
+              height: 38,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              padding: const EdgeInsets.all(3),
+              child: ClipOval(
+                child: Image.asset(
+                  'assets/images/logo.png',
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.shopping_bag,
+                    color: Color(0xFF7C3AED),
+                    size: 22,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Text(
               'يمن سيلو',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
             ),
           ],
         ),
@@ -131,7 +161,8 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                         injectionTime: UserScriptInjectionTime.AT_DOCUMENT_END,
                       ),
                     ]),
-                    onWebViewCreated: (InAppWebViewController controller) async {
+                    onWebViewCreated:
+                        (InAppWebViewController controller) async {
                       _controller = controller;
                       await _bridge.attach(controller);
                     },
@@ -143,11 +174,15 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                         (InAppWebViewController controller, WebUri? url) async {
                       if (!mounted) return;
                       setState(() => _loading = false);
-                      final int count = Get.find<CartCounter>().count;
-                      await controller.evaluateJavascript(
-                        source:
-                            'window.__selooRefresh && window.__selooRefresh($count);',
-                      );
+                      try {
+                        final int count = Get.find<CartCounter>().count;
+                        await controller.evaluateJavascript(
+                          source:
+                              'window.__selooRefresh && window.__selooRefresh($count);',
+                        );
+                      } catch (e) {
+                        debugPrint('evaluateJavascript failed: $e');
+                      }
                     },
                     onProgressChanged:
                         (InAppWebViewController _, int progress) {
@@ -159,7 +194,8 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                       WebResourceRequest request,
                       WebResourceError error,
                     ) {
-                      debugPrint('خطأ تحميل ${request.url}: ${error.description}');
+                      debugPrint(
+                          'خطأ تحميل ${request.url}: ${error.description}');
                     },
                     shouldOverrideUrlLoading: (
                       InAppWebViewController _,
