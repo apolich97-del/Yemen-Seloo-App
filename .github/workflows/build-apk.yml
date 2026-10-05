@@ -27,12 +27,42 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: نسخ google-services.json احتياطيًا
+      - name: كتابة google-services.json (من الـworkflow مباشرة)
         run: |
-          if [ -f "android/app/google-services.json" ]; then
-            mkdir -p /tmp/seloo-backup
-            cp android/app/google-services.json /tmp/seloo-backup/google-services.json
-          fi
+          mkdir -p /tmp/seloo-backup
+          cat > /tmp/seloo-backup/google-services.json <<'JSON_EOF'
+          {
+            "project_info": {
+              "project_number": "580529134357",
+              "project_id": "yemen-seloo-app",
+              "storage_bucket": "yemen-seloo-app.firebasestorage.app"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:580529134357:android:47521410ef2d77eba3671c",
+                  "android_client_info": {
+                    "package_name": "com.yemenseloo.yemen_seloo"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  {
+                    "current_key": "AIzaSyA2aX5gDos7IBU3lkFM_i2nIpuAzMIsZgE"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          JSON_EOF
+          echo "✓ google-services.json مكتوب في /tmp/seloo-backup/"
+          cat /tmp/seloo-backup/google-services.json
 
       - name: إعادة إنشاء android/
         run: |
@@ -43,13 +73,15 @@ jobs:
             --project-name yemen_seloo \
             --no-pub
 
-      - name: استعادة google-services.json
+      - name: نسخ google-services.json إلى android/app/
         run: |
-          if [ -f "/tmp/seloo-backup/google-services.json" ]; then
-            cp /tmp/seloo-backup/google-services.json android/app/google-services.json
-          fi
+          mkdir -p android/app
+          cp /tmp/seloo-backup/google-services.json android/app/google-services.json
+          echo "=== التحقق من الملف ==="
+          ls -la android/app/google-services.json
+          cat android/app/google-services.json
 
-      - name: تعديل settings.gradle
+      - name: تعديل settings.gradle (Kotlin + google-services)
         run: |
           python3 << 'PYEOF'
           import re
@@ -57,17 +89,15 @@ jobs:
 
           p = Path('android/settings.gradle')
           content = p.read_text()
-          print("=== قبل ===")
+          print("=== settings.gradle قبل ===")
           print(content)
 
-          # رفع Kotlin إلى 1.9.24
           content = re.sub(
               r'id\s+"org\.jetbrains\.kotlin\.android"\s+version\s+"[^"]*"',
               'id "org.jetbrains.kotlin.android" version "1.9.24"',
               content
           )
 
-          # إضافة google-services
           if 'com.google.gms.google-services' not in content:
               content = re.sub(
                   r'(id\s+"org\.jetbrains\.kotlin\.android"\s+version\s+"[^"]*"\s+apply\s+false)',
@@ -77,11 +107,11 @@ jobs:
               )
 
           p.write_text(content)
-          print("=== بعد ===")
+          print("=== settings.gradle بعد ===")
           print(content)
           PYEOF
 
-      - name: تعديل app/build.gradle
+      - name: تعديل app/build.gradle (minSdk + NDK + google-services)
         run: |
           python3 << 'PYEOF'
           import re
@@ -128,16 +158,19 @@ jobs:
               )
 
           p.write_text(content)
-          print("=== build.gradle بعد ===")
+          print("=== app/build.gradle بعد ===")
           print(content)
           PYEOF
 
-      - name: التحقق
+      - name: التحقق النهائي
         run: |
+          echo "=== google-services.json موجود؟ ==="
+          ls -la android/app/google-services.json
+          echo ""
           echo "=== settings.gradle ==="
           cat android/settings.gradle
           echo ""
-          echo "=== minSdk/ndk/google-services ==="
+          echo "=== أسطر مهمة في app/build.gradle ==="
           grep -n "minSdk\|ndkVersion\|google-services" android/app/build.gradle
 
       - name: Flutter pub get
