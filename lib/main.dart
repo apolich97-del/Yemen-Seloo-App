@@ -12,36 +12,44 @@ import 'features/shein/presentation/shein_web_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // 1) نفتح الواجهة فورًا — لا ننتظر شيئًا
   runApp(const SelooApp());
 
-  // التهيئة في الخلفية — لا تمنع فتح الواجهة
+  // 2) نُهيّئ Firebase ونسجّل الدخول في الخلفية
   _bootstrap();
 }
 
 Future<void> _bootstrap() async {
   try {
+    // تهيئة Firebase مع مهلة 10 ثوان
     await Firebase.initializeApp().timeout(
       const Duration(seconds: 10),
       onTimeout: () => throw Exception('Firebase init timeout'),
     );
-    debugPrint('[Seloo] Firebase initialized');
+    debugPrint('[Seloo] Firebase initialized ✓');
 
-    // إذا لم يوجد مستخدم، سجّل مجهولًا — لكن لا ننتظر للأبد
+    // تسجيل دخول مجهول مع مهلة 8 ثوان (لا يعطل التطبيق)
     if (FirebaseAuth.instance.currentUser == null) {
       try {
         await FirebaseAuth.instance
             .signInAnonymously()
             .timeout(const Duration(seconds: 8));
-        debugPrint('[Seloo] Anonymous sign-in OK');
+        debugPrint('[Seloo] Anonymous sign-in OK ✓');
       } catch (e) {
         debugPrint('[Seloo] Anonymous sign-in failed: $e');
       }
+    } else {
+      debugPrint('[Seloo] Already signed in');
     }
 
-    Get.put<CartCounter>(CartCounter(), permanent: true);
-    debugPrint('[Seloo] CartCounter registered');
-  } catch (error) {
+    // تسجيل CartCounter — بعد Firebase
+    if (!Get.isRegistered<CartCounter>()) {
+      Get.put<CartCounter>(CartCounter(), permanent: true);
+      debugPrint('[Seloo] CartCounter registered ✓');
+    }
+  } catch (error, stack) {
     debugPrint('[Seloo] Bootstrap error: $error');
+    debugPrint('[Seloo] Stack: $stack');
   }
 }
 
