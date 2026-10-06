@@ -61,8 +61,7 @@ jobs:
             "configuration_version": "1"
           }
           JSON_EOF
-          echo "✓ google-services.json مكتوب"
-          cat /tmp/seloo-backup/google-services.json
+          echo "✓ google-services.json جاهز"
 
       - name: إعادة إنشاء android/
         run: |
@@ -73,78 +72,75 @@ jobs:
             --project-name yemen_seloo \
             --no-pub
 
-      - name: نسخ google-services.json إلى android/app/
+      - name: نسخ google-services.json
         run: |
           mkdir -p android/app
           cp /tmp/seloo-backup/google-services.json android/app/google-services.json
-          echo "=== التحقق ==="
           ls -la android/app/google-services.json
+          cat android/app/google-services.json
 
-      - name: تصحيح اسم التطبيق في AndroidManifest
+      - name: تصحيح اسم التطبيق
         run: |
           F=android/app/src/main/AndroidManifest.xml
           sed -i 's|android:label="[^"]*"|android:label="يمن سيلو"|' "$F"
-          echo "=== السطر المعدّل ==="
-          grep -n "android:label" "$F"
+          grep "android:label" "$F"
 
-      - name: تعديل settings.gradle (Kotlin + google-services)
+      - name: تعديل settings.gradle (Kotlin فقط)
         run: |
           python3 << 'PYEOF'
           import re
           from pathlib import Path
-
           p = Path('android/settings.gradle')
           content = p.read_text()
-          print("=== settings.gradle قبل ===")
-          print(content)
-
+          # رفع Kotlin
           content = re.sub(
               r'id\s+"org\.jetbrains\.kotlin\.android"\s+version\s+"[^"]*"',
               'id "org.jetbrains.kotlin.android" version "1.9.24"',
               content
           )
-
-          if 'com.google.gms.google-services' not in content:
-              content = re.sub(
-                  r'(id\s+"org\.jetbrains\.kotlin\.android"\s+version\s+"[^"]*"\s+apply\s+false)',
-                  r'\1\n    id "com.google.gms.google-services" version "4.4.2" apply false',
-                  content,
-                  count=1
-              )
-
+          # إزالة google-services إن كانت موجودة
+          content = re.sub(
+              r'\s*id\s+"com\.google\.gms\.google-services"\s+version\s+"[^"]*"\s+apply\s+false',
+              '',
+              content
+          )
           p.write_text(content)
-          print("=== settings.gradle بعد ===")
+          print("=== settings.gradle النهائي ===")
           print(content)
           PYEOF
 
-      - name: تعديل app/build.gradle (minSdk + NDK + google-services)
+      - name: تعديل app/build.gradle (NDK + minSdk + google-services)
         run: |
           python3 << 'PYEOF'
           import re
           from pathlib import Path
-
           p = Path('android/app/build.gradle')
-          lines = p.read_text().split('\n')
+          content = p.read_text()
+          lines = content.split('\n')
           out = []
-          has_gs = False
           has_ndk = False
 
           for line in lines:
               s = line.strip()
               ind = line[:len(line) - len(line.lstrip())]
 
+              # إزالة google-services من plugins block
+              if 'com.google.gms.google-services' in s:
+                  continue
+
+              # minSdk
               if re.match(r'^minSdkVersion\b', s):
                   out.append(f'{ind}minSdkVersion 23')
                   continue
               if re.match(r'^minSdk\s*=', s):
                   out.append(f'{ind}minSdk = 23')
                   continue
+
+              # ndkVersion
               if re.match(r'^ndkVersion\b', s):
                   out.append(f'{ind}ndkVersion "25.1.8937393"')
                   has_ndk = True
                   continue
-              if 'com.google.gms.google-services' in s:
-                  has_gs = True
 
               out.append(line)
 
@@ -155,16 +151,11 @@ jobs:
 
           content = '\n'.join(out)
 
-          if not has_gs:
-              content = re.sub(
-                  r'(id\s+"kotlin-android")',
-                  r'\1\n    id "com.google.gms.google-services"',
-                  content,
-                  count=1
-              )
+          # ⭐ الحل: أضف apply plugin في آخر الملف
+          content = content.rstrip() + '\n\n// Firebase Google Services (الطريقة الكلاسيكية)\napply plugin: "com.google.gms.google-services"\n'
 
           p.write_text(content)
-          print("=== app/build.gradle بعد ===")
+          print("=== app/build.gradle النهائي ===")
           print(content)
           PYEOF
 
@@ -173,20 +164,29 @@ jobs:
           echo "=== google-services.json ==="
           ls -la android/app/google-services.json
           echo ""
-          echo "=== اسم التطبيق ==="
-          grep "android:label" android/app/src/main/AndroidManifest.xml
+          echo "=== google-services في build.gradle ==="
+          grep -n "google-services" android/app/build.gradle
           echo ""
-          echo "=== settings.gradle ==="
-          cat android/settings.gradle
+          echo "=== minSdk + ndkVersion ==="
+          grep -n "minSdk\|ndkVersion" android/app/build.gradle
           echo ""
-          echo "=== أسطر مهمة في app/build.gradle ==="
-          grep -n "minSdk\|ndkVersion\|google-services" android/app/build.gradle
+          echo "=== محتوى plugins block ==="
+          sed -n '/^plugins {/,/^}/p' android/app/build.gradle
 
       - name: Flutter pub get
         run: flutter pub get
 
       - name: Build APK (release)
         run: flutter build apk --release --no-tree-shake-icons
+
+      - name: التحقق من توليد values.xml
+        if: always()
+        run: |
+          echo "=== البحث عن values.xml ==="
+          find android/app/build -name "values.xml" 2>/dev/null | head -20
+          echo ""
+          echo "=== محتوى مجلد google-services ==="
+          find android/app/build -type d -name "*google-services*" 2>/dev/null
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
