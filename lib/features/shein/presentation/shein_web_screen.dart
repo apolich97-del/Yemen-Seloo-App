@@ -44,7 +44,7 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
       if (!mounted) return;
       setState(() => _overlayScript = source);
     } catch (e) {
-      debugPrint('فشل تحميل السكربت: $e');
+      debugPrint('[Seloo] فشل تحميل السكربت: $e');
       if (!mounted) return;
       setState(() => _overlayScript = '');
     }
@@ -59,7 +59,7 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
         _bridge.pushCartCountToPage();
       });
     } catch (e) {
-      debugPrint('لم يتم تسجيل CartCounter بعد: $e');
+      debugPrint('[Seloo] CartCounter غير مسجل: $e');
     }
   }
 
@@ -144,15 +144,27 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                       url: WebUri(widget.initialUrl ?? SheinWebConfig.homeAr),
                     ),
                     initialSettings: InAppWebViewSettings(
+                      // ⭐ تخزين محلي للجلسة والكوكيز
                       domStorageEnabled: true,
                       databaseEnabled: true,
                       thirdPartyCookiesEnabled: true,
                       useShouldOverrideUrlLoading: true,
-                      useShouldInterceptRequest: true,
+
+                      // ⭐⭐ الحل الرئيسي للبطء: تعطيل اعتراض الطلبات
+                      useShouldInterceptRequest: false,
+
                       allowsInlineMediaPlayback: true,
                       mediaPlaybackRequiresUserGesture: true,
                       transparentBackground: false,
                       applicationNameForUserAgent: 'YemenSelooApp/1.0',
+
+                      // ⭐ تحسينات إضافية للسرعة
+                      cacheEnabled: true,
+                      clearCache: false,
+                      javaScriptEnabled: true,
+                      supportZoom: false,
+                      disableVerticalScroll: false,
+                      disableHorizontalScroll: false,
                     ),
                     initialUserScripts:
                         UnmodifiableListView<UserScript>(<UserScript>[
@@ -181,7 +193,7 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                               'window.__selooRefresh && window.__selooRefresh($count);',
                         );
                       } catch (e) {
-                        debugPrint('evaluateJavascript failed: $e');
+                        debugPrint('[Seloo] evaluateJavascript: $e');
                       }
                     },
                     onProgressChanged:
@@ -195,7 +207,7 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                       WebResourceError error,
                     ) {
                       debugPrint(
-                          'خطأ تحميل ${request.url}: ${error.description}');
+                          '[Seloo] خطأ تحميل ${request.url}: ${error.description}');
                     },
                     shouldOverrideUrlLoading: (
                       InAppWebViewController _,
@@ -245,11 +257,15 @@ class _SelooCartBar extends StatelessWidget {
           children: <Widget>[
             const Icon(Icons.shopping_bag_outlined, color: Color(0xFF7C3AED)),
             const SizedBox(width: 8),
-            Text(count > 0 ? 'في سلة سيلو: $count منتج' : 'سلة سيلو فارغة'),
+            Text(
+              count > 0 ? 'في سلة سيلو: $count منتج' : 'سلة سيلو فارغة',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
             const Spacer(),
             FilledButton(
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF7C3AED),
+                disabledBackgroundColor: Colors.grey.shade300,
               ),
               onPressed: count > 0 ? () => Get.toNamed('/cartScreen') : null,
               child: const Text('إتمام الطلب'),
