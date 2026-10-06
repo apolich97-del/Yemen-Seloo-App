@@ -6,48 +6,40 @@ import 'package:get/get.dart';
 
 import 'core/config/seloo_config.dart';
 import 'features/cart/application/cart_counter.dart';
-import 'features/cart/presentation/cart_screen.dart';
-import 'features/checkout/presentation/checkout_screen.dart';
 import 'features/shein/presentation/shein_web_screen.dart';
 
-Future<void> main() async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1) الواجهة تفتح فورًا
-  runApp(const SelooApp());
+  // 1) تهيئة Firebase أولًا (مضمونة الآن)
+  try {
+    await Firebase.initializeApp().timeout(const Duration(seconds: 10));
+    debugPrint('[Seloo] Firebase OK ✓');
+  } catch (e) {
+    debugPrint('[Seloo] Firebase FAILED: $e');
+  }
 
-  // 2) Firebase في الخلفية
-  _bootstrap();
+  // 2) تسجيل CartCounter قبل أي شاشة
+  Get.put<CartCounter>(CartCounter(), permanent: true);
+  debugPrint('[Seloo] CartCounter registered ✓');
+
+  // 3) تسجيل الدخول المجهول في الخلفية (لا يوقف التطبيق)
+  _signInAnonymously();
+
+  // 4) فتح التطبيق
+  runApp(const SelooApp());
 }
 
-Future<void> _bootstrap() async {
+Future<void> _signInAnonymously() async {
   try {
-    await Firebase.initializeApp().timeout(
-      const Duration(seconds: 10),
-      onTimeout: () => throw Exception('Firebase init timeout'),
-    );
-    debugPrint('[Seloo] Firebase initialized ✓');
-
     if (FirebaseAuth.instance.currentUser == null) {
-      try {
-        await FirebaseAuth.instance
-            .signInAnonymously()
-            .timeout(const Duration(seconds: 8));
-        debugPrint('[Seloo] Anonymous sign-in OK ✓');
-      } catch (e) {
-        debugPrint('[Seloo] Anonymous sign-in failed: $e');
-      }
-    } else {
-      debugPrint('[Seloo] Already signed in');
+      await FirebaseAuth.instance
+          .signInAnonymously()
+          .timeout(const Duration(seconds: 8));
+      debugPrint('[Seloo] Anonymous sign-in OK ✓');
     }
-
-    if (!Get.isRegistered<CartCounter>()) {
-      Get.put<CartCounter>(CartCounter(), permanent: true);
-      debugPrint('[Seloo] CartCounter registered ✓');
-    }
-  } catch (error, stack) {
-    debugPrint('[Seloo] Bootstrap error: $error');
-    debugPrint('[Seloo] Stack: $stack');
+  } catch (e) {
+    debugPrint('[Seloo] Anonymous sign-in failed: $e');
   }
 }
 
@@ -59,7 +51,6 @@ class SelooApp extends StatelessWidget {
     return GetMaterialApp(
       title: SelooConfig.appName,
       debugShowCheckedModeBanner: false,
-
       localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -71,19 +62,12 @@ class SelooApp extends StatelessWidget {
       ],
       locale: const Locale('ar'),
       fallbackLocale: const Locale('en'),
-
       theme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: const Color(0xFF7C3AED),
         scaffoldBackgroundColor: const Color(0xFFFAF7FF),
       ),
-
-      initialRoute: '/shein',
-      getPages: <GetPage<dynamic>>[
-        GetPage(name: '/shein', page: () => const SheinWebScreen()),
-        GetPage(name: '/cartScreen', page: () => const CartScreen()),
-        GetPage(name: '/checkoutScreen', page: () => const CheckoutScreen()),
-      ],
+      home: const SheinWebScreen(),
     );
   }
 }
