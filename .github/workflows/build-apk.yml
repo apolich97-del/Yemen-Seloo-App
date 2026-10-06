@@ -27,10 +27,19 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: كتابة google-services.json
+      - name: إعادة إنشاء android/
         run: |
-          mkdir -p /tmp/seloo-backup
-          cat > /tmp/seloo-backup/google-services.json <<'JSON_EOF'
+          rm -rf android/
+          flutter create . \
+            --platforms=android \
+            --org com.yemenseloo \
+            --project-name yemen_seloo \
+            --no-pub
+
+      - name: نسخ google-services.json (احتياطي)
+        run: |
+          mkdir -p android/app
+          cat > android/app/google-services.json <<'JSON_EOF'
           {
             "project_info": {
               "project_number": "580529134357",
@@ -63,21 +72,24 @@ jobs:
           JSON_EOF
           echo "✓ google-services.json جاهز"
 
-      - name: إعادة إنشاء android/
+      - name: ⭐ إنشاء values.xml يدويًا (تجاوز google-services plugin)
         run: |
-          rm -rf android/
-          flutter create . \
-            --platforms=android \
-            --org com.yemenseloo \
-            --project-name yemen_seloo \
-            --no-pub
-
-      - name: نسخ google-services.json
-        run: |
-          mkdir -p android/app
-          cp /tmp/seloo-backup/google-services.json android/app/google-services.json
-          ls -la android/app/google-services.json
-          cat android/app/google-services.json
+          mkdir -p android/app/src/main/res/values
+          cat > android/app/src/main/res/values/values.xml <<'XML_EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="google_app_id" translatable="false">1:580529134357:android:47521410ef2d77eba3671c</string>
+              <string name="gcm_defaultSenderId" translatable="false">580529134357</string>
+              <string name="google_api_key" translatable="false">AIzaSyA2aX5gDos7IBU3lkFM_i2nIpuAzMIsZgE</string>
+              <string name="project_id" translatable="false">yemen-seloo-app</string>
+              <string name="google_storage_bucket" translatable="false">yemen-seloo-app.firebasestorage.app</string>
+              <string name="firebase_database_url" translatable="false"></string>
+              <string name="default_web_client_id" translatable="false"></string>
+              <string name="ga_trackingId" translatable="false"></string>
+          </resources>
+          XML_EOF
+          echo "=== محتوى values.xml ==="
+          cat android/app/src/main/res/values/values.xml
 
       - name: تصحيح اسم التطبيق
         run: |
@@ -85,38 +97,29 @@ jobs:
           sed -i 's|android:label="[^"]*"|android:label="يمن سيلو"|' "$F"
           grep "android:label" "$F"
 
-      - name: تعديل settings.gradle (Kotlin فقط)
+      - name: تعديل settings.gradle (Kotlin فقط — بدون google-services)
         run: |
           python3 << 'PYEOF'
           import re
           from pathlib import Path
           p = Path('android/settings.gradle')
           content = p.read_text()
-          # رفع Kotlin
           content = re.sub(
               r'id\s+"org\.jetbrains\.kotlin\.android"\s+version\s+"[^"]*"',
               'id "org.jetbrains.kotlin.android" version "1.9.24"',
               content
           )
-          # إزالة google-services إن كانت موجودة
-          content = re.sub(
-              r'\s*id\s+"com\.google\.gms\.google-services"\s+version\s+"[^"]*"\s+apply\s+false',
-              '',
-              content
-          )
           p.write_text(content)
-          print("=== settings.gradle النهائي ===")
           print(content)
           PYEOF
 
-      - name: تعديل app/build.gradle (NDK + minSdk + google-services)
+      - name: تعديل app/build.gradle (NDK + minSdk — بدون google-services plugin)
         run: |
           python3 << 'PYEOF'
           import re
           from pathlib import Path
           p = Path('android/app/build.gradle')
-          content = p.read_text()
-          lines = content.split('\n')
+          lines = p.read_text().split('\n')
           out = []
           has_ndk = False
 
@@ -124,19 +127,14 @@ jobs:
               s = line.strip()
               ind = line[:len(line) - len(line.lstrip())]
 
-              # إزالة google-services من plugins block
               if 'com.google.gms.google-services' in s:
                   continue
-
-              # minSdk
               if re.match(r'^minSdkVersion\b', s):
                   out.append(f'{ind}minSdkVersion 23')
                   continue
               if re.match(r'^minSdk\s*=', s):
                   out.append(f'{ind}minSdk = 23')
                   continue
-
-              # ndkVersion
               if re.match(r'^ndkVersion\b', s):
                   out.append(f'{ind}ndkVersion "25.1.8937393"')
                   has_ndk = True
@@ -149,29 +147,20 @@ jobs:
                   has_ndk = True
                   continue
 
-          content = '\n'.join(out)
-
-          # ⭐ الحل: أضف apply plugin في آخر الملف
-          content = content.rstrip() + '\n\n// Firebase Google Services (الطريقة الكلاسيكية)\napply plugin: "com.google.gms.google-services"\n'
-
-          p.write_text(content)
-          print("=== app/build.gradle النهائي ===")
-          print(content)
+          p.write_text('\n'.join(out))
+          print(p.read_text())
           PYEOF
 
       - name: التحقق النهائي
         run: |
-          echo "=== google-services.json ==="
-          ls -la android/app/google-services.json
-          echo ""
-          echo "=== google-services في build.gradle ==="
-          grep -n "google-services" android/app/build.gradle
+          echo "=== values.xml ==="
+          cat android/app/src/main/res/values/values.xml
           echo ""
           echo "=== minSdk + ndkVersion ==="
           grep -n "minSdk\|ndkVersion" android/app/build.gradle
           echo ""
-          echo "=== محتوى plugins block ==="
-          sed -n '/^plugins {/,/^}/p' android/app/build.gradle
+          echo "=== google-services (يجب أن يكون فارغًا) ==="
+          grep -n "google-services" android/settings.gradle android/app/build.gradle || echo "✓ لا يوجد (طبيعي)"
 
       - name: Flutter pub get
         run: flutter pub get
@@ -179,14 +168,14 @@ jobs:
       - name: Build APK (release)
         run: flutter build apk --release --no-tree-shake-icons
 
-      - name: التحقق من توليد values.xml
+      - name: التحقق من APK
         if: always()
         run: |
-          echo "=== البحث عن values.xml ==="
-          find android/app/build -name "values.xml" 2>/dev/null | head -20
+          echo "=== هل APK موجود؟ ==="
+          ls -la build/app/outputs/flutter-apk/app-release.apk || echo "❌ APK مفقود"
           echo ""
-          echo "=== محتوى مجلد google-services ==="
-          find android/app/build -type d -name "*google-services*" 2>/dev/null
+          echo "=== هل values.xml داخل build؟ ==="
+          find build -name "values.xml" 2>/dev/null | head -5
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
