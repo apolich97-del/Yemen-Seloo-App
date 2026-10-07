@@ -1,17 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:get/get.dart';
 
 import '../../../core/config/seloo_config.dart';
-import '../../cart/application/cart_counter.dart';
 import '../../cart/data/seloo_cart_service.dart';
 import '../domain/shein_draft.dart';
 
+/// يربط WebView SHEIN بمنطق التطبيق.
 class SheinBridgeController {
   SheinBridgeController({SelooCartService? cartService})
       : _cartService = cartService ?? SelooCartService();
@@ -37,7 +35,7 @@ class SheinBridgeController {
           case 'openCart':
             return _reply('ok', '');
           case 'requestCartCount':
-            return _reply('ok', '', await _currentCartCount());
+            return _reply('ok', '');
           default:
             return _reply('invalid', 'إجراء غير معروف');
         }
@@ -59,20 +57,9 @@ class SheinBridgeController {
       return _reply('invalid', 'بيانات المنتج غير مكتملة (${error.field})');
     }
 
-    // حفظ في السلة المحلية مباشرة
     try {
       final BridgeResult result = await _cartService.addToCart(draft);
       debugPrint('[Seloo] نتيجة الإضافة: ${result.status}');
-
-      // ⭐ تحديث CartCounter
-      try {
-        final CartCounter counter = Get.find<CartCounter>();
-        await counter.onItemAdded();
-      } catch (e) {
-        debugPrint('[Seloo] تعذّر تحديث counter: $e');
-      }
-
-      unawaited(pushCartCountToPage());
       return result.toJson();
     } catch (e) {
       debugPrint('[Seloo] استثناء أثناء الإضافة: $e');
@@ -80,27 +67,14 @@ class SheinBridgeController {
     }
   }
 
-  Future<int> _currentCartCount() async {
-    try {
-      final CartCounter counter = Get.find<CartCounter>();
-      return counter.count;
-    } catch (_) {
-      return 0;
-    }
-  }
-
   Future<void> pushCartCountToPage() async {
     final InAppWebViewController? controller = _webView;
     if (controller == null) return;
     try {
-      final int count = await _currentCartCount();
       await controller.evaluateJavascript(
-        source:
-            'window.__selooSetCartCount && window.__selooSetCartCount($count);',
+        source: 'window.__selooSetCartCount && window.__selooSetCartCount();',
       );
-    } catch (error) {
-      debugPrint('[Seloo] تحديث العدّاد: $error');
-    }
+    } catch (_) {}
   }
 
   Future<String> loadOverlayScript() async {
