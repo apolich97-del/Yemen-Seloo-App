@@ -1,18 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:get/get.dart';
 
 import '../../../core/config/seloo_config.dart';
+import '../../cart/application/cart_counter.dart';
 import '../../cart/data/seloo_cart_service.dart';
 import '../domain/shein_draft.dart';
 
-/// يربط WebView SHEIN بمنطق التطبيق: يقرأ الحمولة، يتحقق منها، يرسلها للسلة،
-/// ثم يعيد ردًا واضحًا إلى الصفحة عبر نفس الجسر.
 class SheinBridgeController {
   SheinBridgeController({SelooCartService? cartService})
       : _cartService = cartService ?? SelooCartService();
@@ -22,20 +21,16 @@ class SheinBridgeController {
   String? _scriptSource;
   InAppWebViewController? _webView;
 
-  /// يُسجَّل مرة واحدة عند إنشاء الـWebView.
   Future<void> attach(InAppWebViewController controller) async {
     _webView = controller;
 
     controller.addJavaScriptHandler(
       handlerName: SheinWebConfig.bridgeName,
       callback: (List<dynamic> args) async {
-        if (args.isEmpty) {
-          return _reply('invalid', 'حمولة مفقودة');
-        }
+        if (args.isEmpty) return _reply('invalid', 'حمولة مفقودة');
         final BridgeEnvelope? envelope = BridgeEnvelope.tryParse(args.first);
-        if (envelope == null) {
-          return _reply('invalid', 'شكل الحمولة غير صالح');
-        }
+        if (envelope == null) return _reply('invalid', 'شكل الحمولة غير صالح');
+
         switch (envelope.action) {
           case 'addToCart':
             return _handleAddToCart(envelope.payload);
@@ -55,35 +50,43 @@ class SheinBridgeController {
     if (jsonEncode(payload).length > SelooConfig.maxPayloadBytes) {
       return _reply('invalid', 'حمولة أكبر من الحد المسموح');
     }
-    if (FirebaseAuth.instance.currentUser == null) {
-      return _reply('unauthenticated', 'سجّل الدخول أولًا لإضافة المنتجات');
-    }
 
     final SheinDraft draft;
     try {
       draft = SheinDraft.fromBridgePayload(payload);
     } on DraftValidationException catch (error) {
-      debugPrint('رفض مسودة منتج: ${error.field} — ${error.reason}');
+      debugPrint('[Seloo] رفض مسودة: ${error.field} — ${error.reason}');
       return _reply('invalid', 'بيانات المنتج غير مكتملة (${error.field})');
     }
 
-    final BridgeResult result = await _cartService.addToCart(draft);
-    if (result.isOk) {
+    // حفظ في السلة المحلية مباشرة
+    try {
+      final BridgeResult result = await _cartService.addToCart(draft);
+      debugPrint('[Seloo] نتيجة الإضافة: ${result.status}');
+
+      // ⭐ تحديث CartCounter
+      try {
+        final CartCounter counter = Get.find<CartCounter>();
+        await counter.onItemAdded();
+      } catch (e) {
+        debugPrint('[Seloo] تعذّر تحديث counter: $e');
+      }
+
       unawaited(pushCartCountToPage());
+      return result.toJson();
+    } catch (e) {
+      debugPrint('[Seloo] استثناء أثناء الإضافة: $e');
+      return _reply('error', 'تعذّرت الإضافة: $e');
     }
-    return result.toJson();
   }
 
   Future<int> _currentCartCount() async {
-    final User? user = FirebaseAuth.instance.currentUser;
-    if (user == null) return 0;
-    final QuerySnapshot<Map<String, dynamic>> snapshot =
-        await FirebaseFirestore.instance
-            .collection(SelooConfig.usersCollection)
-            .doc(user.uid)
-            .collection(SelooConfig.cartCollection)
-            .get();
-    return snapshot.docs.length;
+    try {
+      final CartCounter counter = Get.find<CartCounter>();
+      return counter.count;
+    } catch (_) {
+      return 0;
+    }
   }
 
   Future<void> pushCartCountToPage() async {
@@ -95,8 +98,8 @@ class SheinBridgeController {
         source:
             'window.__selooSetCartCount && window.__selooSetCartCount($count);',
       );
-    } catch (error, stack) {
-      debugPrint('تعذّر تحديث العدّاد: $error\n$stack');
+    } catch (error) {
+      debugPrint('[Seloo] تحديث العدّاد: $error');
     }
   }
 
@@ -113,7 +116,6 @@ class SheinBridgeController {
       };
 }
 
-/// قواعد التنقّل داخل الـWebView.
 abstract final class SheinNavigationPolicy {
   static bool isInternal(Uri uri) {
     if (!uri.hasScheme) return false;
