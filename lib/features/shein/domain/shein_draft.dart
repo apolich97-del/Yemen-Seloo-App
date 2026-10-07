@@ -1,9 +1,6 @@
 import 'dart:convert';
 
 /// خطأ تحقق من مسودة منتج قادمة من الـWebView.
-///
-/// الحقول مُسمّاة كي يستطيع السجل (وهو مُصدَّر إلى Crashlytics) أن يخبرنا
-/// أي حقل انكسر بالضبط عند تحديث واجهة SHEIN.
 class DraftValidationException implements Exception {
   const DraftValidationException(this.field, this.reason);
 
@@ -21,11 +18,13 @@ class SheinDraft {
     required this.productUrl,
     required this.title,
     required this.imageUrl,
-    required this.priceOriginal,
-    required this.currency,
+    required this.sourcePrice,
+    required this.sourceCurrency,
     required this.quantity,
     required this.color,
     required this.size,
+    required this.options,
+    required this.sourceStore,
     required this.sku,
     required this.variantId,
     required this.source,
@@ -36,24 +35,31 @@ class SheinDraft {
   final String productUrl;
   final String title;
   final String imageUrl;
-  final double priceOriginal;
-  final String currency;
+
+  /// سعر المصدر كما ظهر في SHEIN.
+  final double sourcePrice;
+
+  /// عملة المصدر (SAR عادة).
+  final String sourceCurrency;
+
   final int quantity;
   final String color;
   final String size;
 
-  /// معرّف SKU/Variant إن وجد — يساعد على تطابق أدق مع SHEIN.
+  /// الخيارات الإضافية (الطول، القماش، إلخ).
+  /// فارغة إذا لم نتمكن من قراءتها بثقة.
+  final Map<String, String> options;
+
+  /// اسم المتجر المصدر (SHEIN افتراضيًا).
+  final String sourceStore;
+
   final String sku;
   final String variantId;
 
-  /// أي مصدر استُخدم في الاستخراج: jsonld | globals | meta | dom | merged.
+  /// كيف استُخرجت البيانات: jsonld | globals | meta | dom | merged.
   final String source;
   final DateTime clientTs;
 
-  /// مفتاح السطر في السلة.
-  String get lineKey => '$goodsId|$color|$size';
-
-  /// تحقق صارم: لا يُقبل أي حقل ناقص، ولا سعر سالب، ولا كمية خارج الحدود.
   factory SheinDraft.fromBridgePayload(Map<String, dynamic> payload) {
     String requireText(String key, {int maxLength = 500}) {
       final Object? raw = payload[key];
@@ -74,15 +80,17 @@ class SheinDraft {
 
     final String productUrl = requireText('productUrl', maxLength: 2048);
     final Uri? parsed = Uri.tryParse(productUrl);
-    if (parsed == null || !(parsed.scheme == 'https' || parsed.scheme == 'http')) {
+    if (parsed == null ||
+        !(parsed.scheme == 'https' || parsed.scheme == 'http')) {
       throw const DraftValidationException('productUrl', 'رابط غير صالح');
     }
 
-    final Object? rawPrice = payload['price'];
+    // ⭐ نقرأ من sourcePrice أو price (دعم مؤقت للحقل القديم)
+    final Object? rawPrice = payload['sourcePrice'] ?? payload['price'];
     final double? price =
         rawPrice is num ? rawPrice.toDouble() : double.tryParse('$rawPrice');
     if (price == null || price <= 0 || price > 1000000) {
-      throw const DraftValidationException('price', 'سعر غير منطقي');
+      throw const DraftValidationException('sourcePrice', 'سعر غير منطقي');
     }
 
     final Object? rawQty = payload['quantity'];
@@ -92,22 +100,49 @@ class SheinDraft {
       throw const DraftValidationException('quantity', 'كمية خارج الحد المسموح');
     }
 
-    final String currency =
-        (payload['currency'] as String?)?.trim().toUpperCase() ?? 'SAR';
+    // ⭐ نقرأ من sourceCurrency أو currency
+    final String currencyRaw =
+        (payload['sourceCurrency'] as String?) ??
+            (payload['currency'] as String?) ??
+            'SAR';
+    final String currency = currencyRaw.trim().toUpperCase();
     if (!RegExp(r'^[A-Z]{3}$').hasMatch(currency)) {
-      throw const DraftValidationException('currency', 'رمز عملة غير صالح');
+      throw const DraftValidationException('sourceCurrency', 'رمز عملة غير صالح');
     }
+
+    // ⭐ قراءة options (قد تكون فارغة)
+    final Map<String, String> options = <String, String>{};
+    final Object? rawOptions = payload['options'];
+    if (rawOptions is Map) {
+      rawOptions.forEach((Object? k, Object? v) {
+        if (k is String && v is String) {
+          final String ks = k.trim();
+          final String vs = v.trim();
+          if (ks.isNotEmpty && vs.isNotEmpty) {
+            options[ks] = vs;
+          }
+        }
+      });
+    }
+
+    // ⭐ sourceStore (افتراضي SHEIN)
+    final String sourceStoreRaw =
+        (payload['sourceStore'] as String?)?.trim().toUpperCase() ?? 'SHEIN';
+    final String sourceStore =
+        sourceStoreRaw.isEmpty ? 'SHEIN' : sourceStoreRaw;
 
     return SheinDraft(
       goodsId: goodsId,
       productUrl: productUrl,
       title: requireText('title', maxLength: 300),
       imageUrl: (payload['imageUrl'] as String?)?.trim() ?? '',
-      priceOriginal: price,
-      currency: currency,
+      sourcePrice: price,
+      sourceCurrency: currency,
       quantity: quantity,
       color: (payload['color'] as String?)?.trim() ?? '',
       size: (payload['size'] as String?)?.trim() ?? '',
+      options: options,
+      sourceStore: sourceStore,
       sku: (payload['sku'] as String?)?.trim() ?? '',
       variantId: (payload['variantId'] as String?)?.trim() ?? '',
       source: (payload['source'] as String?)?.trim() ?? 'merged',
@@ -120,11 +155,13 @@ class SheinDraft {
         'productUrl': productUrl,
         'title': title,
         'imageUrl': imageUrl,
-        'price': priceOriginal,
-        'currency': currency,
+        'sourcePrice': sourcePrice,
+        'sourceCurrency': sourceCurrency,
         'quantity': quantity,
         'color': color,
         'size': size,
+        'options': options,
+        'sourceStore': sourceStore,
         'sku': sku,
         'variantId': variantId,
         'source': source,
