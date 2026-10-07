@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 
 import '../../../core/config/seloo_config.dart';
+import '../../shein/domain/shein_draft.dart';
 import '../data/seloo_cart_service.dart';
 import '../domain/cart_item.dart';
 
