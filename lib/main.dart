@@ -1,45 +1,39 @@
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 
 import 'core/config/seloo_config.dart';
 import 'features/cart/application/cart_counter.dart';
+import 'features/cart/presentation/cart_screen.dart';
+import 'features/checkout/presentation/checkout_screen.dart';
 import 'features/shein/presentation/shein_web_screen.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1) تهيئة Firebase أولًا (مضمونة الآن)
+  // 1) تهيئة التخزين المحلي
+  await GetStorage.init();
+  debugPrint('[Seloo] GetStorage OK ✓');
+
+  // 2) Firebase في الخلفية (لا يوقف التطبيق)
+  _initFirebase();
+
+  // 3) سجّل CartCounter قبل أي شاشة
+  Get.put<CartCounter>(CartCounter(), permanent: true);
+  debugPrint('[Seloo] CartCounter registered ✓');
+
+  // 4) افتح التطبيق
+  runApp(const SelooApp());
+}
+
+Future<void> _initFirebase() async {
   try {
     await Firebase.initializeApp().timeout(const Duration(seconds: 10));
     debugPrint('[Seloo] Firebase OK ✓');
   } catch (e) {
     debugPrint('[Seloo] Firebase FAILED: $e');
-  }
-
-  // 2) تسجيل CartCounter قبل أي شاشة
-  Get.put<CartCounter>(CartCounter(), permanent: true);
-  debugPrint('[Seloo] CartCounter registered ✓');
-
-  // 3) تسجيل الدخول المجهول في الخلفية (لا يوقف التطبيق)
-  _signInAnonymously();
-
-  // 4) فتح التطبيق
-  runApp(const SelooApp());
-}
-
-Future<void> _signInAnonymously() async {
-  try {
-    if (FirebaseAuth.instance.currentUser == null) {
-      await FirebaseAuth.instance
-          .signInAnonymously()
-          .timeout(const Duration(seconds: 8));
-      debugPrint('[Seloo] Anonymous sign-in OK ✓');
-    }
-  } catch (e) {
-    debugPrint('[Seloo] Anonymous sign-in failed: $e');
   }
 }
 
@@ -67,7 +61,12 @@ class SelooApp extends StatelessWidget {
         colorSchemeSeed: const Color(0xFF7C3AED),
         scaffoldBackgroundColor: const Color(0xFFFAF7FF),
       ),
-      home: const SheinWebScreen(),
+      initialRoute: '/shein',
+      getPages: <GetPage<dynamic>>[
+        GetPage(name: '/shein', page: () => const SheinWebScreen()),
+        GetPage(name: '/cartScreen', page: () => const CartScreen()),
+        GetPage(name: '/checkoutScreen', page: () => const CheckoutScreen()),
+      ],
     );
   }
 }
