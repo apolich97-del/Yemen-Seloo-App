@@ -4,8 +4,10 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:get/get.dart';
 
 import '../../../core/config/seloo_config.dart';
+import '../../cart/application/cart_counter.dart';
 import '../../cart/data/seloo_cart_service.dart';
 import '../domain/shein_draft.dart';
 
@@ -57,14 +59,54 @@ class SheinBridgeController {
       return _reply('invalid', 'بيانات المنتج غير مكتملة (${error.field})');
     }
 
+    // ⭐ اقرأ حالة التعديل من CartCounter
+    String? editingLineId;
     try {
-      final BridgeResult result = await _cartService.addToCart(draft);
+      final CartCounter cart = Get.find<CartCounter>();
+      editingLineId = cart.editingLineId.value;
+    } catch (e) {
+      debugPrint('[Seloo] CartCounter غير متاح: $e');
+    }
+
+    try {
+      final BridgeResult result = await _cartService.addToCart(
+        draft,
+        editingLineId: editingLineId,
+      );
       debugPrint('[Seloo] نتيجة الإضافة: ${result.status}');
+
+      // ⭐ تحديث العدّاد في السلة
+      try {
+        final CartCounter cart = Get.find<CartCounter>();
+        await cart.onItemAdded();
+      } catch (_) {}
+
+      // ⭐ إذا كان تعديلًا ونجح → امسح الحالة + اطلب العودة
+      if (editingLineId != null && editingLineId.isNotEmpty && result.isOk) {
+        try {
+          Get.find<CartCounter>().clearEditing();
+        } catch (_) {}
+        unawaited(_notifyEditCompleted());
+      }
+
+      unawaited(pushCartCountToPage());
       return result.toJson();
     } catch (e) {
       debugPrint('[Seloo] استثناء أثناء الإضافة: $e');
       return _reply('error', 'تعذّرت الإضافة: $e');
     }
+  }
+
+  /// إشعار الـWebView بأن التعديل اكتمل — يعرض رسالة فقط
+  Future<void> _notifyEditCompleted() async {
+    final InAppWebViewController? controller = _webView;
+    if (controller == null) return;
+    try {
+      await controller.evaluateJavascript(
+        source:
+            'window.__selooEditCompleted && window.__selooEditCompleted();',
+      );
+    } catch (_) {}
   }
 
   Future<void> pushCartCountToPage() async {
