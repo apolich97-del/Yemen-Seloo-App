@@ -138,8 +138,9 @@ class _CartLineTile extends StatelessWidget {
                       fontSize: 15,
                     ),
                   ),
+                  // ⬇️ هذا هو السطر الذي تم تعديله (كان priceOriginal و currency)
                   Text(
-                    '${item.priceOriginal.toStringAsFixed(2)} ${item.currency} × صرف ${item.exchangeRate}',
+                    '${item.sourcePrice.toStringAsFixed(2)} ${item.sourceCurrency} × صرف ${item.exchangeRate}',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 6),
