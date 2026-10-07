@@ -6,7 +6,6 @@ import '../../../core/config/seloo_config.dart';
 import '../application/cart_counter.dart';
 import '../domain/cart_item.dart';
 
-/// شاشة سلة يمن سيلو: سطور المنتجات + ملخّص التسعير من الخادم.
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
 
@@ -129,6 +128,19 @@ class _CartLineTile extends StatelessWidget {
                       child: Text(variant,
                           style: Theme.of(context).textTheme.bodySmall),
                     ),
+                  if (item.options.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        item.options.entries
+                            .map((MapEntry<String, String> e) =>
+                                '${e.key}: ${e.value}')
+                            .join(' • '),
+                        style: Theme.of(context).textTheme.bodySmall,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   const SizedBox(height: 6),
                   Text(
                     '${item.unitPriceLocal.toStringAsFixed(0)} ر.ي للوحدة',
@@ -139,7 +151,7 @@ class _CartLineTile extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '${item.priceOriginal.toStringAsFixed(2)} ${item.currency} × صرف ${item.exchangeRate}',
+                    '${item.sourcePrice.toStringAsFixed(2)} ${item.sourceCurrency} × صرف ${item.exchangeRate}',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 6),
@@ -219,6 +231,8 @@ class _QuoteSummary extends StatelessWidget {
               _Row(label: 'قيمة المنتجات', value: quote.itemsSubtotalLocal),
               _Row(label: 'رسوم الخدمة', value: quote.serviceFeeLocal),
               _Row(label: 'الشحن', value: quote.shippingLocal),
+              if (quote.deliveryLocal > 0)
+                _Row(label: 'التوصيل المحلي', value: quote.deliveryLocal),
               if (quote.discountLocal > 0)
                 _Row(label: 'الخصم', value: -quote.discountLocal),
               const Divider(),
