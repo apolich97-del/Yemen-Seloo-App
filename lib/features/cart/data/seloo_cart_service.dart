@@ -7,8 +7,7 @@ import '../domain/cart_item.dart';
 
 /// سلة محلية على الجهاز — بدون Cloud Functions.
 ///
-/// نستخدم get_storage (مثبت مسبقًا) لتخزين السلة كـ JSON.
-/// كل العمليات تجري محليًا وفورًا.
+/// نستخدم get_storage لتخزين السلة كـ JSON.
 class SelooCartService {
   static const String _cartKey = 'seloo_cart_v1';
 
@@ -35,24 +34,28 @@ class SelooCartService {
   }
 
   Future<void> _save(List<CartItem> items) async {
-    final List<Map<String, dynamic>> list = items.map((CartItem i) {
-      return <String, dynamic>{
-        'lineId': i.lineId,
-        'goodsId': i.goodsId,
-        'productUrl': i.productUrl,
-        'title': i.title,
-        'imageUrl': i.imageUrl,
-        'color': i.color,
-        'size': i.size,
-        'quantity': i.quantity,
-        'priceOriginal': i.priceOriginal,
-        'currency': i.currency,
-        'exchangeRate': i.exchangeRate,
-        'unitPriceLocal': i.unitPriceLocal,
-        'source': i.source,
-        'addedAt': i.addedAt?.toIso8601String(),
-      };
-    }).toList();
+    final List<Map<String, dynamic>> list = items
+        .map((CartItem i) => <String, dynamic>{
+              'lineId': i.lineId,
+              'goodsId': i.goodsId,
+              'productUrl': i.productUrl,
+              'title': i.title,
+              'imageUrl': i.imageUrl,
+              'color': i.color,
+              'size': i.size,
+              'options': i.options,
+              'sourceStore': i.sourceStore,
+              'quantity': i.quantity,
+              'sourcePrice': i.sourcePrice,
+              'sourceCurrency': i.sourceCurrency,
+              'exchangeRate': i.exchangeRate,
+              'unitPriceLocal': i.unitPriceLocal,
+              'source': i.source,
+              'sku': i.sku ?? '',
+              'variantId': i.variantId ?? '',
+              'addedAt': i.addedAt?.toIso8601String(),
+            })
+        .toList();
     await _box.write(_cartKey, jsonEncode(list));
   }
 
@@ -61,10 +64,11 @@ class SelooCartService {
   Future<BridgeResult> addToCart(SheinDraft draft) async {
     final List<CartItem> items = loadItems();
 
-    // سعر محلي: نستخدم سعر المنتج * 72 (سعر تقريبي SAR → YER)
+    // ⚠️ مؤقتًا: سيُستبدل في Commit 2 بسعر صرف المنطقة
     const double sarRate = 72.0;
-    final double unitLocal = draft.priceOriginal * sarRate;
+    final double unitLocal = draft.sourcePrice * sarRate;
 
+    // ⚠️ مؤقتًا: lineId قديم — سيُستبدل في Commit 2
     final String lineId =
         '${draft.goodsId}_${draft.color}_${draft.size}'.toLowerCase();
 
@@ -72,8 +76,7 @@ class SelooCartService {
 
     if (idx >= 0) {
       final CartItem existing = items[idx];
-      final int newQty =
-          (existing.quantity + draft.quantity).clamp(1, 50);
+      final int newQty = (existing.quantity + draft.quantity).clamp(1, 50);
       items[idx] = existing.copyWith(quantity: newQty);
     } else {
       items.add(CartItem(
@@ -84,12 +87,16 @@ class SelooCartService {
         imageUrl: draft.imageUrl,
         color: draft.color,
         size: draft.size,
+        options: draft.options,
+        sourceStore: draft.sourceStore,
         quantity: draft.quantity,
-        priceOriginal: draft.priceOriginal,
-        currency: draft.currency,
+        sourcePrice: draft.sourcePrice,
+        sourceCurrency: draft.sourceCurrency,
         exchangeRate: sarRate,
         unitPriceLocal: unitLocal,
         source: draft.source,
+        sku: draft.sku,
+        variantId: draft.variantId,
         addedAt: DateTime.now(),
       ));
     }
@@ -148,9 +155,9 @@ class SelooCartService {
       subtotal += i.unitPriceLocal * i.quantity;
     }
 
-    // رسوم خدمة 7%
+    // ⚠️ مؤقتًا: سيُستبدل في Commit 2 بـ 1.22 SAR
     final double serviceFee = subtotal * 0.07;
-    // شحن أساسي
+    // ⚠️ مؤقتًا: سيُستبدل في Commit 2 بسياسة 75 SAR
     final double shipping = subtotal > 0 ? 2500.0 : 0.0;
     final double discount = 0;
     final double grandTotal = subtotal + serviceFee + shipping - discount;
@@ -166,7 +173,6 @@ class SelooCartService {
     );
   }
 
-  /// لم نعد نستخدم submitOrder السحابي — مؤقتًا.
   Future<BridgeResult> submitOrder({
     required String contactPhone,
     required String addressLine,
