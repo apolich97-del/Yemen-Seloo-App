@@ -1,31 +1,22 @@
-import 'dart:async';
-
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 
 import '../../../core/config/seloo_config.dart';
 import '../data/seloo_cart_service.dart';
 import '../domain/cart_item.dart';
 
-/// حالة السلة المشتركة في التطبيق.
+/// حالة السلة المشتركة — محلية على الجهاز.
 ///
-/// مصدر الحقيقة هو Firestore، وليس ذاكرة الواجهة.
+/// مصدر الحقيقة هو get_storage (على الهاتف)، ولا نستخدم Firebase.
 class CartCounter extends GetxService {
-  CartCounter({SelooCartService? service, FirebaseFirestore? firestore})
-      : _service = service ?? SelooCartService(),
-        _firestore = firestore ?? FirebaseFirestore.instance;
+  CartCounter({SelooCartService? service})
+      : _service = service ?? SelooCartService();
 
   final SelooCartService _service;
-  final FirebaseFirestore _firestore;
 
   final RxList<CartItem> items = <CartItem>[].obs;
   final Rx<CartQuote?> quote = Rx<CartQuote?>(null);
   final RxBool busy = false.obs;
   final RxnString lastError = RxnString();
-
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _subscription;
-  StreamSubscription<User?>? _authSubscription;
 
   Stream<int> get stream =>
       items.stream.map((List<CartItem> list) => list.length);
@@ -36,34 +27,30 @@ class CartCounter extends GetxService {
   @override
   void onInit() {
     super.onInit();
-    _authSubscription =
-        FirebaseAuth.instance.authStateChanges().listen((User? user) {
-      _subscription?.cancel();
-      items.clear();
-      if (user != null) {
-        _subscribe(user.uid);
-      }
-    });
+    _loadFromStorage();
   }
 
-  void _subscribe(String uid) {
-    _subscription = _firestore
-        .collection(SelooConfig.usersCollection)
-        .doc(uid)
-        .collection(SelooConfig.cartCollection)
-        .orderBy('addedAt', descending: true)
-        .snapshots()
-        .listen(
-      (QuerySnapshot<Map<String, dynamic>> snapshot) {
-        items.assignAll(
-          snapshot.docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
-              CartItem.fromFirestore(doc.id, doc.data())),
-        );
-      },
-      onError: (Object error, StackTrace stack) {
-        lastError.value = 'تعذّر تحميل السلة: $error';
-      },
-    );
+  void _loadFromStorage() {
+    try {
+      final List<CartItem> loaded = _service.loadItems();
+      items.assignAll(loaded);
+    } catch (e) {
+      lastError.value = 'تعذّر تحميل السلة: $e';
+    }
+  }
+
+  Future<void> _reload() async {
+    try {
+      final List<CartItem> loaded = _service.loadItems();
+      items.assignAll(loaded);
+      if (items.isNotEmpty) {
+        await refreshQuote();
+      } else {
+        quote.value = null;
+      }
+    } catch (e) {
+      lastError.value = 'تعذّر تحميل السلة: $e';
+    }
   }
 
   Future<void> refreshQuote() async {
@@ -88,8 +75,9 @@ class CartCounter extends GetxService {
     }
     busy.value = true;
     try {
-      final result = await _service.updateLine(item.lineId, quantity);
-      if (result.isOk) await refreshQuote();
+      final BridgeResult result =
+          await _service.updateLine(item.lineId, quantity);
+      if (result.isOk) await _reload();
       return result.isOk ? null : result.message;
     } catch (error) {
       return 'تعذّر تحديث الكمية: $error';
@@ -101,8 +89,8 @@ class CartCounter extends GetxService {
   Future<String?> remove(CartItem item) async {
     busy.value = true;
     try {
-      final result = await _service.removeLine(item.lineId);
-      if (result.isOk) await refreshQuote();
+      final BridgeResult result = await _service.removeLine(item.lineId);
+      if (result.isOk) await _reload();
       return result.isOk ? null : result.message;
     } catch (error) {
       return 'تعذّر حذف المنتج: $error';
@@ -114,8 +102,11 @@ class CartCounter extends GetxService {
   Future<String?> clear() async {
     busy.value = true;
     try {
-      final result = await _service.clear();
-      quote.value = null;
+      final BridgeResult result = await _service.clear();
+      if (result.isOk) {
+        items.clear();
+        quote.value = null;
+      }
       return result.isOk ? null : result.message;
     } catch (error) {
       return 'تعذّر تفريغ السلة: $error';
@@ -124,10 +115,8 @@ class CartCounter extends GetxService {
     }
   }
 
-  @override
-  void onClose() {
-    _subscription?.cancel();
-    _authSubscription?.cancel();
-    super.onClose();
+  /// تُستدعى بعد كل إضافة ناجحة من الجسر.
+  Future<void> onItemAdded() async {
+    await _reload();
   }
 }
