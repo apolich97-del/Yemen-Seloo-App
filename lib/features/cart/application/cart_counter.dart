@@ -6,8 +6,6 @@ import '../data/seloo_cart_service.dart';
 import '../domain/cart_item.dart';
 
 /// حالة السلة المشتركة — محلية على الجهاز.
-///
-/// مصدر الحقيقة هو get_storage (على الهاتف)، ولا نستخدم Firebase.
 class CartCounter extends GetxService {
   CartCounter({SelooCartService? service})
       : _service = service ?? SelooCartService();
@@ -19,9 +17,14 @@ class CartCounter extends GetxService {
   final RxBool busy = false.obs;
   final RxnString lastError = RxnString();
 
+  // ⭐ حالة التعديل
+  final RxnString editingLineId = RxnString();
+  final RxnString editingProductUrl = RxnString();
+
   Stream<int> get stream =>
       items.stream.map((List<CartItem> list) => list.length);
   int get count => items.length;
+  bool get isEditing => editingLineId.value != null;
   double get subtotalLocal => items.fold<double>(
       0, (double sum, CartItem item) => sum + item.lineTotalLocal);
 
@@ -119,5 +122,16 @@ class CartCounter extends GetxService {
   /// تُستدعى بعد كل إضافة ناجحة من الجسر.
   Future<void> onItemAdded() async {
     await _reload();
+  }
+
+  // ⭐ دوال التعديل
+  void startEditing({required String lineId, required String productUrl}) {
+    editingLineId.value = lineId;
+    editingProductUrl.value = productUrl;
+  }
+
+  void clearEditing() {
+    editingLineId.value = null;
+    editingProductUrl.value = null;
   }
 }
