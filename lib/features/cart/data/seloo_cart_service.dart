@@ -1,13 +1,13 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:get_storage/get_storage.dart';
 
+import '../../../core/config/seloo_config.dart';
 import '../../shein/domain/shein_draft.dart';
 import '../domain/cart_item.dart';
 
 /// سلة محلية على الجهاز — بدون Cloud Functions.
-///
-/// نستخدم get_storage لتخزين السلة كـ JSON.
 class SelooCartService {
   static const String _cartKey = 'seloo_cart_v1';
 
@@ -34,51 +34,81 @@ class SelooCartService {
   }
 
   Future<void> _save(List<CartItem> items) async {
-    final List<Map<String, dynamic>> list = items
-        .map((CartItem i) => <String, dynamic>{
-              'lineId': i.lineId,
-              'goodsId': i.goodsId,
-              'productUrl': i.productUrl,
-              'title': i.title,
-              'imageUrl': i.imageUrl,
-              'color': i.color,
-              'size': i.size,
-              'options': i.options,
-              'sourceStore': i.sourceStore,
-              'quantity': i.quantity,
-              'sourcePrice': i.sourcePrice,
-              'sourceCurrency': i.sourceCurrency,
-              'exchangeRate': i.exchangeRate,
-              'unitPriceLocal': i.unitPriceLocal,
-              'source': i.source,
-              'sku': i.sku ?? '',
-              'variantId': i.variantId ?? '',
-              'addedAt': i.addedAt?.toIso8601String(),
-            })
-        .toList();
+    final List<Map<String, dynamic>> list =
+        items.map((CartItem i) => i.toMap()).toList();
     await _box.write(_cartKey, jsonEncode(list));
+  }
+
+  // ⭐ توليد lineId فريد
+  String _generateLineId() {
+    final String ts = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    final String rand = Random.secure().nextInt(0x7FFFFFFF).toRadixString(36);
+    return 'ln_${ts}_$rand';
+  }
+
+  // ⭐ سعر الصرف حسب المنطقة
+  double _rateFor(String region) {
+    switch (region) {
+      case SelooPricing.regionSouth:
+        return SelooPricing.southRate;
+      case SelooPricing.regionSaudi:
+        return SelooPricing.saudiRate;
+      case SelooPricing.regionNorth:
+      default:
+        return SelooPricing.northRate;
+    }
   }
 
   // ============ عمليات السلة ============
 
-  Future<BridgeResult> addToCart(SheinDraft draft) async {
+  Future<BridgeResult> addToCart(
+    SheinDraft draft, {
+    String? editingLineId,
+  }) async {
     final List<CartItem> items = loadItems();
 
-    // ⚠️ مؤقتًا: سيُستبدل في Commit 2 بسعر صرف المنطقة
-    const double sarRate = 72.0;
-    final double unitLocal = draft.sourcePrice * sarRate;
+    final double rate = _rateFor(SelooPricing.defaultRegion);
+    final double unitLocal = draft.sourcePrice * rate;
 
-    // ⚠️ مؤقتًا: lineId قديم — سيُستبدل في Commit 2
-    final String lineId =
-        '${draft.goodsId}_${draft.color}_${draft.size}'.toLowerCase();
+    // ⭐ تحديد lineId
+    final String lineId;
+    if (editingLineId != null && editingLineId.isNotEmpty) {
+      lineId = editingLineId;
+    } else {
+      lineId = _generateLineId();
+    }
 
     final int idx = items.indexWhere((CartItem i) => i.lineId == lineId);
 
-    if (idx >= 0) {
-      final CartItem existing = items[idx];
-      final int newQty = (existing.quantity + draft.quantity).clamp(1, 50);
-      items[idx] = existing.copyWith(quantity: newQty);
+    if (editingLineId != null && editingLineId.isNotEmpty) {
+      // ⭐ وضع التعديل: تحديث السطر بنفس lineId
+      if (idx < 0) {
+        return BridgeResult.failure(
+            'not-found', 'السطر المراد تعديله لم يُعد موجودًا');
+      }
+      final CartItem original = items[idx];
+      items[idx] = CartItem(
+        lineId: lineId,
+        goodsId: draft.goodsId,
+        productUrl: draft.productUrl,
+        title: draft.title,
+        imageUrl: draft.imageUrl,
+        color: draft.color,
+        size: draft.size,
+        options: draft.options,
+        sourceStore: draft.sourceStore,
+        quantity: original.quantity,
+        sourcePrice: draft.sourcePrice,
+        sourceCurrency: draft.sourceCurrency,
+        exchangeRate: rate,
+        unitPriceLocal: unitLocal,
+        source: draft.source,
+        sku: draft.sku,
+        variantId: draft.variantId,
+        addedAt: original.addedAt ?? DateTime.now(),
+      );
     } else {
+      // ⭐ إضافة جديدة
       items.add(CartItem(
         lineId: lineId,
         goodsId: draft.goodsId,
@@ -92,7 +122,7 @@ class SelooCartService {
         quantity: draft.quantity,
         sourcePrice: draft.sourcePrice,
         sourceCurrency: draft.sourceCurrency,
-        exchangeRate: sarRate,
+        exchangeRate: rate,
         unitPriceLocal: unitLocal,
         source: draft.source,
         sku: draft.sku,
@@ -105,7 +135,9 @@ class SelooCartService {
 
     return BridgeResult(
       status: 'ok',
-      message: 'تمت الإضافة إلى سلة سيلو',
+      message: (editingLineId != null && editingLineId.isNotEmpty)
+          ? 'تم تحديث المنتج'
+          : 'تمت الإضافة إلى سلة سيلو',
       cartCount: items.length,
     );
   }
@@ -145,29 +177,45 @@ class SelooCartService {
     );
   }
 
-  // ============ التسعير ============
+  // ============ التسعير الجديد ============
 
   Future<CartQuote> quote() async {
     final List<CartItem> items = loadItems();
+    final double rate = _rateFor(SelooPricing.defaultRegion);
 
-    double subtotal = 0;
+    double itemsSubtotalSar = 0;
+    int units = 0;
     for (final CartItem i in items) {
-      subtotal += i.unitPriceLocal * i.quantity;
+      itemsSubtotalSar += i.sourcePrice * i.quantity;
+      units += i.quantity;
     }
 
-    // ⚠️ مؤقتًا: سيُستبدل في Commit 2 بـ 1.22 SAR
-    final double serviceFee = subtotal * 0.07;
-    // ⚠️ مؤقتًا: سيُستبدل في Commit 2 بسياسة 75 SAR
-    final double shipping = subtotal > 0 ? 2500.0 : 0.0;
-    final double discount = 0;
-    final double grandTotal = subtotal + serviceFee + shipping - discount;
+    // الشحن الدولي (السعودية → اليمن)
+    double shippingSar = 0;
+    if (itemsSubtotalSar > 0 &&
+        itemsSubtotalSar < SelooPricing.freeShippingThresholdSar) {
+      shippingSar = units * SelooPricing.shippingPerPieceSar;
+    }
+
+    // رسوم الخدمة = 1.22 SAR لكل طلب
+    final double serviceFeeSar =
+        itemsSubtotalSar > 0 ? SelooPricing.serviceFeeSar : 0;
+
+    // التحويل إلى YER
+    final double itemsSubtotalLocal = itemsSubtotalSar * rate;
+    final double shippingLocal = shippingSar * rate;
+    final double serviceFeeLocal = serviceFeeSar * rate;
+
+    final double grandTotalLocal =
+        itemsSubtotalLocal + shippingLocal + serviceFeeLocal;
 
     return CartQuote(
-      itemsSubtotalLocal: subtotal,
-      serviceFeeLocal: serviceFee,
-      shippingLocal: shipping,
-      discountLocal: discount,
-      grandTotalLocal: grandTotal,
+      itemsSubtotalLocal: itemsSubtotalLocal,
+      serviceFeeLocal: serviceFeeLocal,
+      shippingLocal: shippingLocal,
+      deliveryLocal: 0,
+      discountLocal: 0,
+      grandTotalLocal: grandTotalLocal,
       currency: 'YER',
       lines: items,
     );
