@@ -27,13 +27,33 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
   StreamSubscription<int>? _cartSubscription;
   String? _overlayScript;
 
+  // ⭐ حالة التعديل
+  String? _editLineId;
+  String? _editUrl;
+
   bool _loading = true;
   double _progress = 0;
   int _cartCount = 0;
 
+  bool get _isEditing => _editLineId != null;
+
   @override
   void initState() {
     super.initState();
+
+    // ⭐ اقرأ arguments من Get
+    final Object? args = Get.arguments;
+    if (args is Map) {
+      final Object? editLineId = args['editLineId'];
+      final Object? editUrl = args['editUrl'];
+      if (editLineId is String && editLineId.isNotEmpty) {
+        _editLineId = editLineId;
+      }
+      if (editUrl is String && editUrl.isNotEmpty) {
+        _editUrl = editUrl;
+      }
+    }
+
     _loadOverlayScript();
     _listenToCart();
   }
@@ -66,6 +86,13 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
   @override
   void dispose() {
     _cartSubscription?.cancel();
+
+    // ⭐ امسح حالة التعديل إذا خرج المستخدم قبل الإتمام
+    try {
+      final CartCounter cart = Get.find<CartCounter>();
+      if (cart.isEditing) cart.clearEditing();
+    } catch (_) {}
+
     super.dispose();
   }
 
@@ -75,11 +102,21 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
     }
   }
 
+  void _cancelEdit() {
+    try {
+      Get.find<CartCounter>().clearEditing();
+    } catch (_) {}
+    Get.back();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final Color barColor =
+        _isEditing ? const Color(0xFFEA580C) : const Color(0xFF7C3AED);
+
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFF7C3AED),
+        backgroundColor: barColor,
         foregroundColor: Colors.white,
         titleSpacing: 12,
         title: Row(
@@ -105,13 +142,19 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
               ),
             ),
             const SizedBox(width: 10),
-            const Text(
-              'يمن سيلو',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            Text(
+              _isEditing ? 'تعديل المنتج' : 'يمن سيلو',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
             ),
           ],
         ),
         actions: <Widget>[
+          if (_isEditing)
+            IconButton(
+              tooltip: 'إلغاء التعديل',
+              onPressed: _cancelEdit,
+              icon: const Icon(Icons.close),
+            ),
           IconButton(
             tooltip: 'سلة سيلو',
             onPressed: () => Get.toNamed('/cartScreen'),
@@ -133,7 +176,7 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
           if (_loading)
             LinearProgressIndicator(
               value: _progress > 0 ? _progress : null,
-              color: const Color(0xFF7C3AED),
+              color: barColor,
             ),
           Expanded(
             child: _overlayScript == null
@@ -141,24 +184,22 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                 : InAppWebView(
                     key: _webViewKey,
                     initialUrlRequest: URLRequest(
-                      url: WebUri(widget.initialUrl ?? SheinWebConfig.homeAr),
+                      url: WebUri(
+                        _editUrl ??
+                            widget.initialUrl ??
+                            SheinWebConfig.homeAr,
+                      ),
                     ),
                     initialSettings: InAppWebViewSettings(
-                      // ⭐ تخزين محلي للجلسة والكوكيز
                       domStorageEnabled: true,
                       databaseEnabled: true,
                       thirdPartyCookiesEnabled: true,
                       useShouldOverrideUrlLoading: true,
-
-                      // ⭐⭐ الحل الرئيسي للبطء: تعطيل اعتراض الطلبات
                       useShouldInterceptRequest: false,
-
                       allowsInlineMediaPlayback: true,
                       mediaPlaybackRequiresUserGesture: true,
                       transparentBackground: false,
                       applicationNameForUserAgent: 'YemenSelooApp/1.0',
-
-                      // ⭐ تحسينات إضافية للسرعة
                       cacheEnabled: true,
                       clearCache: false,
                       javaScriptEnabled: true,
@@ -202,12 +243,27 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                       setState(() => _progress = progress / 100);
                     },
                     onReceivedError: (
-                      InAppWebViewController _,
+                      InAppWebViewController controller,
                       WebResourceRequest request,
                       WebResourceError error,
                     ) {
                       debugPrint(
                           '[Seloo] خطأ تحميل ${request.url}: ${error.description}');
+
+                      // ⭐ إذا فشل التحميل الرئيسي
+                      final bool isMain = request.isForMainFrame ?? false;
+                      if (isMain && mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                                'تعذّر تحميل الصفحة: ${error.description}'),
+                            action: SnackBarAction(
+                              label: 'إعادة',
+                              onPressed: () => controller.reload(),
+                            ),
+                          ),
+                        );
+                      }
                     },
                     shouldOverrideUrlLoading: (
                       InAppWebViewController _,
@@ -216,6 +272,20 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                       final WebUri? target = action.request.url;
                       if (target == null) return NavigationActionPolicy.ALLOW;
                       final Uri uri = Uri.parse(target.toString());
+
+                      // ⭐ منع تسجيل الدخول إلى SHEIN / Google / Apple
+                      if (SheinWebConfig.loginHosts
+                          .any((String h) => uri.host.endsWith(h))) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                  'التصفح داخل يمن سيلو لا يحتاج إلى حساب SHEIN.'),
+                            ),
+                          );
+                        }
+                        return NavigationActionPolicy.CANCEL;
+                      }
 
                       if (SheinNavigationPolicy.isExternalRedirect(uri)) {
                         await _openExternally(uri);
