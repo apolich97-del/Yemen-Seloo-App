@@ -1,0 +1,71 @@
+name: Deploy Cloud Functions
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'functions/**'
+
+jobs:
+  deploy:
+    name: Deploy Functions
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: تثبيت Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: تثبيت حزم functions
+        working-directory: functions
+        run: npm install
+
+      - name: بناء TypeScript
+        working-directory: functions
+        run: npm run build
+
+      - name: التحقق من البناء
+        run: |
+          echo "=== محتوى functions/lib ==="
+          ls -la functions/lib/ || echo "lib/ مفقود"
+          cat functions/lib/index.js | head -20
+
+      - name: إنشاء firebase.json
+        run: |
+          cat > firebase.json <<'EOF'
+          {
+            "functions": {
+              "source": "functions",
+              "runtime": "nodejs20"
+            },
+            "firestore": {
+              "rules": "firestore.rules",
+              "indexes": "firestore.indexes.json"
+            }
+          }
+          EOF
+          cat firebase.json
+
+      - name: إنشاء .firebaserc
+        run: |
+          cat > .firebaserc <<'EOF'
+          {
+            "projects": {
+              "default": "yemen-seloo-app"
+            }
+          }
+          EOF
+
+      - name: نشر الدوال
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          firebase deploy --only functions --project yemen-seloo-app --token "$FIREBASE_TOKEN" --non-interactive
