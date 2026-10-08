@@ -118,17 +118,20 @@ class CartCounter extends GetxService {
       busy.value = false;
     }
   }
-
+void startEditing(CartItem item) {
+  editingLineId.value = item.lineId;
+  
+  Get.toNamed('/shein', arguments: {
+    'editLineId': item.lineId,
+    'editUrl': item.sourceUrl, // تأكد أن CartItem يحتوي على حقل sourceUrl
+  });
+}
   /// تُستدعى بعد كل إضافة ناجحة من الجسر.
   Future<void> onItemAdded() async {
     await _reload();
   }
 
-  // ⭐ دوال التعديل
-  void startEditing({required String lineId, required String productUrl}) {
-    editingLineId.value = lineId;
-    editingProductUrl.value = productUrl;
-  }
+  
 
   void clearEditing() {
     editingLineId.value = null;
