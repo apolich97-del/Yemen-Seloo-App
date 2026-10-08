@@ -1,241 +1,140 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:convert';
 
-/// سطر واحد في سلة Yemen Seloo.
-///
-/// يحمل لقطة من بيانات المنتج لحظة الإضافة (سعر المصدر + سعر الصرف)،
-/// لأن أسعار SHEIN تتغيّر ولا يجوز الاعتماد على إعادة القراءة من الصفحة.
+/// عنصر سلة واحد — يخزّن بيانات المنتج القادمة من SHEIN.
 class CartItem {
-  const CartItem({
+  CartItem({
     required this.lineId,
-    required this.goodsId,
-    required this.productUrl,
     required this.title,
     required this.imageUrl,
-    required this.color,
-    required this.size,
-    required this.options,
-    required this.sourceStore,
-    required this.quantity,
+    required this.sourceUrl, // ✅ الحقل الجديد
     required this.sourcePrice,
     required this.sourceCurrency,
     required this.exchangeRate,
-    required this.unitPriceLocal,
-    required this.source,
-    this.sku,
-    this.variantId,
-    this.addedAt,
+    required this.quantity,
+    this.color = '',
+    this.size = '',
+    this.options = const <String, String>{},
+    this.sourceStore = 'SHEIN',
+    this.deliveryLocal = 0.0,
+    this.sku = '',
+    this.variantId = '',
   });
 
-  /// معرّف فريد للسطر — لا يتغير عند التعديل.
   final String lineId;
-
-  final String goodsId;
-  final String productUrl;
   final String title;
   final String imageUrl;
+  final String sourceUrl; // ✅ رابط المنتج الأصلي في SHEIN
+  final double sourcePrice;
+  final String sourceCurrency;
+  final double exchangeRate;
+  final int quantity;
   final String color;
   final String size;
-
-  /// الخيارات الإضافية (فارغة إذا لم نقرأها بثقة).
   final Map<String, String> options;
-
-  /// اسم المتجر المصدر (SHEIN افتراضيًا).
   final String sourceStore;
+  final double deliveryLocal;
+  final String sku;
+  final String variantId;
 
-  final int quantity;
-
-  /// سعر المصدر (SAR عادة).
-  final double sourcePrice;
-
-  /// عملة المصدر.
-  final String sourceCurrency;
-
-  /// سعر الصرف: 1 sourceCurrency → كم YER.
-  final double exchangeRate;
-
-  /// سعر الوحدة بالريال اليمني.
-  final double unitPriceLocal;
-
-  /// كيف استُخرجت البيانات.
-  final String source;
-
-  final String? sku;
-  final String? variantId;
-  final DateTime? addedAt;
-
-  double get lineTotalLocal =>
-      double.parse((unitPriceLocal * quantity).toStringAsFixed(2));
-
-  /// قراءة من Firestore / JSON (يدعم الأسماء القديمة والجديدة).
-  factory CartItem.fromFirestore(String id, Map<String, dynamic> data) {
-    double asDouble(String key) {
-      final Object? v = data[key];
-      if (v is num) return v.toDouble();
-      return double.tryParse('$v') ?? 0;
-    }
-
-    int asInt(String key) {
-      final Object? v = data[key];
-      if (v is num) return v.toInt();
-      return int.tryParse('$v') ?? 1;
-    }
-
-    // ⭐ دعم الأسماء القديمة والجديدة
-    double sourcePrice() {
-      final double sp = asDouble('sourcePrice');
-      if (sp > 0) return sp;
-      return asDouble('priceOriginal'); // fallback للبيانات القديمة
-    }
-
-    String sourceCurrency() {
-      final String sc = '${data['sourceCurrency'] ?? ''}'.trim();
-      if (sc.isNotEmpty) return sc;
-      return '${data['currency'] ?? 'SAR'}'; // fallback
-    }
-
-    // ⭐ قراءة options
-    final Map<String, String> options = <String, String>{};
-    final Object? rawOptions = data['options'];
-    if (rawOptions is Map) {
-      rawOptions.forEach((Object? k, Object? v) {
-        if (k is String && v is String) {
-          final String ks = k.trim();
-          final String vs = v.trim();
-          if (ks.isNotEmpty && vs.isNotEmpty) {
-            options[ks] = vs;
-          }
-        }
-      });
-    }
-
-    final Object? ts = data['addedAt'];
-    return CartItem(
-      lineId: id,
-      goodsId: '${data['goodsId'] ?? ''}',
-      productUrl: '${data['productUrl'] ?? ''}',
-      title: '${data['title'] ?? ''}',
-      imageUrl: '${data['imageUrl'] ?? ''}',
-      color: '${data['color'] ?? ''}',
-      size: '${data['size'] ?? ''}',
-      options: options,
-      sourceStore: '${data['sourceStore'] ?? 'SHEIN'}',
-      quantity: asInt('quantity'),
-      sourcePrice: sourcePrice(),
-      sourceCurrency: sourceCurrency(),
-      exchangeRate: asDouble('exchangeRate'),
-      unitPriceLocal: asDouble('unitPriceLocal'),
-      source: '${data['source'] ?? 'unknown'}',
-      sku: data['sku'] is String ? data['sku'] as String : null,
-      variantId: data['variantId'] is String ? data['variantId'] as String : null,
-      addedAt: ts is Timestamp
-          ? ts.toDate()
-          : (ts is String ? DateTime.tryParse(ts) : null),
-    );
-  }
+  double get unitPriceLocal => sourcePrice * exchangeRate;
+  double get lineTotalLocal => unitPriceLocal * quantity;
 
   CartItem copyWith({
-    int? quantity,
+    String? lineId,
+    String? title,
+    String? imageUrl,
+    String? sourceUrl,
+    double? sourcePrice,
+    String? sourceCurrency,
     double? exchangeRate,
-    double? unitPriceLocal,
+    int? quantity,
     String? color,
     String? size,
     Map<String, String>? options,
-  }) =>
-      CartItem(
-        lineId: lineId,
-        goodsId: goodsId,
-        productUrl: productUrl,
-        title: title,
-        imageUrl: imageUrl,
-        color: color ?? this.color,
-        size: size ?? this.size,
-        options: options ?? this.options,
-        sourceStore: sourceStore,
-        quantity: quantity ?? this.quantity,
-        sourcePrice: sourcePrice,
-        sourceCurrency: sourceCurrency,
-        exchangeRate: exchangeRate ?? this.exchangeRate,
-        unitPriceLocal: unitPriceLocal ?? this.unitPriceLocal,
-        source: source,
-        sku: sku,
-        variantId: variantId,
-        addedAt: addedAt,
-      );
+    String? sourceStore,
+    double? deliveryLocal,
+    String? sku,
+    String? variantId,
+  }) {
+    return CartItem(
+      lineId: lineId ?? this.lineId,
+      title: title ?? this.title,
+      imageUrl: imageUrl ?? this.imageUrl,
+      sourceUrl: sourceUrl ?? this.sourceUrl,
+      sourcePrice: sourcePrice ?? this.sourcePrice,
+      sourceCurrency: sourceCurrency ?? this.sourceCurrency,
+      exchangeRate: exchangeRate ?? this.exchangeRate,
+      quantity: quantity ?? this.quantity,
+      color: color ?? this.color,
+      size: size ?? this.size,
+      options: options ?? this.options,
+      sourceStore: sourceStore ?? this.sourceStore,
+      deliveryLocal: deliveryLocal ?? this.deliveryLocal,
+      sku: sku ?? this.sku,
+      variantId: variantId ?? this.variantId,
+    );
+  }
 
-  /// تحويل إلى خريطة للتخزين المحلي (get_storage).
-  Map<String, dynamic> toMap() => <String, dynamic>{
-        'lineId': lineId,
-        'goodsId': goodsId,
-        'productUrl': productUrl,
-        'title': title,
-        'imageUrl': imageUrl,
-        'color': color,
-        'size': size,
-        'options': options,
-        'sourceStore': sourceStore,
-        'quantity': quantity,
-        'sourcePrice': sourcePrice,
-        'sourceCurrency': sourceCurrency,
-        'exchangeRate': exchangeRate,
-        'unitPriceLocal': unitPriceLocal,
-        'source': source,
-        'sku': sku ?? '',
-        'variantId': variantId ?? '',
-        'addedAt': addedAt?.toIso8601String(),
-      };
+  Map<String, dynamic> toMap() {
+    return <String, dynamic>{
+      'lineId': lineId,
+      'title': title,
+      'imageUrl': imageUrl,
+      'sourceUrl': sourceUrl, // ✅ إضافة الحقل
+      'sourcePrice': sourcePrice,
+      'sourceCurrency': sourceCurrency,
+      'exchangeRate': exchangeRate,
+      'quantity': quantity,
+      'color': color,
+      'size': size,
+      'options': jsonEncode(options),
+      'sourceStore': sourceStore,
+      'deliveryLocal': deliveryLocal,
+      'sku': sku,
+      'variantId': variantId,
+    };
+  }
+
+  factory CartItem.fromMap(Map<String, dynamic> map) {
+    return CartItem(
+      lineId: map['lineId'] as String? ?? '',
+      title: map['title'] as String? ?? '',
+      imageUrl: map['imageUrl'] as String? ?? '',
+      sourceUrl: map['sourceUrl'] as String? ?? '', // ✅ قراءة الحقل
+      sourcePrice: (map['sourcePrice'] as num?)?.toDouble() ?? 0.0,
+      sourceCurrency: map['sourceCurrency'] as String? ?? 'SAR',
+      exchangeRate: (map['exchangeRate'] as num?)?.toDouble() ?? 1.0,
+      quantity: (map['quantity'] as num?)?.toInt() ?? 1,
+      color: map['color'] as String? ?? '',
+      size: map['size'] as String? ?? '',
+      options: map['options'] != null
+          ? Map<String, String>.from(
+              jsonDecode(map['options'] as String) as Map<String, dynamic>,
+            )
+          : <String, String>{},
+      sourceStore: map['sourceStore'] as String? ?? 'SHEIN',
+      deliveryLocal: (map['deliveryLocal'] as num?)?.toDouble() ?? 0.0,
+      sku: map['sku'] as String? ?? '',
+      variantId: map['variantId'] as String? ?? '',
+    );
+  }
 }
 
-/// ملخّص تسعير السلة كما يعده الخادم / الخدمة.
+/// ملخص التسعير القادم من الخدمة.
 class CartQuote {
-  const CartQuote({
+  CartQuote({
     required this.itemsSubtotalLocal,
     required this.serviceFeeLocal,
     required this.shippingLocal,
     required this.discountLocal,
     required this.grandTotalLocal,
-    required this.currency,
-    required this.lines,
-    this.deliveryLocal = 0,
+    this.exchangeRate = 1.0,
   });
 
   final double itemsSubtotalLocal;
   final double serviceFeeLocal;
   final double shippingLocal;
-
-  /// التوصيل المحلي داخل اليمن — منفصل عن الشحن الدولي.
-  final double deliveryLocal;
-
   final double discountLocal;
   final double grandTotalLocal;
-  final String currency;
-  final List<CartItem> lines;
-
-  int get linesCount => lines.length;
-  int get unitsCount =>
-      lines.fold<int>(0, (int sum, CartItem item) => sum + item.quantity);
-
-  factory CartQuote.fromMap(Map<String, dynamic> map) {
-    double asDouble(Object? v) =>
-        v is num ? v.toDouble() : double.tryParse('$v') ?? 0;
-    final List<CartItem> parsed = <CartItem>[];
-    final Object? rawLines = map['lines'];
-    if (rawLines is List) {
-      for (final Object? entry in rawLines) {
-        if (entry is Map) {
-          final Map<String, dynamic> m = entry.cast<String, dynamic>();
-          parsed.add(CartItem.fromFirestore('${m['lineId'] ?? ''}', m));
-        }
-      }
-    }
-    return CartQuote(
-      itemsSubtotalLocal: asDouble(map['itemsSubtotalLocal']),
-      serviceFeeLocal: asDouble(map['serviceFeeLocal']),
-      shippingLocal: asDouble(map['shippingLocal']),
-      deliveryLocal: asDouble(map['deliveryLocal']),
-      discountLocal: asDouble(map['discountLocal']),
-      grandTotalLocal: asDouble(map['grandTotalLocal']),
-      currency: '${map['currency'] ?? 'YER'}',
-      lines: parsed,
-    );
-  }
+  final double exchangeRate;
 }
