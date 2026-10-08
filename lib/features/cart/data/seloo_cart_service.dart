@@ -171,4 +171,67 @@ class SelooCartService {
       deliveryLocal: deliveryLocal,
     );
   }
+
+  /// إنشاء طلب محلي — بدون Backend رسمي، بدون دفع.
+  /// يعتمد حصراً على التسعير الجديد (1.22 SAR + شحن 75 SAR + صرف 140/413).
+  Future<BridgeResult> submitOrder({
+    required String contactPhone,
+    required String addressLine,
+    required String city,
+    required double lat,
+    required double lng,
+  }) async {
+    try {
+      final List<CartItem> items = loadItems();
+      if (items.isEmpty) {
+        return BridgeResult.failure('error', 'السلة فارغة.');
+      }
+
+      // التسعير الجديد حصراً
+      final CartQuote q = calculateQuote(items, 'north');
+
+      final String orderId =
+          'ord_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
+
+      // حفظ محلي فقط (GetStorage) — لا Firestore، لا دفع
+      final List<dynamic> orders =
+          _box.read<List<dynamic>>('seloo_orders') ?? <dynamic>[];
+
+      orders.add(<String, dynamic>{
+        'orderId': orderId,
+        'contactPhone': contactPhone,
+        'addressLine': addressLine,
+        'city': city,
+        'lat': lat,
+        'lng': lng,
+        'items': items.map((CartItem i) => i.toMap()).toList(),
+        'quote': <String, dynamic>{
+          'itemsSubtotalLocal': q.itemsSubtotalLocal,
+          'serviceFeeLocal': q.serviceFeeLocal,   // ← 1.22 SAR فقط
+          'shippingLocal': q.shippingLocal,       // ← سياسة 75 SAR الجديدة
+          'discountLocal': q.discountLocal,
+          'grandTotalLocal': q.grandTotalLocal,
+          'exchangeRate': q.exchangeRate,         // ← 140 / 413
+          'linesCount': q.linesCount,
+          'unitsCount': q.unitsCount,
+          'deliveryLocal': q.deliveryLocal,
+        },
+        'status': 'pending',
+        'createdAt': DateTime.now().toUtc().toIso8601String(),
+      });
+
+      await _box.write('seloo_orders', orders);
+
+      // تفريغ السلة بعد نجاح حفظ الطلب
+      await clear();
+
+      return BridgeResult(
+        status: 'ok',
+        message: 'تم استلام طلبك',
+        orderId: orderId,
+      );
+    } catch (e) {
+      return BridgeResult.failure('error', 'تعذّر إنشاء الطلب: $e');
+    }
+  }
 }
