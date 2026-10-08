@@ -17,6 +17,9 @@ class CartCounter extends GetxService {
   final RxBool busy = false.obs;
   final RxnString lastError = RxnString();
 
+  // ⭐ منطقة التسعير (north افتراضي)
+  final RxString region = 'north'.obs;
+
   // ⭐ حالة التعديل
   final RxnString editingLineId = RxnString();
   final RxnString editingProductUrl = RxnString();
@@ -64,13 +67,20 @@ class CartCounter extends GetxService {
     }
     busy.value = true;
     try {
-      quote.value = await _service.quote();
+      quote.value = await _service.quoteFor(region.value); // ⭐ يستخدم المنطقة الحالية
       lastError.value = null;
     } catch (error) {
       lastError.value = 'تعذّر حساب الإجمالي: $error';
     } finally {
       busy.value = false;
     }
+  }
+
+  // ⭐ تغيير المنطقة وإعادة حساب الإجمالي
+  void setRegion(String newRegion) {
+    if (region.value == newRegion) return;
+    region.value = newRegion;
+    refreshQuote();
   }
 
   Future<String?> updateQuantity(CartItem item, int quantity) async {
@@ -118,20 +128,20 @@ class CartCounter extends GetxService {
       busy.value = false;
     }
   }
-void startEditing(CartItem item) {
-  editingLineId.value = item.lineId;
-  
-  Get.toNamed('/shein', arguments: {
-    'editLineId': item.lineId,
-    'editUrl': item.sourceUrl, // تأكد أن CartItem يحتوي على حقل sourceUrl
-  });
-}
+
+  void startEditing(CartItem item) {
+    editingLineId.value = item.lineId;
+
+    Get.toNamed('/shein', arguments: <String, dynamic>{
+      'editLineId': item.lineId,
+      'editUrl': item.sourceUrl,
+    });
+  }
+
   /// تُستدعى بعد كل إضافة ناجحة من الجسر.
   Future<void> onItemAdded() async {
     await _reload();
   }
-
-  
 
   void clearEditing() {
     editingLineId.value = null;
