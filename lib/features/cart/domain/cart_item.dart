@@ -4,9 +4,10 @@ import 'dart:convert';
 class CartItem {
   CartItem({
     required this.lineId,
+    required this.goodsId,
     required this.title,
     required this.imageUrl,
-    required this.sourceUrl, // ✅ الحقل الجديد
+    required this.sourceUrl,
     required this.sourcePrice,
     required this.sourceCurrency,
     required this.exchangeRate,
@@ -21,9 +22,10 @@ class CartItem {
   });
 
   final String lineId;
+  final String goodsId;
   final String title;
   final String imageUrl;
-  final String sourceUrl; // ✅ رابط المنتج الأصلي في SHEIN
+  final String sourceUrl;
   final double sourcePrice;
   final String sourceCurrency;
   final double exchangeRate;
@@ -41,6 +43,7 @@ class CartItem {
 
   CartItem copyWith({
     String? lineId,
+    String? goodsId,
     String? title,
     String? imageUrl,
     String? sourceUrl,
@@ -58,6 +61,7 @@ class CartItem {
   }) {
     return CartItem(
       lineId: lineId ?? this.lineId,
+      goodsId: goodsId ?? this.goodsId,
       title: title ?? this.title,
       imageUrl: imageUrl ?? this.imageUrl,
       sourceUrl: sourceUrl ?? this.sourceUrl,
@@ -78,9 +82,10 @@ class CartItem {
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'lineId': lineId,
+      'goodsId': goodsId,
       'title': title,
       'imageUrl': imageUrl,
-      'sourceUrl': sourceUrl, // ✅ إضافة الحقل
+      'sourceUrl': sourceUrl,
       'sourcePrice': sourcePrice,
       'sourceCurrency': sourceCurrency,
       'exchangeRate': exchangeRate,
@@ -98,9 +103,10 @@ class CartItem {
   factory CartItem.fromMap(Map<String, dynamic> map) {
     return CartItem(
       lineId: map['lineId'] as String? ?? '',
+      goodsId: map['goodsId'] as String? ?? '',
       title: map['title'] as String? ?? '',
       imageUrl: map['imageUrl'] as String? ?? '',
-      sourceUrl: map['sourceUrl'] as String? ?? '', // ✅ قراءة الحقل
+      sourceUrl: map['sourceUrl'] as String? ?? '',
       sourcePrice: (map['sourcePrice'] as num?)?.toDouble() ?? 0.0,
       sourceCurrency: map['sourceCurrency'] as String? ?? 'SAR',
       exchangeRate: (map['exchangeRate'] as num?)?.toDouble() ?? 1.0,
@@ -118,6 +124,11 @@ class CartItem {
       variantId: map['variantId'] as String? ?? '',
     );
   }
+
+  /// يُستخدم في حال استخدام Firestore لاحقاً.
+  factory CartItem.fromFirestore(Map<String, dynamic> data) {
+    return CartItem.fromMap(data);
+  }
 }
 
 /// ملخص التسعير القادم من الخدمة.
@@ -128,6 +139,9 @@ class CartQuote {
     required this.shippingLocal,
     required this.discountLocal,
     required this.grandTotalLocal,
+    required this.linesCount,
+    required this.unitsCount,
+    required this.deliveryLocal,
     this.exchangeRate = 1.0,
   });
 
@@ -137,4 +151,7 @@ class CartQuote {
   final double discountLocal;
   final double grandTotalLocal;
   final double exchangeRate;
+  final int linesCount;
+  final int unitsCount;
+  final double deliveryLocal;
 }
