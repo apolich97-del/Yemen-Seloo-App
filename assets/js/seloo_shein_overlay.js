@@ -1,6 +1,10 @@
 /**
- * Yemen Seloo — أبسط نسخة ممكنة.
- * لا يتحقق من نجاح SHEIN. فقط ينقر الزر ويرسل مباشرة.
+ * Yemen Seloo — Commit 3 (المرحلة C)
+ * - إزالة findSheinButton ومنع النقر على زر SHEIN الأصلي.
+ * - إضافة قراءة اللون والمقاس والخيارات (readSelectedVariants).
+ * - إضافة تشخيص الخيارات (__selooDiagnoseVariants).
+ * - منع تسجيل الدخول عبر Google/Apple.
+ * - استقبال editingLineId من Flutter.
  */
 (function () {
   'use strict';
@@ -50,37 +54,96 @@
     return (isFinite(n) && n > 0) ? n : null;
   }
 
-  function findSheinButton() {
-    var all = qa('button, [role="button"], a, div[class*="btn"]');
-    for (var i = 0; i < all.length; i++) {
-      var b = all[i];
-      if (!visible(b)) continue;
-      var t = (b.textContent || '').trim();
-      if (!t || t.length > 60) continue;
-      if (
-        t.indexOf('أضف إلى عربة التسوق') !== -1 ||
-        t.indexOf('أضف إلى السلة') !== -1 ||
-        t.indexOf('أضف للسلة') !== -1 ||
-        t.indexOf('أضف إلى الحقيبة') !== -1 ||
-        t.indexOf('أضف للحقيبة') !== -1 ||
-        t.toLowerCase().indexOf('add to cart') !== -1 ||
-        t.toLowerCase().indexOf('add to bag') !== -1
-      ) {
-        log('زر SHEIN:', t);
-        return b;
+  // ✅ 1. دالة قراءة اللون والمقاس والخيارات
+  function readSelectedVariants() {
+    var color = '';
+    var size = '';
+    var options = {};
+
+    // قراءة اللون
+    var colorEl = q('.product-intro__color-choose .selected');
+    if (colorEl) color = colorEl.getAttribute('title') || colorEl.innerText.trim();
+
+    // قراءة المقاس
+    var sizeEl = q('.product-intro__size-choose .selected');
+    if (sizeEl) size = sizeEl.innerText.trim();
+
+    // قراءة الخيارات الأخرى (Options)
+    var optionGroups = qa('.product-intro__attr-choose');
+    optionGroups.forEach(function(group) {
+      var labelEl = group.querySelector('.product-intro__attr-name');
+      var selectedEl = group.querySelector('.selected');
+      if (labelEl && selectedEl) {
+        var key = labelEl.innerText.trim();
+        var value = selectedEl.getAttribute('title') || selectedEl.innerText.trim();
+        if (key && value) options[key] = value;
       }
-    }
-    return null;
+    });
+
+    return { color: color, size: size, options: options };
+  }
+
+  // ✅ 2. دالة التشخيص (للمساعدة في التطوير)
+  window.__selooDiagnoseVariants = function() {
+    var variants = readSelectedVariants();
+    console.log('[Seloo Diagnose] Variants:', JSON.stringify(variants));
+    return variants;
+  };
+
+  // ✅ 3. منع تسجيل الدخول عبر Google/Apple
+  function blockExternalLogins() {
+    var loginButtons = qa('a[href*="accounts.google.com"], a[href*="appleid.apple.com"]');
+    loginButtons.forEach(function(btn) {
+      if (!btn.__selooBlocked) {
+        btn.__selooBlocked = true;
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          toast('يرجى استخدام خيارات تسجيل الدخول الأخرى.');
+        });
+      }
+    });
+  }
+
+  // ✅ 4. منع النقر على زر SHEIN الأصلي (Add to Cart)
+  function preventSheinNativeAddToCart() {
+    document.addEventListener('click', function(e) {
+      var target = e.target.closest('button, [role="button"], a');
+      if (target && visible(target)) {
+        var t = (target.textContent || '').trim();
+        if (
+          t.indexOf('أضف إلى عربة التسوق') !== -1 ||
+          t.indexOf('أضف إلى السلة') !== -1 ||
+          t.indexOf('أضف للسلة') !== -1 ||
+          t.toLowerCase().indexOf('add to cart') !== -1 ||
+          t.toLowerCase().indexOf('add to bag') !== -1
+        ) {
+          e.preventDefault();
+          e.stopPropagation();
+          toast('يرجى استخدام زر "أضف إلى سلة سيلو" بالأسفل.');
+          return false;
+        }
+      }
+    }, true);
   }
 
   function collectProduct() {
     var goodsId = goodsIdFromUrl();
     if (!goodsId) return null;
+    
+    var variants = readSelectedVariants(); // ✅ قراءة الخيارات
+    
     var title = text('h1') || attr('meta[property="og:title"]', 'content');
     var price = parsePrice(text('[class*="price"]')) ||
                 parsePrice(attr('meta[property="product:price:amount"]', 'content'));
+                
     if (!title || !price) return null;
+    
     var imageUrl = attr('meta[property="og:image"]', 'content') || '';
+    
+    // ✅ قراءة editingLineId من المتغير العام الذي يمرره Flutter
+    var editId = window.__SELOO_EDITING_LINE_ID__ || '';
+
     return {
       goodsId: String(goodsId),
       productUrl: location.href.split('#')[0],
@@ -88,11 +151,13 @@
       imageUrl: imageUrl,
       price: price,
       currency: 'SAR',
-      color: '',
-      size: '',
+      color: variants.color,     // ✅ اللون المحدد
+      size: variants.size,       // ✅ المقاس المحدد
+      options: variants.options, // ✅ الخيارات
       quantity: 1,
       sku: '',
       variantId: '',
+      editingLineId: editId,     // ✅ تمرير معرف التعديل
       source: 'merged'
     };
   }
@@ -185,14 +250,9 @@
       var original = fab.textContent;
       fab.textContent = 'جارٍ الإضافة…';
 
-      var sheinBtn = findSheinButton();
-      if (sheinBtn) {
-        try { sheinBtn.click(); } catch (e) { log('click err', e); }
-        log('تم النقر على SHEIN');
-      } else {
-        log('لم أجد زر SHEIN');
-      }
-
+      // ✅ تم حذف كود النقر على زر SHEIN (findSheinButton و sheinBtn.click)
+      
+      // ✅ 300ms تأخير بدلاً من 1500ms
       setTimeout(function () {
         callBridge('addToCart', product).then(function (r) {
           sending = false;
@@ -200,7 +260,7 @@
           var st = r && r.status ? r.status : 'error';
           if (st === 'ok') {
             fab.textContent = 'تمت الإضافة ✓';
-            toast('تمت الإضافة إلى سلتي SHEIN وسيلو ✓' +
+            toast('تمت الإضافة إلى سلتك ✓' +
                   (r.cartCount ? ' (' + r.cartCount + ')' : ''));
             setTimeout(function () { fab.textContent = original; }, 2000);
           } else if (st === 'unauthenticated') {
@@ -211,7 +271,7 @@
             toast((r && r.message) ? r.message : 'فشلت الإضافة');
           }
         });
-      }, 1500);
+      }, 300); // ✅ 300ms
     });
 
     document.body.appendChild(fab);
@@ -225,6 +285,7 @@
   function sync() {
     if (!goodsIdFromUrl()) { removeFab(); return; }
     buildFab();
+    blockExternalLogins(); // ✅ منع تسجيل الدخول
   }
 
   var lastUrl = location.href;
@@ -241,6 +302,9 @@
   window.__selooToast = function (m) { toast(m); };
 
   function boot() {
+    // ✅ تشغيل منع النقر على زر SHEIN الأصلي فوراً
+    preventSheinNativeAddToCart(); 
+    
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', function () { setTimeout(sync, 1200); });
     } else {
