@@ -31,10 +31,12 @@ class SelooCartService {
       List<CartItem> currentItems = loadItems();
 
       if (editingLineId != null) {
+        // حالة التعديل: نحدّث السطر الموجود
         final int index =
             currentItems.indexWhere((item) => item.lineId == editingLineId);
         if (index == -1) {
-          return BridgeResult.error('لم يتم العثور على المنتج المراد تعديله.');
+          return BridgeResult.failure(
+              'error', 'لم يتم العثور على المنتج المراد تعديله.');
         }
 
         final CartItem oldItem = currentItems[index];
@@ -45,8 +47,8 @@ class SelooCartService {
           title: draft.title,
           imageUrl: draft.imageUrl,
           sourceUrl: draft.productUrl,
-          sourcePrice: draft.price,
-          sourceCurrency: draft.currency,
+          sourcePrice: draft.sourcePrice,
+          sourceCurrency: draft.sourceCurrency,
           exchangeRate: oldItem.exchangeRate,
           quantity: oldItem.quantity,
           color: draft.color,
@@ -58,14 +60,15 @@ class SelooCartService {
           variantId: draft.variantId,
         );
       } else {
+        // حالة الإضافة الجديدة
         final CartItem newItem = CartItem(
           lineId: _generateLineId(),
           goodsId: draft.goodsId,
           title: draft.title,
           imageUrl: draft.imageUrl,
           sourceUrl: draft.productUrl,
-          sourcePrice: draft.price,
-          sourceCurrency: draft.currency,
+          sourcePrice: draft.sourcePrice,
+          sourceCurrency: draft.sourceCurrency,
           exchangeRate: SelooPricing.northRate,
           quantity: 1,
           color: draft.color,
@@ -80,9 +83,9 @@ class SelooCartService {
       }
 
       await _saveItems(currentItems);
-      return BridgeResult.ok('تمت الإضافة بنجاح');
+      return const BridgeResult(status: 'ok', message: 'تمت الإضافة بنجاح');
     } catch (e) {
-      return BridgeResult.error('حدث خطأ أثناء الإضافة: $e');
+      return BridgeResult.failure('error', 'حدث خطأ أثناء الإضافة: $e');
     }
   }
 
@@ -90,12 +93,14 @@ class SelooCartService {
     try {
       List<CartItem> currentItems = loadItems();
       final int index = currentItems.indexWhere((i) => i.lineId == lineId);
-      if (index == -1) return BridgeResult.error('المنتج غير موجود.');
+      if (index == -1) {
+        return BridgeResult.failure('error', 'المنتج غير موجود.');
+      }
       currentItems[index] = currentItems[index].copyWith(quantity: quantity);
       await _saveItems(currentItems);
-      return BridgeResult.ok('تم التحديث');
+      return const BridgeResult(status: 'ok', message: 'تم التحديث');
     } catch (e) {
-      return BridgeResult.error('خطأ في التعديل: $e');
+      return BridgeResult.failure('error', 'خطأ في التعديل: $e');
     }
   }
 
@@ -104,18 +109,18 @@ class SelooCartService {
       List<CartItem> currentItems = loadItems();
       currentItems.removeWhere((i) => i.lineId == lineId);
       await _saveItems(currentItems);
-      return BridgeResult.ok('تم الحذف');
+      return const BridgeResult(status: 'ok', message: 'تم الحذف');
     } catch (e) {
-      return BridgeResult.error('خطأ في الحذف: $e');
+      return BridgeResult.failure('error', 'خطأ في الحذف: $e');
     }
   }
 
   Future<BridgeResult> clear() async {
     try {
       await _box.remove(_cartKey);
-      return BridgeResult.ok('تم التفريغ');
+      return const BridgeResult(status: 'ok', message: 'تم التفريغ');
     } catch (e) {
-      return BridgeResult.error('خطأ في التفريغ: $e');
+      return BridgeResult.failure('error', 'خطأ في التفريغ: $e');
     }
   }
 
@@ -166,17 +171,4 @@ class SelooCartService {
       deliveryLocal: deliveryLocal,
     );
   }
-}
-
-class BridgeResult {
-  BridgeResult._({required this.isOk, required this.message});
-
-  final bool isOk;
-  final String message;
-
-  factory BridgeResult.ok(String message) =>
-      BridgeResult._(isOk: true, message: message);
-
-  factory BridgeResult.error(String message) =>
-      BridgeResult._(isOk: false, message: message);
 }
