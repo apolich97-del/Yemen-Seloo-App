@@ -7,6 +7,11 @@ import '../domain/cart_item.dart';
 class SelooCartService {
   final GetStorage _box = GetStorage();
   static const String _cartKey = 'seloo_cart_items';
+  static const String _orderSeqKey = 'seloo_order_seq';
+
+  // ═══════════════════════════════════════════════════════════════
+  // تحميل وحفظ السلة
+  // ═══════════════════════════════════════════════════════════════
 
   List<CartItem> loadItems() {
     final List<dynamic>? rawList = _box.read<List<dynamic>>(_cartKey);
@@ -21,9 +26,17 @@ class SelooCartService {
     await _box.write(_cartKey, items.map((e) => e.toMap()).toList());
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // توليد lineId
+  // ═══════════════════════════════════════════════════════════════
+
   String _generateLineId() {
     return 'ln_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}_${Random.secure().nextInt(0x7FFFFFFF).toRadixString(36)}';
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  // إضافة / تعديل منتج
+  // ═══════════════════════════════════════════════════════════════
 
   Future<BridgeResult> addToCart(SheinDraft draft,
       {String? editingLineId}) async {
@@ -89,6 +102,10 @@ class SelooCartService {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // تعديل الكمية / الحذف / التفريغ
+  // ═══════════════════════════════════════════════════════════════
+
   Future<BridgeResult> updateLine(String lineId, int quantity) async {
     try {
       List<CartItem> currentItems = loadItems();
@@ -124,9 +141,18 @@ class SelooCartService {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // حساب الإجمالي (Quote)
+  // ═══════════════════════════════════════════════════════════════
+
   Future<CartQuote> quote() async {
     final List<CartItem> items = loadItems();
     return calculateQuote(items, 'north');
+  }
+
+  Future<CartQuote> quoteFor(String region) async {
+    final List<CartItem> items = loadItems();
+    return calculateQuote(items, region);
   }
 
   CartQuote calculateQuote(List<CartItem> items, String region) {
@@ -172,8 +198,47 @@ class SelooCartService {
     );
   }
 
-  /// إنشاء طلب محلي — بدون Backend رسمي، بدون دفع.
-  /// يعتمد حصراً على التسعير الجديد (1.22 SAR + شحن 75 SAR + صرف 140/413).
+  // ═══════════════════════════════════════════════════════════════
+  // ⭐ خوارزمية رقم الطلب (YS + سنة + شهر + أسبوع - حرف + رقم)
+  // ═══════════════════════════════════════════════════════════════
+
+  /// توليد رقم الطلب: YS+YY+MM+WW-Letter+NNN
+  /// مثال: YS26OC1-A001
+  String _buildOrderId(int sequence) {
+    final DateTime now = DateTime.now();
+    final String yy = (now.year % 100).toString().padLeft(2, '0');
+
+    const List<String> monthCodes = <String>[
+      'JA', 'FE', 'MR', 'AP', 'MY', 'JN', // 1-6
+      'JL', 'AU', 'SE', 'OC', 'NV', 'DE', // 7-12
+    ];
+    final String mm = monthCodes[now.month - 1];
+
+    // الأسبوع داخل الشهر: 1..5
+    final int week = ((now.day - 1) ~/ 7) + 1;
+
+    // حرف متسلسل A..Z
+    final String letter = String.fromCharCode(65 + ((sequence - 1) % 26));
+
+    // رقم متسلسل 001..999
+    final String seq =
+        (((sequence - 1) % 1000) + 1).toString().padLeft(3, '0');
+
+    return 'YS$yy$mm$week-$letter$seq';
+  }
+
+  /// يعيد الرقم التسلسلي التالي ويزيده
+  int _nextSequence() {
+    final int last = _box.read<int>(_orderSeqKey) ?? 0;
+    final int next = last + 1;
+    _box.write(_orderSeqKey, next);
+    return next;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // إنشاء طلب محلي — بدون Backend رسمي
+  // ═══════════════════════════════════════════════════════════════
+
   Future<BridgeResult> submitOrder({
     required String contactPhone,
     required String addressLine,
@@ -190,8 +255,9 @@ class SelooCartService {
       // التسعير الجديد حصراً
       final CartQuote q = calculateQuote(items, 'north');
 
-      final String orderId =
-          'ord_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
+      // ⭐ رقم الطلب بالخوارزمية الجديدة
+      final int seq = _nextSequence();
+      final String orderId = _buildOrderId(seq);
 
       // حفظ محلي فقط (GetStorage) — لا Firestore، لا دفع
       final List<dynamic> orders =
