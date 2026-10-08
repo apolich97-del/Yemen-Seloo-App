@@ -168,7 +168,6 @@ class SelooCartService {
   }
 }
 
-/// نتيجة عملية الجسر.
 class BridgeResult {
   BridgeResult._({required this.isOk, required this.message});
 
