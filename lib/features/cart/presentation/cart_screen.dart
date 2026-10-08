@@ -65,6 +65,8 @@ class _CartScreenState extends State<CartScreen> {
                   onQuantity: (int value) =>
                       _run(() => _cart.updateQuantity(_cart.items[index], value)),
                   onRemove: () => _run(() => _cart.remove(_cart.items[index])),
+                  // ✅ تمرير دالة التعديل
+                  onEdit: () => _cart.startEditing(_cart.items[index]),
                 ),
               ),
             ),
@@ -81,11 +83,13 @@ class _CartLineTile extends StatelessWidget {
     required this.item,
     required this.onQuantity,
     required this.onRemove,
+    required this.onEdit, // ✅ إضافة دالة التعديل
   });
 
   final CartItem item;
   final ValueChanged<int> onQuantity;
   final VoidCallback onRemove;
+  final VoidCallback onEdit; // ✅
 
   @override
   Widget build(BuildContext context) {
@@ -138,7 +142,6 @@ class _CartLineTile extends StatelessWidget {
                       fontSize: 15,
                     ),
                   ),
-                  // ⬇️ هذا هو السطر الذي تم تعديله (كان priceOriginal و currency)
                   Text(
                     '${item.sourcePrice.toStringAsFixed(2)} ${item.sourceCurrency} × صرف ${item.exchangeRate}',
                     style: Theme.of(context).textTheme.bodySmall,
@@ -149,6 +152,13 @@ class _CartLineTile extends StatelessWidget {
                       _QuantityStepper(
                           quantity: item.quantity, onChanged: onQuantity),
                       const Spacer(),
+                      // ✅ زر التعديل ✏️
+                      IconButton(
+                        tooltip: 'تعديل',
+                        onPressed: onEdit,
+                        icon: const Icon(Icons.edit_outlined,
+                            color: Color(0xFFF97316)), // لون برتقالي لتمييز التعديل
+                      ),
                       IconButton(
                         tooltip: 'حذف',
                         onPressed: onRemove,
