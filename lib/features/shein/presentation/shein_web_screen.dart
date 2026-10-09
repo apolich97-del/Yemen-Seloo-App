@@ -4,12 +4,8 @@ import 'package:get/get.dart';
 
 import '../../../core/config/seloo_config.dart';
 import '../../cart/application/cart_counter.dart';
-import '../application/shein_bridge_controller.dart';
+import 'shein_bridge_controller.dart'; // ⭐ تم التصحيح
 
-/// شاشة SHEIN داخل WebView (flutter_inappwebview).
-/// - وضع التعديل (editLineId + editUrl).
-/// - فرض اللغة العربية.
-/// - تحسين الأداء (cache + UA للهاتف + Hybrid Composition).
 class SheinWebScreen extends StatefulWidget {
   const SheinWebScreen({super.key});
 
@@ -19,8 +15,8 @@ class SheinWebScreen extends StatefulWidget {
 
 class _SheinWebScreenState extends State<SheinWebScreen> {
   final CartCounter _cartCounter = Get.find<CartCounter>();
-  final SheinBridgeController _bridgeController =
-      Get.find<SheinBridgeController>();
+  // ⭐ إنشاء مباشر (main.dart لا يسجّله)
+  final SheinBridgeController _bridgeController = SheinBridgeController();
 
   InAppWebViewController? _webViewController;
   String? _editLineId;
@@ -32,13 +28,10 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
   void initState() {
     super.initState();
 
-    // ⭐ استقبال arguments (تعديل أو فتح منتج)
     final dynamic args = Get.arguments;
     if (args is Map) {
       _editLineId = args['editLineId'] as String?;
       _editUrl = args['editUrl'] as String?;
-
-      // ⭐ دعم فتح رابط منتج من السلة (بدون تعديل)
       if (_editUrl == null && args['openUrl'] is String) {
         _editUrl = args['openUrl'] as String?;
       }
@@ -51,62 +44,42 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
 
   @override
   void dispose() {
-    // ⭐ تنظيف حالة التعديل
     _cartCounter.clearEditing();
     super.dispose();
   }
 
-  String get _initialUrl => _editUrl ?? 'https://ar.shein.com/';
+  String get _initialUrl => _editUrl ?? SheinWebConfig.homeAr;
 
   InAppWebViewSettings _buildSettings() {
     return InAppWebViewSettings(
-      // ⭐ JavaScript + DOM storage (ضروري للسكربت)
       javaScriptEnabled: true,
       domStorageEnabled: true,
       databaseEnabled: true,
-
-      // ⭐ Cache يُسرّع التنقل
       cacheEnabled: true,
       clearCache: false,
-
-      // ⭐ أداء على Android
       useHybridComposition: true,
       useShouldOverrideUrlLoading: true,
       mediaPlaybackRequiresUserGesture: false,
-
-      // ⭐ UA للهاتف (يُحمّل نسخة SHEIN الخفيفة)
       applicationNameForUserAgent:
           'Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 '
           '(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-
-      // ⭐ منع فتح نوافذ منبثقة
       supportMultipleWindows: false,
       javaScriptCanOpenWindowsAutomatically: false,
-
-      // ⭐ Zoom off
       supportZoom: false,
       builtInZoomControls: false,
       displayZoomControls: false,
-
-      // ⭐ تحسين عرض الصفحة
       useWideViewPort: true,
       loadWithOverviewMode: true,
-
-      // ⭐ لون الخلفية أبيض
       transparentBackground: false,
     );
   }
 
-  /// ⭐ حقن السكربت + editingLineId بعد تحميل الصفحة
   Future<void> _injectScripts(InAppWebViewController controller) async {
     try {
-      // 1. حقن editingLineId (للتعديل)
       final String editId = _cartCounter.editingLineId.value ?? '';
       await controller.evaluateJavascript(
         source: 'window.__SELOO_EDITING_LINE_ID__ = "$editId";',
       );
-
-      // 2. حقن ملف Overlay الرئيسي
       final String script = await _bridgeController.loadOverlayScript();
       await controller.evaluateJavascript(source: script);
     } catch (e) {
@@ -120,7 +93,6 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        // ⭐ برتقالي في التعديل، بنفسجي عادي
         backgroundColor:
             isEditing ? const Color(0xFFF97316) : const Color(0xFF7C3AED),
         foregroundColor: Colors.white,
@@ -130,7 +102,6 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: <Widget>[
-          // ⭐ زر إلغاء التعديل
           if (isEditing)
             IconButton(
               icon: const Icon(Icons.close),
@@ -140,7 +111,6 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                 Get.back();
               },
             ),
-          // ⭐ تحديث
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'تحديث',
@@ -148,14 +118,13 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
               await _webViewController?.reload();
             },
           ),
-          // ⭐ الرئيسية
           IconButton(
             icon: const Icon(Icons.home_outlined),
             tooltip: 'الرئيسية',
             onPressed: () async {
               await _webViewController?.loadUrl(
                 urlRequest: URLRequest(
-                  url: WebUri('https://ar.shein.com/'),
+                  url: WebUri(SheinWebConfig.homeAr),
                   headers: <String, String>{
                     'Accept-Language': 'ar,ar-SA;q=0.9,en;q=0.5',
                   },
@@ -171,15 +140,12 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
             initialUrlRequest: URLRequest(
               url: WebUri(_initialUrl),
               headers: <String, String>{
-                // ⭐ فرض العربية
                 'Accept-Language': 'ar,ar-SA;q=0.9,en;q=0.5',
               },
             ),
             initialSettings: _buildSettings(),
             onWebViewCreated: (InAppWebViewController controller) async {
               _webViewController = controller;
-
-              // ⭐ ربط الجسر
               await _bridgeController.attach(controller);
             },
             onLoadStart: (controller, url) {
@@ -197,7 +163,6 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                   _progress = 1;
                 });
               }
-              // ⭐ حقن السكربت بعد كل تحميل
               await _injectScripts(controller);
             },
             onProgressChanged: (controller, progress) {
@@ -215,14 +180,13 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                 );
               }
             },
-            // ⭐ سياسة التنقل (داخلية أو خارجية)
             shouldOverrideUrlLoading: (controller, action) async {
-              final Uri? uri = action.request.url;
-              if (uri == null) return NavigationActionPolicy.ALLOW;
+              final WebUri? webUri = action.request.url;
+              if (webUri == null) return NavigationActionPolicy.ALLOW;
+              final Uri uri = Uri.parse(webUri.toString());
               return SheinNavigationPolicy.decide(uri);
             },
           ),
-          // ⭐ شريط تحميل رقيق أعلى الشاشة
           if (_isLoading && _progress < 1)
             Positioned(
               top: 0,
