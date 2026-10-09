@@ -1,9 +1,5 @@
 /**
- * Yemen Seloo — Overlay JS
- * - قراءة اللون والمقاس والخيارات.
- * - استخراج صورة المنتج الحقيقية من DOM.
- * - منع تسجيل الدخول الخارجي وزر SHEIN.
- * - استقبال editingLineId من Flutter.
+ * Yemen Seloo — Overlay JS (نسخة محسّنة 2026-10)
  */
 (function () {
   'use strict';
@@ -22,28 +18,17 @@
 
   function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
   function qa(s) { try { return Array.prototype.slice.call(document.querySelectorAll(s)); } catch (e) { return []; } }
-
   function visible(el) {
     if (!el) return false;
-    try {
-      var r = el.getBoundingClientRect();
-      return r.width > 0 && r.height > 0;
-    } catch (e) { return false; }
+    try { var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; } catch (e) { return false; }
   }
 
   function goodsIdFromUrl() {
     var m = location.href.match(/-p-(\d{5,})\.html/i);
     return m ? m[1] : null;
   }
-
-  function text(sel) {
-    var el = q(sel);
-    return el ? (el.textContent || '').trim() : null;
-  }
-  function attr(sel, name) {
-    var el = q(sel);
-    return el ? (el.getAttribute(name) || '').trim() : null;
-  }
+  function text(sel) { var el = q(sel); return el ? (el.textContent || '').trim() : null; }
+  function attr(sel, name) { var el = q(sel); return el ? (el.getAttribute(name) || '').trim() : null; }
 
   function parsePrice(raw) {
     if (!raw) return null;
@@ -56,7 +41,7 @@
     return (isFinite(n) && n > 0) ? n : null;
   }
 
-  // ⭐ استخراج صورة المنتج (نسخة محسّنة بـ 13 محدد)
+  // ⭐ استخراج صورة المنتج
   function getProductImage() {
     var selectors = [
       '.product-intro__main-image img',
@@ -74,7 +59,6 @@
       'div[class*="crop"] img',
       'div[class*="product"] img'
     ];
-
     for (var i = 0; i < selectors.length; i++) {
       var imgs = qa(selectors[i]);
       for (var j = 0; j < imgs.length; j++) {
@@ -93,36 +77,62 @@
         return src.split('?')[0];
       }
     }
-
     var og = attr('meta[property="og:image"]', 'content');
     if (og && og.indexOf('http') === 0) {
       var l = og.toLowerCase();
-      if (l.indexOf('logo') === -1 && l.indexOf('shein-logo') === -1) {
-        return og;
-      }
+      if (l.indexOf('logo') === -1 && l.indexOf('shein-logo') === -1) return og;
     }
     return '';
   }
 
-  // ⭐ قراءة الخيارات
+  // ⭐ قراءة اللون والمقاس (محسّنة بمحددات متعددة)
   function readSelectedVariants() {
     var color = '';
     var size = '';
     var options = {};
 
-    var colorEl = q('.product-intro__color-choose .selected');
-    if (colorEl) color = colorEl.getAttribute('title') || colorEl.innerText.trim();
+    // اللون: جرّب محددات متعددة
+    var colorSelectors = [
+      '.product-intro__color-choose .selected',
+      '.product-intro__color-choose [class*="active"]',
+      '[class*="color"] [class*="selected"]',
+      '[class*="color"] [class*="active"]'
+    ];
+    for (var ci = 0; ci < colorSelectors.length; ci++) {
+      var cEl = q(colorSelectors[ci]);
+      if (cEl) {
+        color = cEl.getAttribute('title') ||
+                cEl.getAttribute('data-title') ||
+                cEl.innerText.trim();
+        if (color) break;
+      }
+    }
 
-    var sizeEl = q('.product-intro__size-choose .selected');
-    if (sizeEl) size = sizeEl.innerText.trim();
+    // المقاس: جرّب محددات متعددة
+    var sizeSelectors = [
+      '.product-intro__size-choose .selected',
+      '.product-intro__size-choose [class*="active"]',
+      '[class*="size"] [class*="selected"]',
+      '[class*="size"] [class*="active"]'
+    ];
+    for (var si = 0; si < sizeSelectors.length; si++) {
+      var sEl = q(sizeSelectors[si]);
+      if (sEl) {
+        size = sEl.innerText.trim();
+        if (size) break;
+      }
+    }
 
+    // خيارات إضافية
     var optionGroups = qa('.product-intro__attr-choose');
     optionGroups.forEach(function (group) {
       var labelEl = group.querySelector('.product-intro__attr-name');
-      var selectedEl = group.querySelector('.selected');
+      var selectedEl = group.querySelector('.selected') ||
+                       group.querySelector('[class*="active"]');
       if (labelEl && selectedEl) {
         var key = labelEl.innerText.trim();
-        var value = selectedEl.getAttribute('title') || selectedEl.innerText.trim();
+        var value = selectedEl.getAttribute('title') ||
+                    selectedEl.innerText.trim();
         if (key && value) options[key] = value;
       }
     });
@@ -131,9 +141,9 @@
   }
 
   window.__selooDiagnoseVariants = function () {
-    var variants = readSelectedVariants();
-    console.log('[Seloo Diagnose] Variants:', JSON.stringify(variants));
-    return variants;
+    var v = readSelectedVariants();
+    console.log('[Seloo Diagnose]', JSON.stringify(v));
+    return v;
   };
 
   function blockExternalLogins() {
@@ -257,7 +267,6 @@
             if (done) return;
             done = true;
             clearTimeout(tm);
-            log('bridge err', e);
             resolve({ status: 'error', message: 'خطأ الجسر' });
           });
       } catch (e) {
@@ -291,6 +300,7 @@
       var original = fab.textContent;
       fab.textContent = 'جارٍ الإضافة…';
 
+      // ⭐ زيادة الوقت إلى 800ms (كان 300ms - يسبب التعليق)
       setTimeout(function () {
         callBridge('addToCart', product).then(function (r) {
           sending = false;
@@ -309,7 +319,7 @@
             toast((r && r.message) ? r.message : 'فشلت الإضافة');
           }
         });
-      }, 300);
+      }, 800); // ⭐ تم التعديل
     });
 
     document.body.appendChild(fab);
@@ -320,31 +330,64 @@
     if (f && f.parentNode) f.parentNode.removeChild(f);
   }
 
+  // ⭐ فرض اللغة العربية على SHEIN
+  function enforceArabic() {
+    try {
+      // إذا كنا على صفحة إنجليزية، نغيّر اللغة
+      var html = document.documentElement;
+      if (html && html.lang && html.lang.toLowerCase().indexOf('en') === 0) {
+        // محاولة تغيير اللغة عبر الرابط
+        if (location.host.indexOf('sa.shein.com') !== -1 &&
+            location.pathname.indexOf('/ar/') === -1) {
+          var newPath = location.pathname.replace(/^\/[a-z]{2}\//, '/ar/');
+          if (newPath === location.pathname) {
+            newPath = '/ar' + location.pathname;
+          }
+          // ⚠️ لا نُعيد التوجيه تلقائياً لتجنب الحلقات
+          log('English detected, consider redirect');
+        }
+      }
+    } catch (e) {}
+  }
+
   function sync() {
     if (!goodsIdFromUrl()) { removeFab(); return; }
     buildFab();
     blockExternalLogins();
+    enforceArabic();
   }
 
   var lastUrl = location.href;
-  setInterval(function () {
+  var urlCheckTimer = setInterval(function () {
     if (location.href !== lastUrl) {
       lastUrl = location.href;
-      setTimeout(sync, 1200);
+      setTimeout(sync, 800);
     }
-  }, 2000);
+  }, 4000);
 
-  window.addEventListener('popstate', function () { setTimeout(sync, 1200); });
+  window.addEventListener('beforeunload', function () {
+    if (urlCheckTimer) clearInterval(urlCheckTimer);
+  });
+
+  window.addEventListener('popstate', function () { setTimeout(sync, 800); });
   window.__selooRefresh = function () { sync(); };
   window.__selooSetCartCount = function () {};
   window.__selooToast = function (m) { toast(m); };
 
+  function scheduleSync() {
+    if (typeof requestIdleCallback !== 'undefined') {
+      requestIdleCallback(sync, { timeout: 2000 });
+    } else {
+      setTimeout(sync, 1200);
+    }
+  }
+
   function boot() {
     preventSheinNativeAddToCart();
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', function () { setTimeout(sync, 1200); });
+      document.addEventListener('DOMContentLoaded', scheduleSync);
     } else {
-      setTimeout(sync, 1200);
+      scheduleSync();
     }
   }
   boot();
