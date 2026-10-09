@@ -7,8 +7,7 @@ import '../domain/cart_item.dart';
 
 /// حالة السلة المشتركة — محلية على الجهاز.
 class CartCounter extends GetxService {
-  CartCounter({SelooCartService? service})
-      : _service = service ?? SelooCartService();
+  CartCounter({SelooCartService? service}) : _service = service ?? SelooCartService();
 
   final SelooCartService _service;
 
@@ -24,8 +23,7 @@ class CartCounter extends GetxService {
   final RxnString editingLineId = RxnString();
   final RxnString editingProductUrl = RxnString();
 
-  Stream<int> get stream =>
-      items.stream.map((List<CartItem> list) => list.length);
+  Stream<int> get stream => items.stream.map((List<CartItem> list) => list.length);
   int get count => items.length;
   bool get isEditing => editingLineId.value != null;
   double get subtotalLocal => items.fold<double>(
@@ -60,6 +58,7 @@ class CartCounter extends GetxService {
     }
   }
 
+  /// ⭐ حساب الإجمالي مباشرة من الذاكرة (بدون قراءة التخزين)
   Future<void> refreshQuote() async {
     if (items.isEmpty) {
       quote.value = null;
@@ -67,7 +66,7 @@ class CartCounter extends GetxService {
     }
     busy.value = true;
     try {
-      quote.value = await _service.quoteFor(region.value); // ⭐ يستخدم المنطقة الحالية
+      quote.value = _service.calculateQuote(items.toList(), region.value);
       lastError.value = null;
     } catch (error) {
       lastError.value = 'تعذّر حساب الإجمالي: $error';
@@ -89,8 +88,7 @@ class CartCounter extends GetxService {
     }
     busy.value = true;
     try {
-      final BridgeResult result =
-          await _service.updateLine(item.lineId, quantity);
+      final BridgeResult result = await _service.updateLine(item.lineId, quantity);
       if (result.isOk) await _reload();
       return result.isOk ? null : result.message;
     } catch (error) {
