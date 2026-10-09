@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 
-import '../application/shein_bridge_controller.dart';
+import '../../../core/config/seloo_config.dart';
 import '../../cart/application/cart_counter.dart';
+import '../application/shein_bridge_controller.dart';
 
-/// شاشة SHEIN داخل WebView.
-/// - تدعم وضع التعديل (editLineId + editUrl).
-/// - تفرض اللغة العربية عبر Accept-Language.
-/// - تستخدم User-Agent للهاتف لتسريع التصفح.
+/// شاشة SHEIN داخل WebView (flutter_inappwebview).
+/// - وضع التعديل (editLineId + editUrl).
+/// - فرض اللغة العربية.
+/// - تحسين الأداء (cache + UA للهاتف + Hybrid Composition).
 class SheinWebScreen extends StatefulWidget {
   const SheinWebScreen({super.key});
 
@@ -17,13 +18,14 @@ class SheinWebScreen extends StatefulWidget {
 }
 
 class _SheinWebScreenState extends State<SheinWebScreen> {
-  late final WebViewController _controller;
   final CartCounter _cartCounter = Get.find<CartCounter>();
   final SheinBridgeController _bridgeController =
       Get.find<SheinBridgeController>();
 
+  InAppWebViewController? _webViewController;
   String? _editLineId;
   String? _editUrl;
+  double _progress = 0;
   bool _isLoading = true;
 
   @override
@@ -31,10 +33,8 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
     super.initState();
 
     // ⭐ استقبال arguments (تعديل أو فتح منتج)
-    final Map<String, dynamic>? args =
-        Get.arguments is Map ? Map<String, dynamic>.from(Get.arguments as Map) : null;
-
-    if (args != null) {
+    final dynamic args = Get.arguments;
+    if (args is Map) {
       _editLineId = args['editLineId'] as String?;
       _editUrl = args['editUrl'] as String?;
 
@@ -47,69 +47,71 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
     if (_editLineId != null) {
       _cartCounter.editingLineId.value = _editLineId!;
     }
-
-    // ⭐ الرابط الافتراضي: النسخة العربية
-    final String initialUrl = _editUrl ?? 'https://ar.shein.com/';
-
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.white)
-      // ⭐ User-Agent للهاتف (يحمّل نسخة أخف وأسرع)
-      ..setUserAgent(
-        'Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 '
-        '(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-      )
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: (String url) {
-            if (mounted) setState(() => _isLoading = true);
-          },
-          onPageFinished: (String url) {
-            if (mounted) setState(() => _isLoading = false);
-            // ⭐ حقن السكربت (seloo_shein_overlay.js)
-            _bridgeController.injectJavaScript(_controller, url);
-          },
-          onWebResourceError: (WebResourceError error) {
-            if (!mounted) return;
-            if (error.isForMainFrame == true) {
-              setState(() => _isLoading = false);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('فشل تحميل الصفحة: ${error.description}'),
-                ),
-              );
-            }
-          },
-          onNavigationRequest: (NavigationRequest request) {
-            // ⭐ منع فتح روابط خارجية داخل WebView
-            final String url = request.url;
-            if (url.startsWith('https://www.shein.com') ||
-                url.startsWith('https://ar.shein.com') ||
-                url.startsWith('https://m.shein.com') ||
-                url.startsWith('https://sa.shein.com') ||
-                url.startsWith('https://ar.shein.com.sa') ||
-                url.startsWith('https://www.shein.com.sa') ||
-                url.contains('shein.com')) {
-              return NavigationDecision.navigate;
-            }
-            return NavigationDecision.prevent;
-          },
-        ),
-      )
-      ..loadRequest(
-        Uri.parse(initialUrl),
-        // ⭐ فرض اللغة العربية على كل الطلبات
-        headers: <String, String>{
-          'Accept-Language': 'ar,ar-SA;q=0.9,ar-EG;q=0.8,en;q=0.5',
-        },
-      );
   }
 
   @override
   void dispose() {
-    // ⭐ تنظيف حالة التعديل عند مغادرة الشاشة
+    // ⭐ تنظيف حالة التعديل
     _cartCounter.clearEditing();
     super.dispose();
+  }
+
+  String get _initialUrl => _editUrl ?? 'https://ar.shein.com/';
+
+  InAppWebViewSettings _buildSettings() {
+    return InAppWebViewSettings(
+      // ⭐ JavaScript + DOM storage (ضروري للسكربت)
+      javaScriptEnabled: true,
+      domStorageEnabled: true,
+      databaseEnabled: true,
+
+      // ⭐ Cache يُسرّع التنقل
+      cacheEnabled: true,
+      clearCache: false,
+
+      // ⭐ أداء على Android
+      useHybridComposition: true,
+      useShouldOverrideUrlLoading: true,
+      mediaPlaybackRequiresUserGesture: false,
+
+      // ⭐ UA للهاتف (يُحمّل نسخة SHEIN الخفيفة)
+      applicationNameForUserAgent:
+          'Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 '
+          '(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+
+      // ⭐ منع فتح نوافذ منبثقة
+      supportMultipleWindows: false,
+      javaScriptCanOpenWindowsAutomatically: false,
+
+      // ⭐ Zoom off
+      supportZoom: false,
+      builtInZoomControls: false,
+      displayZoomControls: false,
+
+      // ⭐ تحسين عرض الصفحة
+      useWideViewPort: true,
+      loadWithOverviewMode: true,
+
+      // ⭐ لون الخلفية أبيض
+      transparentBackground: false,
+    );
+  }
+
+  /// ⭐ حقن السكربت + editingLineId بعد تحميل الصفحة
+  Future<void> _injectScripts(InAppWebViewController controller) async {
+    try {
+      // 1. حقن editingLineId (للتعديل)
+      final String editId = _cartCounter.editingLineId.value ?? '';
+      await controller.evaluateJavascript(
+        source: 'window.__SELOO_EDITING_LINE_ID__ = "$editId";',
+      );
+
+      // 2. حقن ملف Overlay الرئيسي
+      final String script = await _bridgeController.loadOverlayScript();
+      await controller.evaluateJavascript(source: script);
+    } catch (e) {
+      debugPrint('[Seloo] فشل حقن السكربت: $e');
+    }
   }
 
   @override
@@ -118,7 +120,7 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        // ⭐ لون برتقالي في وضع التعديل، بنفسجي عادي
+        // ⭐ برتقالي في التعديل، بنفسجي عادي
         backgroundColor:
             isEditing ? const Color(0xFFF97316) : const Color(0xFF7C3AED),
         foregroundColor: Colors.white,
@@ -138,25 +140,26 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                 Get.back();
               },
             ),
-          // ⭐ زر تحديث الصفحة
+          // ⭐ تحديث
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'تحديث',
-            onPressed: () {
-              setState(() => _isLoading = true);
-              _controller.reload();
+            onPressed: () async {
+              await _webViewController?.reload();
             },
           ),
-          // ⭐ زر الصفحة الرئيسية
+          // ⭐ الرئيسية
           IconButton(
             icon: const Icon(Icons.home_outlined),
             tooltip: 'الرئيسية',
-            onPressed: () {
-              _controller.loadRequest(
-                Uri.parse('https://ar.shein.com/'),
-                headers: <String, String>{
-                  'Accept-Language': 'ar,ar-SA;q=0.9,en;q=0.5',
-                },
+            onPressed: () async {
+              await _webViewController?.loadUrl(
+                urlRequest: URLRequest(
+                  url: WebUri('https://ar.shein.com/'),
+                  headers: <String, String>{
+                    'Accept-Language': 'ar,ar-SA;q=0.9,en;q=0.5',
+                  },
+                ),
               );
             },
           ),
@@ -164,15 +167,70 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
       ),
       body: Stack(
         children: <Widget>[
-          WebViewWidget(controller: _controller),
+          InAppWebView(
+            initialUrlRequest: URLRequest(
+              url: WebUri(_initialUrl),
+              headers: <String, String>{
+                // ⭐ فرض العربية
+                'Accept-Language': 'ar,ar-SA;q=0.9,en;q=0.5',
+              },
+            ),
+            initialSettings: _buildSettings(),
+            onWebViewCreated: (InAppWebViewController controller) async {
+              _webViewController = controller;
+
+              // ⭐ ربط الجسر
+              await _bridgeController.attach(controller);
+            },
+            onLoadStart: (controller, url) {
+              if (mounted) {
+                setState(() {
+                  _isLoading = true;
+                  _progress = 0;
+                });
+              }
+            },
+            onLoadStop: (controller, url) async {
+              if (mounted) {
+                setState(() {
+                  _isLoading = false;
+                  _progress = 1;
+                });
+              }
+              // ⭐ حقن السكربت بعد كل تحميل
+              await _injectScripts(controller);
+            },
+            onProgressChanged: (controller, progress) {
+              if (mounted) {
+                setState(() => _progress = progress / 100);
+              }
+            },
+            onReceivedError: (controller, request, error) {
+              if (request.isForMainFrame ?? false) {
+                if (mounted) setState(() => _isLoading = false);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('فشل تحميل الصفحة: ${error.description}'),
+                  ),
+                );
+              }
+            },
+            // ⭐ سياسة التنقل (داخلية أو خارجية)
+            shouldOverrideUrlLoading: (controller, action) async {
+              final Uri? uri = action.request.url;
+              if (uri == null) return NavigationActionPolicy.ALLOW;
+              return SheinNavigationPolicy.decide(uri);
+            },
+          ),
           // ⭐ شريط تحميل رقيق أعلى الشاشة
-          if (_isLoading)
-            const Positioned(
+          if (_isLoading && _progress < 1)
+            Positioned(
               top: 0,
               left: 0,
               right: 0,
               child: LinearProgressIndicator(
-                color: Color(0xFF7C3AED),
+                value: _progress,
+                color: const Color(0xFF7C3AED),
                 backgroundColor: Colors.transparent,
                 minHeight: 3,
               ),
