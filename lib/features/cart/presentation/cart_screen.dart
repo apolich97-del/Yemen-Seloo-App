@@ -11,8 +11,13 @@ const Color _purple = Color(0xFF7C3AED);
 const Color _purpleLight = Color(0xFFFAF7FF);
 const Color _border = Color(0xFFE9D5FF);
 
-const String _orderWhatsApp = '967775727928';
-const String _supportWhatsApp = '967737383637';
+// ⭐ الرقم الأساسي (واتساب)
+const String _primaryWhatsApp = '967770515787';
+const String _primaryPhone = '770515787';
+
+// ⭐ الرقم البديل (واتساب)
+const String _backupWhatsApp = '967737383637';
+const String _backupPhone = '737383637';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -39,14 +44,17 @@ class _CartScreenState extends State<CartScreen> {
     }
   }
 
-  Future<void> _shareCartToWhatsApp(String phone) async {
+  /// مشاركة السلة عبر واتساب (الرقم الأساسي)
+  Future<void> _shareCartToWhatsApp() async {
     if (_cart.items.isEmpty) {
       _snack('السلة فارغة');
       return;
     }
+
+    await _cart.refreshQuote();
     final CartQuote? q = _cart.quote.value;
     if (q == null) {
-      _snack('جارٍ حساب الإجمالي، حاول مرة أخرى.');
+      _snack('تعذّر حساب الإجمالي، حاول مرة أخرى.');
       return;
     }
 
@@ -59,12 +67,17 @@ class _CartScreenState extends State<CartScreen> {
     for (int i = 0; i < _cart.items.length; i++) {
       final CartItem item = _cart.items[i];
       b.writeln('${i + 1}. ${item.title}');
-      if (item.color.isNotEmpty) b.writeln('اللون: ${item.color}');
-      if (item.size.isNotEmpty) b.writeln('المقاس: ${item.size}');
-      b.writeln('الكمية: ${item.quantity}');
-      b.writeln('السعر: ${item.sourcePrice.toStringAsFixed(2)} SAR');
-      if (item.goodsId.isNotEmpty) b.writeln('رقم المنتج: ${item.goodsId}');
-      if (item.sourceUrl.isNotEmpty) b.writeln('رابط SHEIN: ${item.sourceUrl}');
+      if (item.color.isNotEmpty) b.writeln('   اللون: ${item.color}');
+      if (item.size.isNotEmpty) b.writeln('   المقاس: ${item.size}');
+      if (item.options.isNotEmpty) {
+        item.options.forEach((String k, String v) {
+          b.writeln('   $k: $v');
+        });
+      }
+      b.writeln('   الكمية: ${item.quantity}');
+      b.writeln('   السعر: ${item.sourcePrice.toStringAsFixed(2)} SAR');
+      if (item.goodsId.isNotEmpty) b.writeln('   رقم المنتج: ${item.goodsId}');
+      if (item.sourceUrl.isNotEmpty) b.writeln('   الرابط: ${item.sourceUrl}');
       b.writeln('');
     }
 
@@ -75,21 +88,29 @@ class _CartScreenState extends State<CartScreen> {
     final double shippingSar = q.shippingLocal / q.exchangeRate;
     final double grandTotalSar = q.grandTotalLocal / q.exchangeRate;
 
+    b.writeln('📦 عدد الأسطر: ${q.linesCount}');
+    b.writeln('🔢 عدد القطع: ${q.unitsCount}');
+    b.writeln('');
     b.writeln('💵 قيمة المنتجات: ${subtotalSar.toStringAsFixed(2)} SAR');
     b.writeln('🛠️ رسوم الخدمة: ${serviceFeeSar.toStringAsFixed(2)} SAR');
     b.writeln('🚚 الشحن: ${shippingSar.toStringAsFixed(2)} SAR');
     b.writeln('━━━━━━━━━━━━━━');
     b.writeln('💰 الإجمالي: ${grandTotalSar.toStringAsFixed(2)} SAR');
-    b.writeln('🇾🇪 بالريال اليمني: ${q.grandTotalLocal.toStringAsFixed(0)} ريال');
+    b.writeln(
+        '🇾🇪 بالريال اليمني: ${q.grandTotalLocal.toStringAsFixed(0)} ريال');
     b.writeln('📊 سعر الصرف: ${q.exchangeRate.toStringAsFixed(0)}');
     final String regionName =
         _cart.region.value == 'south' ? 'الجنوب' : 'الشمال';
     b.writeln('📍 المنطقة: $regionName');
     b.writeln('');
+    b.writeln('━━━━━━━━━━━━━━');
+    b.writeln('📞 للتواصل: $_primaryPhone');
+    b.writeln('📞 الرقم البديل: $_backupPhone');
+    b.writeln('');
     b.writeln('خدمتكم غايتنا وثقتكم هدفنا');
 
     final Uri url = Uri.parse(
-      'https://wa.me/$phone?text=${Uri.encodeComponent(b.toString())}',
+      'https://wa.me/$_primaryWhatsApp?text=${Uri.encodeComponent(b.toString())}',
     );
     try {
       final bool ok =
@@ -159,15 +180,8 @@ class _CartScreenState extends State<CartScreen> {
                       const SizedBox(height: 10),
                       _QuoteSummary(cart: _cart),
                       const SizedBox(height: 12),
-                      _ShareButtons(
-                        onOrderShare: () =>
-                            _shareCartToWhatsApp(_orderWhatsApp),
-                        onSupportShare: () =>
-                            _shareCartToWhatsApp(_supportWhatsApp),
-                        orderPhone: '775727928',
-                        supportPhone: '737383637',
-                      ),
-                      const SizedBox(height: 12),
+                      _SingleShareButton(onShare: _shareCartToWhatsApp),
+                      const SizedBox(height: 10),
                       _CheckoutButton(cart: _cart),
                       const SizedBox(height: 8),
                       Text(
@@ -177,6 +191,46 @@ class _CartScreenState extends State<CartScreen> {
                           fontSize: 11,
                           color: Color(0xFF9CA3AF),
                           height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      // ⭐ أرقام التواصل
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: _purpleLight,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: _border),
+                        ),
+                        child: Column(
+                          children: const <Widget>[
+                            Text(
+                              '📞 للتواصل معنا',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: _purple,
+                              ),
+                            ),
+                            SizedBox(height: 6),
+                            Text(
+                              'الأساسي: $_primaryPhone',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                color: Color(0xFF1F2937),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'البديل: $_backupPhone',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF6B7280),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -226,8 +280,8 @@ class _Header extends StatelessWidget {
                   top: -6,
                   right: -6,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: const Color(0xFFEF4444),
                       borderRadius: BorderRadius.circular(10),
@@ -279,7 +333,7 @@ class _Header extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// بطاقة المنتج مع الصورة
+// بطاقة المنتج
 // ═══════════════════════════════════════════════════════════════
 class _CartLineTile extends StatelessWidget {
   const _CartLineTile({
@@ -313,7 +367,6 @@ class _CartLineTile extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              // ⭐ الصورة
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: SizedBox(
@@ -338,7 +391,7 @@ class _CartLineTile extends StatelessWidget {
                         ),
                         const Spacer(),
                         Text(
-                          'SAR ${item.sourcePrice.toStringAsFixed(0)}',
+                          'SAR ${item.sourcePrice.toStringAsFixed(2)}',
                           style: const TextStyle(
                             color: _purple,
                             fontWeight: FontWeight.bold,
@@ -370,6 +423,31 @@ class _CartLineTile extends StatelessWidget {
                             fontSize: 11.5,
                             color: Color(0xFF6B7280),
                           ),
+                        ),
+                      ),
+                    if (item.options.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: item.options.entries
+                              .map((MapEntry<String, String> e) => Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: _purpleLight,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      '${e.key}: ${e.value}',
+                                      style: const TextStyle(
+                                        fontSize: 10.5,
+                                        color: _purple,
+                                      ),
+                                    ),
+                                  ))
+                              .toList(),
                         ),
                       ),
                   ],
@@ -414,7 +492,6 @@ class _CartLineTile extends StatelessWidget {
   }
 }
 
-// ⭐ ويدجت الصورة مع Fallback
 class _ProductImage extends StatelessWidget {
   const _ProductImage({required this.url});
   final String url;
@@ -479,7 +556,7 @@ class _QuantityButton extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// ⭐ خيارات المنطقة (أزرار واضحة)
+// خيارات المنطقة
 // ═══════════════════════════════════════════════════════════════
 class _RegionSelector extends StatelessWidget {
   const _RegionSelector({required this.cart});
@@ -603,6 +680,10 @@ class _QuoteSummary extends StatelessWidget {
               )
             : Column(
                 children: <Widget>[
+                  _Row(label: '📦 عدد الأسطر', value: '${q.linesCount}'),
+                  const SizedBox(height: 8),
+                  _Row(label: '🔢 عدد القطع', value: '${q.unitsCount}'),
+                  const Divider(height: 20),
                   _Row(
                     label: 'إجمالي المنتجات',
                     value:
@@ -676,62 +757,31 @@ class _Row extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// أزرار المشاركة
+// زر مشاركة واحد
 // ═══════════════════════════════════════════════════════════════
-class _ShareButtons extends StatelessWidget {
-  const _ShareButtons({
-    required this.onOrderShare,
-    required this.onSupportShare,
-    required this.orderPhone,
-    required this.supportPhone,
-  });
-
-  final VoidCallback onOrderShare;
-  final VoidCallback onSupportShare;
-  final String orderPhone;
-  final String supportPhone;
+class _SingleShareButton extends StatelessWidget {
+  const _SingleShareButton({required this.onShare});
+  final VoidCallback onShare;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: onSupportShare,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: _purple,
-              side: const BorderSide(color: _purple),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-            icon: const Icon(Icons.share, size: 16),
-            label: Text(
-              'مشاركة $supportPhone',
-              style: const TextStyle(
-                  fontSize: 11.5, fontWeight: FontWeight.bold),
-            ),
-          ),
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: onShare,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: _purple,
+          side: const BorderSide(color: _purple, width: 1.5),
+          padding: const EdgeInsets.symmetric(vertical: 13),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: FilledButton.icon(
-            onPressed: onOrderShare,
-            style: FilledButton.styleFrom(
-              backgroundColor: _purple,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-            icon: const Icon(Icons.share, size: 16),
-            label: Text(
-              'مشاركة $orderPhone',
-              style: const TextStyle(
-                  fontSize: 11.5, fontWeight: FontWeight.bold),
-            ),
-          ),
+        icon: const Icon(Icons.share, size: 18),
+        label: const Text(
+          'مشاركة السلة عبر واتساب',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
         ),
-      ],
+      ),
     );
   }
 }
