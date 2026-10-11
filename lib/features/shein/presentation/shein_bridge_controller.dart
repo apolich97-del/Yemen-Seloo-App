@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 import '../../../core/config/seloo_config.dart';
 import '../../cart/application/cart_counter.dart';
 import '../../cart/data/seloo_cart_service.dart';
+import '../../home/application/main_tab_controller.dart'; // ⭐ جديد
 import '../domain/shein_draft.dart';
 
 /// يربط WebView SHEIN بمنطق التطبيق.
@@ -38,6 +39,8 @@ class SheinBridgeController {
             return _reply('ok', '');
           case 'requestCartCount':
             return _reply('ok', '');
+          case 'openYamanCart': // ⭐ جديد
+            return _handleOpenYamanCart(); // ⭐ جديد
           default:
             return _reply('invalid', 'إجراء غير معروف');
         }
@@ -94,6 +97,18 @@ class SheinBridgeController {
     } catch (e) {
       debugPrint('[Seloo] استثناء أثناء الإضافة: $e');
       return _reply('error', 'تعذّرت الإضافة: $e');
+    }
+  }
+
+  // ⭐ جديد: عندما يضغط المستخدم أيقونة سلة SHEIN → ننتقل إلى سلة يمن سيلو
+  Future<Map<String, dynamic>> _handleOpenYamanCart() async {
+    try {
+      final MainTabController tabCtrl = Get.find<MainTabController>();
+      tabCtrl.goToCart();
+      return _reply('ok', 'تم فتح السلة');
+    } catch (e) {
+      debugPrint('[Seloo] فشل الانتقال للسلة: $e');
+      return _reply('error', 'تعذّر فتح السلة');
     }
   }
 
