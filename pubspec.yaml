@@ -50,7 +50,7 @@ flutter:
     - assets/js/
     - assets/images/
 
-# ⭐ إعدادات أيقونة التطبيق
+# ⭐ إعدادات أيقونة التطبيق — تُولَّد من logo.png
 flutter_launcher_icons:
   android: true
   ios: false
