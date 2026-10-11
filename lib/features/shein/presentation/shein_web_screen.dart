@@ -4,8 +4,11 @@ import 'package:get/get.dart';
 
 import '../../../core/config/seloo_config.dart';
 import '../../cart/application/cart_counter.dart';
-import 'shein_bridge_controller.dart'; // ⭐ تم التصحيح
+import 'shein_bridge_controller.dart';
 
+/// شاشة SHEIN داخل WebView (flutter_inappwebview).
+/// ⚠️ لا تحتوي Scaffold/AppBar — لأنها تُعرض داخل MainShell.
+/// ✅ تُضيف AppBar برتقالي فقط في وضع التعديل.
 class SheinWebScreen extends StatefulWidget {
   const SheinWebScreen({super.key});
 
@@ -15,7 +18,6 @@ class SheinWebScreen extends StatefulWidget {
 
 class _SheinWebScreenState extends State<SheinWebScreen> {
   final CartCounter _cartCounter = Get.find<CartCounter>();
-  // ⭐ إنشاء مباشر (main.dart لا يسجّله)
   final SheinBridgeController _bridgeController = SheinBridgeController();
 
   InAppWebViewController? _webViewController;
@@ -91,52 +93,50 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
   Widget build(BuildContext context) {
     final bool isEditing = _editLineId != null;
 
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor:
-            isEditing ? const Color(0xFFF97316) : const Color(0xFF7C3AED),
-        foregroundColor: Colors.white,
-        elevation: 2,
-        title: Text(
-          isEditing ? 'تعديل المنتج' : 'تصفح SHEIN',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        actions: <Widget>[
-          if (isEditing)
-            IconButton(
-              icon: const Icon(Icons.close),
-              tooltip: 'إلغاء التعديل',
-              onPressed: () {
-                _cartCounter.clearEditing();
-                Get.back();
-              },
-            ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'تحديث',
-            onPressed: () async {
-              await _webViewController?.reload();
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.home_outlined),
-            tooltip: 'الرئيسية',
-            onPressed: () async {
-              await _webViewController?.loadUrl(
-                urlRequest: URLRequest(
-                  url: WebUri(SheinWebConfig.homeAr),
-                  headers: <String, String>{
-                    'Accept-Language': 'ar,ar-SA;q=0.9,en;q=0.5',
-                  },
+    return Column(
+      children: <Widget>[
+        // ⭐ AppBar صغير — يظهر فقط في وضع التعديل
+        if (isEditing)
+          Container(
+            color: const Color(0xFFF97316),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: <Widget>[
+                const Icon(Icons.edit, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                const Text(
+                  'وضع التعديل',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
-              );
-            },
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () {
+                    _cartCounter.clearEditing();
+                    // العودة إلى تبويب السلة
+                    Get.back();
+                  },
+                  style: TextButton.styleFrom(foregroundColor: Colors.white),
+                  icon: const Icon(Icons.close, size: 18),
+                  label: const Text('إلغاء'),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
-      body: Stack(
-        children: <Widget>[
-          InAppWebView(
+        // شريط التحميل
+        if (_isLoading && _progress < 1)
+          LinearProgressIndicator(
+            value: _progress,
+            color: const Color(0xFF7C3AED),
+            backgroundColor: Colors.transparent,
+            minHeight: 3,
+          ),
+        // WebView
+        Expanded(
+          child: InAppWebView(
             initialUrlRequest: URLRequest(
               url: WebUri(_initialUrl),
               headers: <String, String>{
@@ -187,20 +187,8 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
               return SheinNavigationPolicy.decide(uri);
             },
           ),
-          if (_isLoading && _progress < 1)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: LinearProgressIndicator(
-                value: _progress,
-                color: const Color(0xFF7C3AED),
-                backgroundColor: Colors.transparent,
-                minHeight: 3,
-              ),
-            ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
