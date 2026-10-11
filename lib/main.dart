@@ -8,7 +8,8 @@ import 'core/config/seloo_config.dart';
 import 'features/cart/application/cart_counter.dart';
 import 'features/cart/presentation/cart_screen.dart';
 import 'features/checkout/presentation/checkout_screen.dart';
-import 'features/home/presentation/main_shell.dart'; // ⭐ جديد
+import 'features/home/application/main_tab_controller.dart'; // ⭐ جديد
+import 'features/home/presentation/main_shell.dart';
 import 'features/shein/presentation/shein_web_screen.dart';
 
 Future<void> main() async {
@@ -24,6 +25,10 @@ Future<void> main() async {
   // 3) سجّل CartCounter قبل أي شاشة
   Get.put<CartCounter>(CartCounter(), permanent: true);
   debugPrint('[Seloo] CartCounter registered ✓');
+
+  // ⭐ 3.1) سجّل MainTabController (للتحكم في التبويب من WebView)
+  Get.put<MainTabController>(MainTabController(), permanent: true);
+  debugPrint('[Seloo] MainTabController registered ✓');
 
   // 4) افتح التطبيق
   runApp(const SelooApp());
@@ -62,9 +67,9 @@ class SelooApp extends StatelessWidget {
         colorSchemeSeed: const Color(0xFF7C3AED),
         scaffoldBackgroundColor: const Color(0xFFFAF7FF),
       ),
-      initialRoute: '/main', // ⭐ تم التعديل
+      initialRoute: '/main',
       getPages: <GetPage<dynamic>>[
-        GetPage(name: '/main', page: () => const MainShell()), // ⭐ جديد
+        GetPage(name: '/main', page: () => const MainShell()),
         GetPage(name: '/shein', page: () => const SheinWebScreen()),
         GetPage(name: '/cartScreen', page: () => const CartScreen()),
         GetPage(name: '/checkoutScreen', page: () => const CheckoutScreen()),
