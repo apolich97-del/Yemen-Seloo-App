@@ -11,9 +11,11 @@ const Color _purple = Color(0xFF7C3AED);
 const Color _purpleLight = Color(0xFFFAF7FF);
 const Color _border = Color(0xFFE9D5FF);
 
-// ⭐ الأرقام الصحيحة
+// ⭐ الرقم الأساسي (واتساب)
 const String _primaryWhatsApp = '967770518757';
 const String _primaryPhone = '770518757';
+
+// ⭐ الرقم البديل
 const String _backupWhatsApp = '967737383637';
 const String _backupPhone = '737383637';
 
@@ -42,17 +44,6 @@ class _CartScreenState extends State<CartScreen> {
     }
   }
 
-  /// ⭐ فتح المنتج في WebView
-  void _openProduct(CartItem item) {
-    if (item.sourceUrl.isEmpty) {
-      _snack('رابط المنتج غير متوفر');
-      return;
-    }
-    Get.toNamed('/shein', arguments: <String, dynamic>{
-      'openUrl': item.sourceUrl,
-    });
-  }
-
   Future<void> _shareCartToWhatsApp() async {
     if (_cart.items.isEmpty) {
       _snack('السلة فارغة');
@@ -68,7 +59,6 @@ class _CartScreenState extends State<CartScreen> {
 
     final StringBuffer b = StringBuffer();
     b.writeln('🛍️ *طلب جديد من يمن سيلو*');
-    b.writeln('');
     b.writeln('━━━━━━━━━━━━━━');
     b.writeln('');
 
@@ -84,21 +74,26 @@ class _CartScreenState extends State<CartScreen> {
       }
       b.writeln('   الكمية: ${item.quantity}');
       b.writeln('   السعر: ${item.sourcePrice.toStringAsFixed(2)} SAR');
-      if (item.goodsId.isNotEmpty) b.writeln('   رقم المنتج: ${item.goodsId}');
-      if (item.sourceUrl.isNotEmpty) b.writeln('   الرابط: ${item.sourceUrl}');
+
+      // ⭐ رابط قصير عند المشاركة (بدون معاملات التتبع)
+      if (item.goodsId.isNotEmpty) {
+        b.writeln('   الرابط: https://m.shein.com/ar/p-${item.goodsId}.html');
+      } else if (item.sourceUrl.isNotEmpty) {
+        b.writeln('   الرابط: ${item.sourceUrl}');
+      }
       b.writeln('');
     }
 
     b.writeln('━━━━━━━━━━━━━━');
+    b.writeln('📦 عدد الأسطر: ${q.linesCount}');
+    b.writeln('🔢 عدد القطع: ${q.unitsCount}');
+    b.writeln('');
 
     final double subtotalSar = q.itemsSubtotalLocal / q.exchangeRate;
     final double serviceFeeSar = q.serviceFeeLocal / q.exchangeRate;
     final double shippingSar = q.shippingLocal / q.exchangeRate;
     final double grandTotalSar = q.grandTotalLocal / q.exchangeRate;
 
-    b.writeln('📦 عدد الأسطر: ${q.linesCount}');
-    b.writeln('🔢 عدد القطع: ${q.unitsCount}');
-    b.writeln('');
     b.writeln('💵 قيمة المنتجات: ${subtotalSar.toStringAsFixed(2)} SAR');
     b.writeln('🛠️ رسوم الخدمة: ${serviceFeeSar.toStringAsFixed(2)} SAR');
     b.writeln('🚚 الشحن: ${shippingSar.toStringAsFixed(2)} SAR');
@@ -129,13 +124,9 @@ class _CartScreenState extends State<CartScreen> {
     }
   }
 
-  Future<void> _shareToBackup() async {
-    final Uri url = Uri.parse('https://wa.me/$_backupWhatsApp');
-    try {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    } catch (e) {
-      _snack('تعذّر فتح الواتساب: $e');
-    }
+  Future<void> _openProduct(CartItem item) async {
+    // ⭐ فتح المنتج للتعديل (استخدام رابط sourceUrl الكامل للحفاظ على المتغيرات)
+    _cart.startEditing(item);
   }
 
   void _snack(String message) {
@@ -188,8 +179,7 @@ class _CartScreenState extends State<CartScreen> {
                             onQuantity: (int v) =>
                                 _run(() => _cart.updateQuantity(item, v)),
                             onRemove: () => _run(() => _cart.remove(item)),
-                            onEdit: () => _cart.startEditing(item),
-                            onTapImage: () => _openProduct(item),
+                            onEdit: () => _openProduct(item),
                           ),
                         ),
                       ),
@@ -200,7 +190,7 @@ class _CartScreenState extends State<CartScreen> {
                       const SizedBox(height: 12),
                       _ShareButtons(
                         onSharePrimary: _shareCartToWhatsApp,
-                        onShareBackup: _shareToBackup,
+                        onShareBackup: _shareCartToWhatsApp,
                       ),
                       const SizedBox(height: 10),
                       _CheckoutButton(cart: _cart),
@@ -324,14 +314,12 @@ class _CartLineTile extends StatelessWidget {
     required this.onQuantity,
     required this.onRemove,
     required this.onEdit,
-    required this.onTapImage,
   });
 
   final CartItem item;
   final ValueChanged<int> onQuantity;
   final VoidCallback onRemove;
   final VoidCallback onEdit;
-  final VoidCallback onTapImage;
 
   @override
   Widget build(BuildContext context) {
@@ -347,9 +335,8 @@ class _CartLineTile extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              // ⭐ الصورة - قابلة للنقر
               GestureDetector(
-                onTap: onTapImage,
+                onTap: onEdit,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: SizedBox(
@@ -397,7 +384,6 @@ class _CartLineTile extends StatelessWidget {
                         height: 1.4,
                       ),
                     ),
-                    // ⭐ اللون والمقاس كـ Chips
                     if (item.color.isNotEmpty || item.size.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 5),
@@ -420,7 +406,6 @@ class _CartLineTile extends StatelessWidget {
                           ],
                         ),
                       ),
-                    // ⭐ الخيارات الإضافية
                     if (item.options.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
@@ -478,7 +463,6 @@ class _CartLineTile extends StatelessWidget {
   }
 }
 
-// ⭐ Chip لعرض اللون/المقاس/الخيارات
 class _InfoChip extends StatelessWidget {
   const _InfoChip({
     required this.label,
@@ -789,7 +773,7 @@ class _Row extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// أزرار المشاركة (محسّنة)
+// أزرار المشاركة
 // ═══════════════════════════════════════════════════════════════
 class _ShareButtons extends StatelessWidget {
   const _ShareButtons({
@@ -802,53 +786,42 @@ class _ShareButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Row(
       children: <Widget>[
-        // ⭐ الزر الأساسي - بارز جداً
-        SizedBox(
-          width: double.infinity,
-          height: 52,
-          child: ElevatedButton.icon(
-            onPressed: onSharePrimary,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF25D366), // لون واتساب
-              foregroundColor: Colors.white,
-              elevation: 3,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            icon: const Icon(Icons.share, size: 22),
-            label: const Text(
-              'مشاركة السلة عبر واتساب',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        // ⭐ زر بديل صغير
-        SizedBox(
-          width: double.infinity,
-          height: 42,
+        Expanded(
           child: OutlinedButton.icon(
             onPressed: onShareBackup,
             style: OutlinedButton.styleFrom(
               foregroundColor: _purple,
-              side: const BorderSide(color: _purple, width: 1.3),
+              side: const BorderSide(color: _purple, width: 1.5),
+              padding: const EdgeInsets.symmetric(vertical: 13),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+                  borderRadius: BorderRadius.circular(12)),
             ),
-            icon: const Icon(Icons.support_agent, size: 18),
-            label: const Text(
-              'تواصل مع الدعم',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-              ),
+            icon: const Icon(Icons.share, size: 16),
+            label: Text(
+              'مشاركة $_backupPhone',
+              style: const TextStyle(
+                  fontSize: 11.5, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: FilledButton.icon(
+            onPressed: onSharePrimary,
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF25D366),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            icon: const Icon(Icons.share, size: 16),
+            label: Text(
+              'مشاركة $_primaryPhone',
+              style: const TextStyle(
+                  fontSize: 11.5, fontWeight: FontWeight.bold),
             ),
           ),
         ),
@@ -867,9 +840,9 @@ class _ContactBox extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _border),
       ),
-      child: const Column(
+      child: Column(
         children: <Widget>[
-          Text(
+          const Text(
             '📞 للتواصل معنا',
             style: TextStyle(
               fontSize: 12,
@@ -877,8 +850,8 @@ class _ContactBox extends StatelessWidget {
               color: _purple,
             ),
           ),
-          SizedBox(height: 6),
-          Text(
+          const SizedBox(height: 6),
+          const Text(
             'الأساسي: $_primaryPhone',
             style: TextStyle(
               fontSize: 12.5,
@@ -886,8 +859,8 @@ class _ContactBox extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
-          SizedBox(height: 2),
-          Text(
+          const SizedBox(height: 2),
+          const Text(
             'البديل: $_backupPhone',
             style: TextStyle(
               fontSize: 12,
