@@ -122,11 +122,9 @@ jobs:
           lines = p.read_text().split('\n')
           out = []
           has_ndk = False
-
           for line in lines:
               s = line.strip()
               ind = line[:len(line) - len(line.lstrip())]
-
               if 'com.google.gms.google-services' in s:
                   continue
               if re.match(r'^minSdkVersion\b', s):
@@ -139,14 +137,11 @@ jobs:
                   out.append(f'{ind}ndkVersion "25.1.8937393"')
                   has_ndk = True
                   continue
-
               out.append(line)
-
               if re.search(r'^android\s*\{', s) and not has_ndk:
                   out.append(f'{ind}    ndkVersion "25.1.8937393"')
                   has_ndk = True
                   continue
-
           p.write_text('\n'.join(out))
           print(p.read_text())
           PYEOF
@@ -164,6 +159,10 @@ jobs:
 
       - name: Flutter pub get
         run: flutter pub get
+
+      # ⭐ جديد: توليد أيقونة التطبيق من logo.png
+      - name: ⭐ توليد أيقونة التطبيق
+        run: dart run flutter_launcher_icons
 
       - name: Build APK (release)
         run: flutter build apk --release --no-tree-shake-icons
