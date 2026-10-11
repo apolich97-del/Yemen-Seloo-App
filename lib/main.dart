@@ -8,6 +8,7 @@ import 'core/config/seloo_config.dart';
 import 'features/cart/application/cart_counter.dart';
 import 'features/cart/presentation/cart_screen.dart';
 import 'features/checkout/presentation/checkout_screen.dart';
+import 'features/home/presentation/main_shell.dart'; // ⭐ جديد
 import 'features/shein/presentation/shein_web_screen.dart';
 
 Future<void> main() async {
@@ -61,8 +62,9 @@ class SelooApp extends StatelessWidget {
         colorSchemeSeed: const Color(0xFF7C3AED),
         scaffoldBackgroundColor: const Color(0xFFFAF7FF),
       ),
-      initialRoute: '/shein',
+      initialRoute: '/main', // ⭐ تم التعديل
       getPages: <GetPage<dynamic>>[
+        GetPage(name: '/main', page: () => const MainShell()), // ⭐ جديد
         GetPage(name: '/shein', page: () => const SheinWebScreen()),
         GetPage(name: '/cartScreen', page: () => const CartScreen()),
         GetPage(name: '/checkoutScreen', page: () => const CheckoutScreen()),
