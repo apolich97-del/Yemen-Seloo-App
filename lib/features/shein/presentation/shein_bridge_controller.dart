@@ -9,7 +9,7 @@ import 'package:get/get.dart';
 import '../../../core/config/seloo_config.dart';
 import '../../cart/application/cart_counter.dart';
 import '../../cart/data/seloo_cart_service.dart';
-import '../../home/application/main_tab_controller.dart'; // ⭐ جديد
+import '../../home/presentation/main_tab_controller.dart'; // ⭐ المسار الصحيح
 import '../domain/shein_draft.dart';
 
 /// يربط WebView SHEIN بمنطق التطبيق.
@@ -39,8 +39,8 @@ class SheinBridgeController {
             return _reply('ok', '');
           case 'requestCartCount':
             return _reply('ok', '');
-          case 'openYamanCart': // ⭐ جديد
-            return _handleOpenYamanCart(); // ⭐ جديد
+          case 'openYamanCart':
+            return _handleOpenYamanCart();
           default:
             return _reply('invalid', 'إجراء غير معروف');
         }
@@ -78,13 +78,11 @@ class SheinBridgeController {
       );
       debugPrint('[Seloo] نتيجة الإضافة: ${result.status}');
 
-      // ⭐ تحديث العدّاد في السلة
       try {
         final CartCounter cart = Get.find<CartCounter>();
         await cart.onItemAdded();
       } catch (_) {}
 
-      // ⭐ إذا كان تعديلًا ونجح → امسح الحالة + اطلب العودة
       if (editingLineId != null && editingLineId.isNotEmpty && result.isOk) {
         try {
           Get.find<CartCounter>().clearEditing();
@@ -100,7 +98,6 @@ class SheinBridgeController {
     }
   }
 
-  // ⭐ جديد: عندما يضغط المستخدم أيقونة سلة SHEIN → ننتقل إلى سلة يمن سيلو
   Future<Map<String, dynamic>> _handleOpenYamanCart() async {
     try {
       final MainTabController tabCtrl = Get.find<MainTabController>();
@@ -112,7 +109,6 @@ class SheinBridgeController {
     }
   }
 
-  /// إشعار الـWebView بأن التعديل اكتمل — يعرض رسالة فقط
   Future<void> _notifyEditCompleted() async {
     final InAppWebViewController? controller = _webView;
     if (controller == null) return;
