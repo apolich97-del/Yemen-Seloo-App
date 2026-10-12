@@ -7,7 +7,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
 
 import '../../../core/config/seloo_config.dart';
-import '../../cart/application/cart_counter.dart';
+import 'shein_bridge_controller.dart';  // ✅
 import '../../cart/data/seloo_cart_service.dart';
 import '../../home/presentation/main_tab_controller.dart'; // ⭐ المسار الصحيح
 import '../domain/shein_draft.dart';
