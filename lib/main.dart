@@ -8,8 +8,8 @@ import 'core/config/seloo_config.dart';
 import 'features/cart/application/cart_counter.dart';
 import 'features/cart/presentation/cart_screen.dart';
 import 'features/checkout/presentation/checkout_screen.dart';
-import 'features/home/application/main_tab_controller.dart'; // ⭐ جديد
 import 'features/home/presentation/main_shell.dart';
+import 'features/home/presentation/main_tab_controller.dart'; // ⭐ المسار الصحيح
 import 'features/shein/presentation/shein_web_screen.dart';
 
 Future<void> main() async {
