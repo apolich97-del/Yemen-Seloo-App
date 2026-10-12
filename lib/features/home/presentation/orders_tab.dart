@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
 
 const Color _purple = Color(0xFF7C3AED);
+const Color _green = Color(0xFF25D366);
 
 class OrdersTab extends StatelessWidget {
   const OrdersTab({super.key});
@@ -38,9 +39,20 @@ class OrdersTab extends StatelessWidget {
                     Map<String, dynamic>.from(orders[i] as Map);
                 final Map<String, dynamic> q = Map<String, dynamic>.from(
                     (o['quote'] as Map?) ?? <String, dynamic>{});
+                final Map<String, dynamic>? commission =
+                    o['commission'] != null
+                        ? Map<String, dynamic>.from(o['commission'] as Map)
+                        : null;
+                final double amountDueToAgent =
+                    (o['amountDueToAgent'] as num?)?.toDouble() ?? 0.0;
+                final double finalTotal =
+                    (o['finalTotalLocal'] as num?)?.toDouble() ??
+                        (q['grandTotalLocal'] as num?)?.toDouble() ??
+                        0.0;
+
                 return Container(
                   margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(14),
@@ -49,6 +61,7 @@ class OrdersTab extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
+                      // رقم الطلب + الحالة
                       Row(
                         children: <Widget>[
                           const Icon(Icons.receipt_long,
@@ -85,22 +98,80 @@ class OrdersTab extends StatelessWidget {
                         ],
                       ),
                       const Divider(height: 16),
+
+                      // التاريخ
                       Text(
                         '📅 ${o['createdAt'] ?? ''}',
                         style: const TextStyle(
                             fontSize: 11, color: Colors.grey),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
+
+                      // تفصيل التسعير الأساسي
+                      _row('📦 عدد الأسطر', '${q['linesCount'] ?? 0}'),
+                      _row('🔢 عدد القطع', '${q['unitsCount'] ?? 0}'),
+                      const SizedBox(height: 6),
+                      _row(
+                        '💵 قيمة المنتجات',
+                        'SAR ${((q['itemsSubtotalLocal'] as num?)?.toDouble() ?? 0) / ((q['exchangeRate'] as num?)?.toDouble() ?? 1)}',
+                        isRaw: true,
+                      ),
+
+                      // ⭐ العمولة إن وُجدت
+                      if (commission != null) ...<Widget>[
+                        const SizedBox(height: 6),
+                        _row(
+                          '🎁 عمولة المندوب',
+                          'SAR ${(commission['totalSar'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0FDF4),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color: _green.withOpacity(0.4)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              const Text(
+                                '🎁 *مستحق المندوب* (بعد خصم قيمة السلة):',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: _green,
+                                  fontSize: 11.5,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${amountDueToAgent.toStringAsFixed(0)} ريال يمني',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  color: _green,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+
+                      const Divider(height: 16),
+
+                      // الإجمالي
                       Row(
                         children: <Widget>[
                           const Text('الإجمالي:',
-                              style: TextStyle(fontSize: 13)),
+                              style: TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.w600)),
                           const Spacer(),
                           Text(
-                            '${(q['grandTotalLocal'] as num?)?.toStringAsFixed(0) ?? '0'} ر.ي',
+                            '${finalTotal.toStringAsFixed(0)} ر.ي',
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
-                              fontSize: 15,
+                              fontSize: 16,
                               color: _purple,
                             ),
                           ),
@@ -111,6 +182,23 @@ class OrdersTab extends StatelessWidget {
                 );
               },
             ),
+    );
+  }
+
+  Widget _row(String label, String value, {bool isRaw = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: <Widget>[
+          Text(label, style: const TextStyle(fontSize: 12.5, color: Colors.black87)),
+          const Spacer(),
+          Text(
+            value,
+            style: const TextStyle(
+                fontSize: 12.5, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
     );
   }
 }
