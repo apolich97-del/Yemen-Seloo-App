@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';           // ⭐ جديد
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 import '../../cart/application/cart_counter.dart';
 import 'home_tab.dart';
+import 'main_tab_controller.dart'; // ⭐ المسار الصحيح (نفس المجلد)
 import 'orders_tab.dart';
 import 'support_tab.dart';
-import '../application/main_tab_controller.dart';   // ⭐ جديد
 import '../../cart/presentation/cart_screen.dart';
 import '../../shein/presentation/shein_web_screen.dart';
 
@@ -21,7 +21,7 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
-  final MainTabController _tabCtrl = Get.find<MainTabController>(); // ⭐
+  final MainTabController _tabCtrl = Get.find<MainTabController>();
 
   static const List<String> _titles = <String>[
     'الرئيسية',
