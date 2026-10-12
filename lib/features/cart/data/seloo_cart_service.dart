@@ -44,7 +44,6 @@ class SelooCartService {
       List<CartItem> currentItems = loadItems();
 
       if (editingLineId != null) {
-        // حالة التعديل: نحدّث السطر الموجود
         final int index =
             currentItems.indexWhere((item) => item.lineId == editingLineId);
         if (index == -1) {
@@ -73,7 +72,6 @@ class SelooCartService {
           variantId: draft.variantId,
         );
       } else {
-        // حالة الإضافة الجديدة
         final CartItem newItem = CartItem(
           lineId: _generateLineId(),
           goodsId: draft.goodsId,
@@ -199,35 +197,27 @@ class SelooCartService {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // ⭐ خوارزمية رقم الطلب (YS + سنة + شهر + أسبوع - حرف + رقم)
+  // خوارزمية رقم الطلب (YS + سنة + شهر + أسبوع - حرف + رقم)
   // ═══════════════════════════════════════════════════════════════
 
-  /// توليد رقم الطلب: YS+YY+MM+WW-Letter+NNN
-  /// مثال: YS26OC1-A001
   String _buildOrderId(int sequence) {
     final DateTime now = DateTime.now();
     final String yy = (now.year % 100).toString().padLeft(2, '0');
 
     const List<String> monthCodes = <String>[
-      'JA', 'FE', 'MR', 'AP', 'MY', 'JN', // 1-6
-      'JL', 'AU', 'SE', 'OC', 'NV', 'DE', // 7-12
+      'JA', 'FE', 'MR', 'AP', 'MY', 'JN',
+      'JL', 'AU', 'SE', 'OC', 'NV', 'DE',
     ];
     final String mm = monthCodes[now.month - 1];
 
-    // الأسبوع داخل الشهر: 1..5
     final int week = ((now.day - 1) ~/ 7) + 1;
-
-    // حرف متسلسل A..Z
     final String letter = String.fromCharCode(65 + ((sequence - 1) % 26));
-
-    // رقم متسلسل 001..999
     final String seq =
         (((sequence - 1) % 1000) + 1).toString().padLeft(3, '0');
 
     return 'YS$yy$mm$week-$letter$seq';
   }
 
-  /// يعيد الرقم التسلسلي التالي ويزيده
   int _nextSequence() {
     final int last = _box.read<int>(_orderSeqKey) ?? 0;
     final int next = last + 1;
@@ -236,15 +226,20 @@ class SelooCartService {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // إنشاء طلب محلي — بدون Backend رسمي
+  // ⭐ إنشاء طلب محلي — يدعم عمولة المندوب
   // ═══════════════════════════════════════════════════════════════
 
+  /// إنشاء طلب محلي — بدون Backend رسمي.
+  /// يدعم إضافة عمولة المندوب إذا وافق عليها.
   Future<BridgeResult> submitOrder({
     required String contactPhone,
     required String addressLine,
     required String city,
     required double lat,
     required double lng,
+    String region = 'north',
+    double commissionPerPiece = 0.0,
+    bool commissionApproved = false,
   }) async {
     try {
       final List<CartItem> items = loadItems();
@@ -252,14 +247,26 @@ class SelooCartService {
         return BridgeResult.failure('error', 'السلة فارغة.');
       }
 
-      // التسعير الجديد حصراً
-      final CartQuote q = calculateQuote(items, 'north');
+      // التسعير الأساسي
+      final CartQuote q = calculateQuote(items, region);
 
-      // ⭐ رقم الطلب بالخوارزمية الجديدة
+      // ⭐ حساب العمولة (إن وجدت وموافق عليها)
+      final int totalPieces = items.fold<int>(
+          0, (int sum, CartItem i) => sum + i.quantity);
+      final bool hasCommission = commissionApproved && commissionPerPiece > 0;
+      final double commissionTotalSar =
+          hasCommission ? commissionPerPiece * totalPieces : 0.0;
+      final double commissionTotalYer =
+          commissionTotalSar * q.exchangeRate;
+
+      // ⭐ الإجمالي النهائي (مع العمولة إن وُجدت)
+      final double finalTotalLocal =
+          q.grandTotalLocal + (hasCommission ? commissionTotalYer : 0.0);
+
       final int seq = _nextSequence();
       final String orderId = _buildOrderId(seq);
 
-      // حفظ محلي فقط (GetStorage) — لا Firestore، لا دفع
+      // حفظ محلي
       final List<dynamic> orders =
           _box.read<List<dynamic>>('seloo_orders') ?? <dynamic>[];
 
@@ -270,30 +277,48 @@ class SelooCartService {
         'city': city,
         'lat': lat,
         'lng': lng,
+        'region': region,
         'items': items.map((CartItem i) => i.toMap()).toList(),
         'quote': <String, dynamic>{
           'itemsSubtotalLocal': q.itemsSubtotalLocal,
-          'serviceFeeLocal': q.serviceFeeLocal,   // ← 1.22 SAR فقط
-          'shippingLocal': q.shippingLocal,       // ← سياسة 75 SAR الجديدة
+          'serviceFeeLocal': q.serviceFeeLocal,
+          'shippingLocal': q.shippingLocal,
           'discountLocal': q.discountLocal,
-          'grandTotalLocal': q.grandTotalLocal,
-          'exchangeRate': q.exchangeRate,         // ← 140 / 413
+          'grandTotalLocal': q.grandTotalLocal, // قبل العمولة
+          'exchangeRate': q.exchangeRate,
           'linesCount': q.linesCount,
           'unitsCount': q.unitsCount,
           'deliveryLocal': q.deliveryLocal,
         },
+        // ⭐ العمولة (إن وُجدت)
+        'commission': hasCommission
+            ? <String, dynamic>{
+                'perPieceSar': commissionPerPiece,
+                'totalPieces': totalPieces,
+                'totalSar': commissionTotalSar,
+                'totalYer': commissionTotalYer,
+                'exchangeRate': q.exchangeRate,
+                'approved': true,
+              }
+            : null,
+        // ⭐ المستحق للمندوب (بالعملة اليمنية)
+        'amountDueToAgent': hasCommission ? commissionTotalYer : 0.0,
+        // ⭐ الإجمالي النهائي (بعد العمولة)
+        'finalTotalLocal': finalTotalLocal,
         'status': 'pending',
         'createdAt': DateTime.now().toUtc().toIso8601String(),
       });
 
       await _box.write('seloo_orders', orders);
 
-      // تفريغ السلة بعد نجاح حفظ الطلب
+      // تفريغ السلة
       await clear();
 
       return BridgeResult(
         status: 'ok',
-        message: 'تم استلام طلبك',
+        message: hasCommission
+            ? 'تم إنشاء الطلب مع العمولة'
+            : 'تم إنشاء الطلب',
         orderId: orderId,
       );
     } catch (e) {
