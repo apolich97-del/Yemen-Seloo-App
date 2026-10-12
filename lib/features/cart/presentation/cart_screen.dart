@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -10,12 +11,12 @@ import '../domain/cart_item.dart';
 const Color _purple = Color(0xFF7C3AED);
 const Color _purpleLight = Color(0xFFFAF7FF);
 const Color _border = Color(0xFFE9D5FF);
+const Color _green = Color(0xFF25D366);
+const Color _orange = Color(0xFFF97316);
 
-// ⭐ الرقم الأساسي (واتساب)
+// ⭐ الأرقام
 const String _primaryWhatsApp = '967770518757';
 const String _primaryPhone = '770518757';
-
-// ⭐ الرقم البديل
 const String _backupWhatsApp = '967737383637';
 const String _backupPhone = '737383637';
 
@@ -44,6 +45,7 @@ class _CartScreenState extends State<CartScreen> {
     }
   }
 
+  // ⭐ مشاركة عادية (بدون عمولة)
   Future<void> _shareCartToWhatsApp() async {
     if (_cart.items.isEmpty) {
       _snack('السلة فارغة');
@@ -57,9 +59,158 @@ class _CartScreenState extends State<CartScreen> {
       return;
     }
 
+    final String message = _buildWhatsAppMessage(
+      q: q,
+      includeCommission: false,
+    );
+    await _sendWhatsApp(message);
+  }
+
+  // ⭐ مشاركة مع الشركة (بعد الموافقة على العمولة)
+  Future<void> _shareCartWithCommission() async {
+    if (_cart.items.isEmpty) {
+      _snack('السلة فارغة');
+      return;
+    }
+
+    if (!_cart.hasCommission) {
+      _snack('أدخل مبلغ العمولة أولاً');
+      return;
+    }
+
+    await _cart.refreshQuote();
+    final CartQuote? q = _cart.quote.value;
+    if (q == null) {
+      _snack('تعذّر حساب الإجمالي.');
+      return;
+    }
+
+    // ⭐ Dialog تأكيد شفاف
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) {
+        final double commissionSar = _cart.commissionTotalSar;
+        final double commissionYer = _cart.commissionTotalYer;
+        final double rate = q.exchangeRate;
+        final double totalSar =
+            (q.grandTotalLocal / rate) + commissionSar;
+        final double totalYer = q.grandTotalLocal + commissionYer;
+
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text('⚠️ تأكيد مشاركة العمولة'),
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  const Text(
+                    'سيتم إرسال السلة مع العمولة للشركة، وسيدفع العميل:',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  _summaryRow(
+                      '💵 قيمة السلة',
+                      '${(q.itemsSubtotalLocal / rate).toStringAsFixed(2)} SAR'),
+                  _summaryRow(
+                      '🛠️ رسوم الخدمة',
+                      '${(q.serviceFeeLocal / rate).toStringAsFixed(2)} SAR'),
+                  _summaryRow(
+                      '🚚 الشحن',
+                      '${(q.shippingLocal / rate).toStringAsFixed(2)} SAR'),
+                  _summaryRow(
+                      '🎁 العمولة (${_cart.commissionPerPiece.value.toStringAsFixed(2)} × ${_cart.items.length})',
+                      '${commissionSar.toStringAsFixed(2)} SAR'),
+                  const Divider(height: 20),
+                  _summaryRow(
+                      '💰 الإجمالي المطلوب',
+                      '${totalSar.toStringAsFixed(2)} SAR',
+                      emphasize: true),
+                  _summaryRow(
+                      '🇾🇪 بالريال اليمني',
+                      '${totalYer.toStringAsFixed(0)} ريال',
+                      emphasize: true),
+                  const Divider(height: 20),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: _purpleLight,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: _border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        const Text(
+                          '🎁 *المستحق لك* (بعد خصم قيمة السلة):',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: _purple,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'العمولة = ${commissionYer.toStringAsFixed(0)} ريال يمني',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                            color: _purple,
+                            fontSize: 14,
+                          ),
+                        ),
+                        Text(
+                          '(${commissionSar.toStringAsFixed(2)} SAR × $rate)',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF6B7280),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('إلغاء',
+                    style: TextStyle(color: Color(0xFF6B7280))),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                style: FilledButton.styleFrom(backgroundColor: _green),
+                child: const Text('موافق ✓'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    // الموافقة → حفظ + إرسال
+    _cart.approveCommission();
+    final String message = _buildWhatsAppMessage(
+      q: q,
+      includeCommission: true,
+    );
+    await _sendWhatsApp(message);
+  }
+
+  // ⭐ بناء رسالة واتساب
+  String _buildWhatsAppMessage({
+    required CartQuote q,
+    required bool includeCommission,
+  }) {
     final StringBuffer b = StringBuffer();
     b.writeln('🛍️ *طلب جديد من يمن سيلو*');
-    b.writeln('━━━━━━━━━━━━━━');
+    b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
     b.writeln('');
 
     for (int i = 0; i < _cart.items.length; i++) {
@@ -74,8 +225,6 @@ class _CartScreenState extends State<CartScreen> {
       }
       b.writeln('   الكمية: ${item.quantity}');
       b.writeln('   السعر: ${item.sourcePrice.toStringAsFixed(2)} SAR');
-
-      // ⭐ رابط قصير عند المشاركة (بدون معاملات التتبع)
       if (item.goodsId.isNotEmpty) {
         b.writeln('   الرابط: https://m.shein.com/ar/p-${item.goodsId}.html');
       } else if (item.sourceUrl.isNotEmpty) {
@@ -84,36 +233,59 @@ class _CartScreenState extends State<CartScreen> {
       b.writeln('');
     }
 
-    b.writeln('━━━━━━━━━━━━━━');
+    b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
     b.writeln('📦 عدد الأسطر: ${q.linesCount}');
     b.writeln('🔢 عدد القطع: ${q.unitsCount}');
     b.writeln('');
 
-    final double subtotalSar = q.itemsSubtotalLocal / q.exchangeRate;
-    final double serviceFeeSar = q.serviceFeeLocal / q.exchangeRate;
-    final double shippingSar = q.shippingLocal / q.exchangeRate;
-    final double grandTotalSar = q.grandTotalLocal / q.exchangeRate;
+    final double rate = q.exchangeRate;
+    final double subtotalSar = q.itemsSubtotalLocal / rate;
+    final double serviceFeeSar = q.serviceFeeLocal / rate;
+    final double shippingSar = q.shippingLocal / rate;
 
-    b.writeln('💵 قيمة المنتجات: ${subtotalSar.toStringAsFixed(2)} SAR');
+    b.writeln('💵 قيمة السلة: ${subtotalSar.toStringAsFixed(2)} SAR');
     b.writeln('🛠️ رسوم الخدمة: ${serviceFeeSar.toStringAsFixed(2)} SAR');
     b.writeln('🚚 الشحن: ${shippingSar.toStringAsFixed(2)} SAR');
-    b.writeln('━━━━━━━━━━━━━━');
-    b.writeln('💰 الإجمالي: ${grandTotalSar.toStringAsFixed(2)} SAR');
-    b.writeln(
-        '🇾🇪 بالريال اليمني: ${q.grandTotalLocal.toStringAsFixed(0)} ريال');
-    b.writeln('📊 سعر الصرف: ${q.exchangeRate.toStringAsFixed(0)}');
-    final String regionName =
-        _cart.region.value == 'south' ? 'الجنوب' : 'الشمال';
-    b.writeln('📍 المنطقة: $regionName');
-    b.writeln('');
-    b.writeln('━━━━━━━━━━━━━━');
+
+    if (includeCommission) {
+      final double commissionSar = _cart.commissionTotalSar;
+      final double commissionYer = _cart.commissionTotalYer;
+      final double totalSar = subtotalSar + serviceFeeSar + shippingSar + commissionSar;
+      final double totalYer = q.grandTotalLocal + commissionYer;
+
+      b.writeln('🎁 عمولة المندوب: ${commissionSar.toStringAsFixed(2)} SAR');
+      b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
+      b.writeln('💰 الإجمالي المطلوب: ${totalSar.toStringAsFixed(2)} SAR');
+      b.writeln('🇾🇪 بالريال اليمني: ${totalYer.toStringAsFixed(0)} ريال');
+      b.writeln('📊 سعر الصرف: ${rate.toStringAsFixed(0)}');
+      final String regionName =
+          _cart.region.value == 'south' ? 'الجنوب' : 'الشمال';
+      b.writeln('📍 المنطقة: $regionName');
+      b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
+      b.writeln('🎁 *المستحق للمندوب* (بعد خصم قيمة السلة):');
+      b.writeln('   العمولة = *${commissionYer.toStringAsFixed(0)} ريال يمني*');
+    } else {
+      b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
+      b.writeln('💰 الإجمالي: ${q.grandTotalLocal > 0 ? (subtotalSar + serviceFeeSar + shippingSar).toStringAsFixed(2) : "0.00"} SAR');
+      b.writeln('🇾🇪 بالريال اليمني: ${q.grandTotalLocal.toStringAsFixed(0)} ريال');
+      b.writeln('📊 سعر الصرف: ${rate.toStringAsFixed(0)}');
+      final String regionName =
+          _cart.region.value == 'south' ? 'الجنوب' : 'الشمال';
+      b.writeln('📍 المنطقة: $regionName');
+    }
+
+    b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
     b.writeln('📞 للتواصل: $_primaryPhone');
     b.writeln('📞 البديل: $_backupPhone');
     b.writeln('');
     b.writeln('خدمتكم غايتنا وثقتكم هدفنا');
 
+    return b.toString();
+  }
+
+  Future<void> _sendWhatsApp(String message) async {
     final Uri url = Uri.parse(
-      'https://wa.me/$_primaryWhatsApp?text=${Uri.encodeComponent(b.toString())}',
+      'https://wa.me/$_primaryWhatsApp?text=${Uri.encodeComponent(message)}',
     );
     try {
       final bool ok =
@@ -124,9 +296,231 @@ class _CartScreenState extends State<CartScreen> {
     }
   }
 
-  Future<void> _openProduct(CartItem item) async {
-    // ⭐ فتح المنتج للتعديل (استخدام رابط sourceUrl الكامل للحفاظ على المتغيرات)
-    _cart.startEditing(item);
+  // ⭐ Bottom Sheet: آلة حساب عمولة المندوب
+  Future<void> _openCommissionCalculator() async {
+    if (_cart.items.isEmpty) {
+      _snack('السلة فارغة');
+      return;
+    }
+
+    final TextEditingController controller = TextEditingController(
+      text: _cart.commissionPerPiece.value > 0
+          ? _cart.commissionPerPiece.value.toStringAsFixed(2)
+          : '',
+    );
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext ctx) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: StatefulBuilder(
+            builder: (BuildContext ctx, StateSetter setSheetState) {
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+                  top: 20,
+                  left: 20,
+                  right: 20,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    // العنوان
+                    const Row(
+                      children: <Widget>[
+                        Icon(Icons.calculate, color: _purple, size: 24),
+                        SizedBox(width: 8),
+                        Text(
+                          '🧮 آلة حساب عمولة المندوب',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 16,
+                            color: _purple,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // حقل الإدخال
+                    TextField(
+                      controller: controller,
+                      keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true),
+                      inputFormatters: <TextInputFormatter>[
+                        FilteringTextInputFormatter.allow(
+                            RegExp(r'^\d*\.?\d{0,2}')),
+                      ],
+                      decoration: InputDecoration(
+                        labelText: 'مبلغ العمولة لكل قطعة',
+                        hintText: 'مثال: 5.00',
+                        prefixIcon: const Icon(Icons.attach_money, color: _purple),
+                        suffixText: 'SAR',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: _purple, width: 2),
+                        ),
+                      ),
+                      onChanged: (String v) {
+                        final double value = double.tryParse(v) ?? 0;
+                        _cart.setCommission(value);
+                        setSheetState(() {});
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // النتائج
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: _purpleLight,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: _border),
+                      ),
+                      child: Obx(() {
+                        final double perPiece = _cart.commissionPerPiece.value;
+                        final double totalSar = _cart.commissionTotalSar;
+                        final double totalYer = _cart.commissionTotalYer;
+                        final int count = _cart.items.length;
+                        final double rate = _cart.commissionTotalSar > 0
+                            ? totalYer / totalSar
+                            : _cart.quote.value?.exchangeRate ?? 140;
+
+                        return Column(
+                          children: <Widget>[
+                            _summaryRow('📦 عدد القطع', '$count'),
+                            const SizedBox(height: 6),
+                            _summaryRow(
+                                '🎁 العمولة لكل قطعة',
+                                '${perPiece.toStringAsFixed(2)} SAR'),
+                            const Divider(height: 16),
+                            _summaryRow(
+                                '💰 إجمالي العمولة',
+                                '${totalSar.toStringAsFixed(2)} SAR',
+                                emphasize: true),
+                            const SizedBox(height: 6),
+                            _summaryRow(
+                                '🇾🇪 بالريال اليمني',
+                                '${totalYer.toStringAsFixed(0)} ريال',
+                                emphasize: true),
+                            const SizedBox(height: 6),
+                            _summaryRow(
+                                '📊 سعر الصرف',
+                                '${rate.toStringAsFixed(0)}'),
+                          ],
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // زرّان: موافقة + مشاركة عادية
+                    Obx(() {
+                      final bool hasCom = _cart.hasCommission;
+                      return Column(
+                        children: <Widget>[
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.icon(
+                              onPressed: hasCom
+                                  ? () async {
+                                      Navigator.of(ctx).pop();
+                                      await _shareCartWithCommission();
+                                    }
+                                  : null,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: _green,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 13),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12)),
+                              ),
+                              icon: const Icon(Icons.share),
+                              label: const Text(
+                                'مشاركة مع الشركة',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: () async {
+                                Navigator.of(ctx).pop();
+                                await _shareCartToWhatsApp();
+                              },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: _purple,
+                                side: const BorderSide(color: _purple),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 13),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12)),
+                              ),
+                              icon: const Icon(Icons.share),
+                              label: const Text(
+                                'مشاركة عادية (بدون عمولة)',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      child: const Text('إغلاق'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _summaryRow(String label, String value, {bool emphasize = false}) {
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: emphasize ? _purple : const Color(0xFF374151),
+              fontWeight: emphasize ? FontWeight.w900 : FontWeight.w500,
+              fontSize: emphasize ? 14 : 13,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            color: emphasize ? _purple : const Color(0xFF374151),
+            fontWeight: emphasize ? FontWeight.w900 : FontWeight.w600,
+            fontSize: emphasize ? 14 : 13,
+          ),
+        ),
+      ],
+    );
   }
 
   void _snack(String message) {
@@ -179,7 +573,7 @@ class _CartScreenState extends State<CartScreen> {
                             onQuantity: (int v) =>
                                 _run(() => _cart.updateQuantity(item, v)),
                             onRemove: () => _run(() => _cart.remove(item)),
-                            onEdit: () => _openProduct(item),
+                            onEdit: () => _cart.startEditing(item),
                           ),
                         ),
                       ),
@@ -188,9 +582,53 @@ class _CartScreenState extends State<CartScreen> {
                       const SizedBox(height: 10),
                       _QuoteSummary(cart: _cart),
                       const SizedBox(height: 12),
-                      _ShareButtons(
-                        onSharePrimary: _shareCartToWhatsApp,
-                        onShareBackup: _shareCartToWhatsApp,
+
+                      // ⭐ زر آلة حساب عمولة المندوب
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _openCommissionCalculator,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _purple,
+                            side: const BorderSide(color: _purple, width: 1.5),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: const Icon(Icons.calculate, size: 20),
+                          label: const Text(
+                            '🧮 آلة حساب عمولة المندوب',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // زر مشاركة عادية
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _shareCartToWhatsApp,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _green,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: const Icon(Icons.share),
+                          label: const Text(
+                            'مشاركة السلة عبر واتساب',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 10),
                       _CheckoutButton(cart: _cart),
@@ -401,7 +839,7 @@ class _CartLineTile extends StatelessWidget {
                               _InfoChip(
                                 label: 'المقاس',
                                 value: item.size,
-                                color: const Color(0xFFF97316),
+                                color: _orange,
                               ),
                           ],
                         ),
@@ -451,8 +889,7 @@ class _CartLineTile extends StatelessWidget {
               const Spacer(),
               IconButton(
                 onPressed: onEdit,
-                icon: const Icon(Icons.edit_outlined,
-                    color: Color(0xFFF97316), size: 20),
+                icon: const Icon(Icons.edit_outlined, color: _orange, size: 20),
                 tooltip: 'تعديل',
               ),
             ],
@@ -685,245 +1122,4 @@ class _QuoteSummary extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: _purpleLight,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _border),
-        ),
-        child: q == null
-            ? const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: LinearProgressIndicator(color: _purple),
-              )
-            : Column(
-                children: <Widget>[
-                  _Row(label: '📦 عدد الأسطر', value: '${q.linesCount}'),
-                  const SizedBox(height: 8),
-                  _Row(label: '🔢 عدد القطع', value: '${q.unitsCount}'),
-                  const Divider(height: 20),
-                  _Row(
-                    label: 'إجمالي المنتجات',
-                    value:
-                        'SAR ${(q.itemsSubtotalLocal / q.exchangeRate).toStringAsFixed(2)}',
-                  ),
-                  const SizedBox(height: 8),
-                  _Row(
-                    label: 'رسوم الخدمة',
-                    value:
-                        'SAR ${(q.serviceFeeLocal / q.exchangeRate).toStringAsFixed(2)}',
-                  ),
-                  const SizedBox(height: 8),
-                  _Row(
-                    label: 'الشحن',
-                    value:
-                        'SAR ${(q.shippingLocal / q.exchangeRate).toStringAsFixed(2)}',
-                  ),
-                  const Divider(height: 20),
-                  _Row(
-                    label: 'سعر الصرف',
-                    value: 'YER / SAR ${q.exchangeRate.toStringAsFixed(0)}',
-                  ),
-                  const SizedBox(height: 8),
-                  _Row(
-                    label: 'الإجمالي بالريال اليمني',
-                    value: '${q.grandTotalLocal.toStringAsFixed(0)} ر.ي',
-                    emphasize: true,
-                  ),
-                ],
-              ),
-      );
-    });
-  }
-}
-
-class _Row extends StatelessWidget {
-  const _Row({
-    required this.label,
-    required this.value,
-    this.emphasize = false,
-  });
-
-  final String label;
-  final String value;
-  final bool emphasize;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        Text(
-          label,
-          style: TextStyle(
-            color: emphasize ? _purple : const Color(0xFF374151),
-            fontWeight: emphasize ? FontWeight.w900 : FontWeight.w500,
-            fontSize: emphasize ? 15 : 13,
-          ),
-        ),
-        const Spacer(),
-        Text(
-          value,
-          style: TextStyle(
-            color: emphasize ? _purple : const Color(0xFF374151),
-            fontWeight: emphasize ? FontWeight.w900 : FontWeight.w600,
-            fontSize: emphasize ? 15 : 13,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// أزرار المشاركة
-// ═══════════════════════════════════════════════════════════════
-class _ShareButtons extends StatelessWidget {
-  const _ShareButtons({
-    required this.onSharePrimary,
-    required this.onShareBackup,
-  });
-
-  final VoidCallback onSharePrimary;
-  final VoidCallback onShareBackup;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: onShareBackup,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: _purple,
-              side: const BorderSide(color: _purple, width: 1.5),
-              padding: const EdgeInsets.symmetric(vertical: 13),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-            icon: const Icon(Icons.share, size: 16),
-            label: Text(
-              'مشاركة $_backupPhone',
-              style: const TextStyle(
-                  fontSize: 11.5, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: FilledButton.icon(
-            onPressed: onSharePrimary,
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF25D366),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 13),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-            icon: const Icon(Icons.share, size: 16),
-            label: Text(
-              'مشاركة $_primaryPhone',
-              style: const TextStyle(
-                  fontSize: 11.5, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ContactBox extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: _purpleLight,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _border),
-      ),
-      child: Column(
-        children: <Widget>[
-          const Text(
-            '📞 للتواصل معنا',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: _purple,
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'الأساسي: $_primaryPhone',
-            style: TextStyle(
-              fontSize: 12.5,
-              color: Color(0xFF1F2937),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 2),
-          const Text(
-            'البديل: $_backupPhone',
-            style: TextStyle(
-              fontSize: 12,
-              color: Color(0xFF6B7280),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// زر تأكيد الطلب
-// ═══════════════════════════════════════════════════════════════
-class _CheckoutButton extends StatelessWidget {
-  const _CheckoutButton({required this.cart});
-  final CartCounter cart;
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final bool enabled = cart.quote.value != null && cart.items.isNotEmpty;
-      return SizedBox(
-        width: double.infinity,
-        child: FilledButton(
-          onPressed: enabled ? () => Get.toNamed('/checkoutScreen') : null,
-          style: FilledButton.styleFrom(
-            backgroundColor: _purple,
-            padding: const EdgeInsets.symmetric(vertical: 15),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          ),
-          child: const Text(
-            'الانتقال لتأكيد الطلب',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-          ),
-        ),
-      );
-    });
-  }
-}
-
-class _EmptyCart extends StatelessWidget {
-  const _EmptyCart();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          const Icon(Icons.shopping_bag_outlined, size: 64, color: _purple),
-          const SizedBox(height: 12),
-          const Text('سلتك فارغة. تصفّح SHEIN وأضف ما يعجبك.'),
-          const SizedBox(height: 12),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _purple),
-            onPressed: () => Get.offNamed('/shein'),
-            child: const Text('تصفّح SHEIN'),
-          ),
-        ],
-      ),
-    );
-  }
-}
+          color:
