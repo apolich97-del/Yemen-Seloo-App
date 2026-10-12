@@ -1122,4 +1122,171 @@ class _QuoteSummary extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color:
+          color: _purpleLight,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _border),
+        ),
+        child: q == null
+            ? const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: LinearProgressIndicator(color: _purple),
+              )
+            : Column(
+                children: <Widget>[
+                  _row('📦 عدد الأسطر', '${q.linesCount}'),
+                  const SizedBox(height: 8),
+                  _row('🔢 عدد القطع', '${q.unitsCount}'),
+                  const Divider(height: 20),
+                  _row(
+                    'إجمالي المنتجات',
+                    'SAR ${(q.itemsSubtotalLocal / q.exchangeRate).toStringAsFixed(2)}',
+                  ),
+                  const SizedBox(height: 8),
+                  _row(
+                    'رسوم الخدمة',
+                    'SAR ${(q.serviceFeeLocal / q.exchangeRate).toStringAsFixed(2)}',
+                  ),
+                  const SizedBox(height: 8),
+                  _row(
+                    'الشحن',
+                    'SAR ${(q.shippingLocal / q.exchangeRate).toStringAsFixed(2)}',
+                  ),
+                  const Divider(height: 20),
+                  _row(
+                    'سعر الصرف',
+                    'YER / SAR ${q.exchangeRate.toStringAsFixed(0)}',
+                  ),
+                  const SizedBox(height: 8),
+                  _row(
+                    'الإجمالي بالريال اليمني',
+                    '${q.grandTotalLocal.toStringAsFixed(0)} ر.ي',
+                    emphasize: true,
+                  ),
+                ],
+              ),
+      );
+    });
+  }
+
+  Widget _row(String label, String value, {bool emphasize = false}) {
+    return Row(
+      children: <Widget>[
+        Text(
+          label,
+          style: TextStyle(
+            color: emphasize ? _purple : const Color(0xFF374151),
+            fontWeight: emphasize ? FontWeight.w900 : FontWeight.w500,
+            fontSize: emphasize ? 15 : 13,
+          ),
+        ),
+        const Spacer(),
+        Text(
+          value,
+          style: TextStyle(
+            color: emphasize ? _purple : const Color(0xFF374151),
+            fontWeight: emphasize ? FontWeight.w900 : FontWeight.w600,
+            fontSize: emphasize ? 15 : 13,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// زر تأكيد الطلب
+// ═══════════════════════════════════════════════════════════════
+class _CheckoutButton extends StatelessWidget {
+  const _CheckoutButton({required this.cart});
+  final CartCounter cart;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final bool enabled = cart.quote.value != null && cart.items.isNotEmpty;
+      return SizedBox(
+        width: double.infinity,
+        child: FilledButton(
+          onPressed: enabled ? () => Get.toNamed('/checkoutScreen') : null,
+          style: FilledButton.styleFrom(
+            backgroundColor: _purple,
+            padding: const EdgeInsets.symmetric(vertical: 15),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+          child: const Text(
+            'الانتقال لتأكيد الطلب',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          ),
+        ),
+      );
+    });
+  }
+}
+
+class _ContactBox extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: _purpleLight,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _border),
+      ),
+      child: const Column(
+        children: <Widget>[
+          Text(
+            '📞 للتواصل معنا',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: _purple,
+            ),
+          ),
+          SizedBox(height: 6),
+          Text(
+            'الأساسي: $_primaryPhone',
+            style: TextStyle(
+              fontSize: 12.5,
+              color: Color(0xFF1F2937),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          SizedBox(height: 2),
+          Text(
+            'البديل: $_backupPhone',
+            style: TextStyle(
+              fontSize: 12,
+              color: Color(0xFF6B7280),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyCart extends StatelessWidget {
+  const _EmptyCart();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          const Icon(Icons.shopping_bag_outlined, size: 64, color: _purple),
+          const SizedBox(height: 12),
+          const Text('سلتك فارغة. تصفّح SHEIN وأضف ما يعجبك.'),
+          const SizedBox(height: 12),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: _purple),
+            onPressed: () => Get.offNamed('/shein'),
+            child: const Text('تصفّح SHEIN'),
+          ),
+        ],
+      ),
+    );
+  }
+}
