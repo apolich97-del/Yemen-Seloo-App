@@ -6,9 +6,8 @@ import '../../../core/config/seloo_config.dart';
 import '../../cart/application/cart_counter.dart';
 import '../../cart/data/seloo_cart_service.dart';
 import '../../cart/domain/cart_item.dart';
-import '../../shein/domain/shein_draft.dart';
 
-/// شاشة إتمام الطلب: تجمع بيانات التوصيل ثم تُنشئ الطلب على الخادم.
+/// شاشة إتمام الطلب: تجمع بيانات التوصيل ثم تُنشئ الطلب.
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
 
@@ -42,7 +41,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     setState(() => _locating = true);
     try {
       final geo.Location location = geo.Location();
-      if (!await location.serviceEnabled() && !await location.requestService()) {
+      if (!await location.serviceEnabled() &&
+          !await location.requestService()) {
         throw StateError('خدمة الموقع معطّلة');
       }
       geo.PermissionStatus status = await location.hasPermission();
@@ -75,34 +75,100 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     setState(() => _sending = true);
     try {
+      // ⭐ إرسال بيانات التسعير والعمولة
       final BridgeResult result = await _service.submitOrder(
         contactPhone: _phone.text.trim(),
         addressLine: _address.text.trim(),
         city: _city.text.trim(),
         lat: _lat!,
         lng: _lng!,
+        region: _cart.region.value,
+        commissionPerPiece: _cart.commissionPerPiece.value,
+        commissionApproved: _cart.commissionApproved.value,
       );
       if (!mounted) return;
 
       if (result.isOk) {
         final String orderId = result.orderId ?? '';
+        final bool hasCommission =
+            _cart.commissionApproved.value && _cart.hasCommission;
+        final double commissionYer =
+            hasCommission ? _cart.commissionTotalYer : 0.0;
+
         await Get.dialog<void>(
-          AlertDialog(
-            title: const Text('تم إنشاء الطلب'),
-            content: Text(
-              'رقم الطلب: $orderId\n'
-              'يرجى إتمام الدفع عبر إحدى قنوات يمن سيلو.',
-            ),
-            actions: <Widget>[
-              TextButton(
-                onPressed: () => Get.back<void>(),
-                child: const Text('حسنًا'),
+          Directionality(
+            textDirection: TextDirection.rtl,
+            child: AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
               ),
-            ],
+              title: const Text('تم إنشاء الطلب'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text('رقم الطلب: $orderId'),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'يرجى إتمام الدفع عبر إحدى قنوات يمن سيلو.',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                  if (hasCommission) ...<Widget>[
+                    const Divider(height: 20),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFAF7FF),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE9D5FF)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          const Text(
+                            '🎁 *المستحق لك* (عمولة المندوب):',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF7C3AED),
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${commissionYer.toStringAsFixed(0)} ريال يمني',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF7C3AED),
+                              fontSize: 14,
+                            ),
+                          ),
+                          const Text(
+                            '(بعد خصم قيمة السلة)',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              color: Color(0xFF6B7280),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Get.back<void>(),
+                  child: const Text('حسنًا'),
+                ),
+              ],
+            ),
           ),
         );
+
+        // مسح حالة العمولة بعد نجاح الطلب
+        _cart.unapproveCommission();
         _cart.quote.value = null;
-        Get.offAllNamed('/shein');
+        Get.offAllNamed('/main');
       } else {
         _snack(result.message);
       }
@@ -280,6 +346,9 @@ class _Summary extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(() {
       final CartQuote? quote = cart.quote.value;
+      final bool hasCommission =
+          cart.commissionApproved.value && cart.hasCommission;
+
       return Card(
         elevation: 1,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -300,9 +369,47 @@ class _Summary extends StatelessWidget {
               : Column(
                   children: <Widget>[
                     Text('${quote.linesCount} منتجًا • ${quote.unitsCount} وحدة'),
-                    const Divider(),
+                    const Divider(height: 16),
+
+                    // ⭐ العمولة إن وُجدت
+                    if (hasCommission) ...<Widget>[
+                      Row(
+                        children: <Widget>[
+                          const Text('🎁 عمولة المندوب:',
+                              style: TextStyle(fontSize: 13)),
+                          const Spacer(),
+                          Text(
+                            '${cart.commissionTotalSar.toStringAsFixed(2)} SAR',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF25D366),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: <Widget>[
+                          const Text('🇾🇪 بالريال اليمني:',
+                              style: TextStyle(fontSize: 13)),
+                          const Spacer(),
+                          Text(
+                            '${cart.commissionTotalYer.toStringAsFixed(0)} ريال',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF25D366),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 16),
+                    ],
+
+                    // الإجمالي
                     Text(
-                      'الإجمالي: ${quote.grandTotalLocal.toStringAsFixed(0)} ر.ي',
+                      'الإجمالي: ${(quote.grandTotalLocal + (hasCommission ? cart.commissionTotalYer : 0)).toStringAsFixed(0)} ر.ي',
                       style: const TextStyle(
                         color: Color(0xFF7C3AED),
                         fontWeight: FontWeight.bold,
