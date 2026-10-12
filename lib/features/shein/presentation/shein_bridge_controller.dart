@@ -7,9 +7,9 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
 
 import '../../../core/config/seloo_config.dart';
-import 'shein_bridge_controller.dart';  // ✅
+import '../../cart/application/cart_counter.dart';
 import '../../cart/data/seloo_cart_service.dart';
-import '../../home/presentation/main_tab_controller.dart'; // ⭐ المسار الصحيح
+import '../../home/presentation/main_tab_controller.dart';
 import '../domain/shein_draft.dart';
 
 /// يربط WebView SHEIN بمنطق التطبيق.
