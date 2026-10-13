@@ -6,6 +6,7 @@ import '../../../core/config/seloo_config.dart';
 import '../../cart/application/cart_counter.dart';
 import '../../cart/data/seloo_cart_service.dart';
 import '../../cart/domain/cart_item.dart';
+import '../../shein/domain/shein_draft.dart'; // ⭐ السطر الجديد — لإصلاح BridgeResult
 
 /// شاشة إتمام الطلب: تجمع بيانات التوصيل ثم تُنشئ الطلب.
 class CheckoutScreen extends StatefulWidget {
