@@ -81,16 +81,22 @@ abstract final class SelooPricing {
 /// إعدادات الجانب الخاص بـSHEIN.
 abstract final class SheinWebConfig {
   static const String scheme = 'https';
-  static const String host = 'm.shein.com';
+  static const String host = 'm.shein.com.sa';
 
-  static const String homeAr = 'https://m.shein.com/ar/';
-  static const String categoryAr = 'https://m.shein.com/ar/category/';
+  // ⭐ تم التعديل: النطاق السعودي
+  static const String homeAr = 'https://m.shein.com.sa/ar/';
+  static const String categoryAr = 'https://m.shein.com.sa/ar/category/';
 
   static const List<String> allowedHosts = <String>[
     'm.shein.com',
+    'm.shein.com.sa',
     'www.shein.com',
+    'www.shein.com.sa',
     'shein.com',
+    'shein.com.sa',
     'ar.shein.com',
+    'ar.shein.com.sa',
+    'sa.shein.com',
   ];
 
   static const List<String> externalHosts = <String>[
