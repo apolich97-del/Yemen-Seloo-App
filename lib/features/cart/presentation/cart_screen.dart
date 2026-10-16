@@ -14,7 +14,7 @@ const Color _border = Color(0xFFE9D5FF);
 const Color _green = Color(0xFF25D366);
 const Color _orange = Color(0xFFF97316);
 
-// ⭐ الأرقام
+// ⭐ الأرقام الصحيحة
 const String _primaryWhatsApp = '967770518757';
 const String _primaryPhone = '770518757';
 const String _backupWhatsApp = '967737383637';
@@ -194,7 +194,6 @@ class _CartScreenState extends State<CartScreen> {
 
     if (confirmed != true) return;
 
-    // الموافقة → حفظ + إرسال
     _cart.approveCommission();
     final String message = _buildWhatsAppMessage(
       q: q,
@@ -203,7 +202,6 @@ class _CartScreenState extends State<CartScreen> {
     await _sendWhatsApp(message);
   }
 
-  // ⭐ بناء رسالة واتساب
   String _buildWhatsAppMessage({
     required CartQuote q,
     required bool includeCommission,
@@ -250,24 +248,30 @@ class _CartScreenState extends State<CartScreen> {
     if (includeCommission) {
       final double commissionSar = _cart.commissionTotalSar;
       final double commissionYer = _cart.commissionTotalYer;
-      final double totalSar = subtotalSar + serviceFeeSar + shippingSar + commissionSar;
+      final double totalSar =
+          subtotalSar + serviceFeeSar + shippingSar + commissionSar;
       final double totalYer = q.grandTotalLocal + commissionYer;
 
-      b.writeln('🎁 عمولة المندوب: ${commissionSar.toStringAsFixed(2)} SAR');
+      b.writeln(
+          '🎁 عمولة المندوب: ${commissionSar.toStringAsFixed(2)} SAR');
       b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
       b.writeln('💰 الإجمالي المطلوب: ${totalSar.toStringAsFixed(2)} SAR');
-      b.writeln('🇾🇪 بالريال اليمني: ${totalYer.toStringAsFixed(0)} ريال');
+      b.writeln(
+          '🇾🇪 بالريال اليمني: ${totalYer.toStringAsFixed(0)} ريال');
       b.writeln('📊 سعر الصرف: ${rate.toStringAsFixed(0)}');
       final String regionName =
           _cart.region.value == 'south' ? 'الجنوب' : 'الشمال';
       b.writeln('📍 المنطقة: $regionName');
       b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
       b.writeln('🎁 *المستحق للمندوب* (بعد خصم قيمة السلة):');
-      b.writeln('   العمولة = *${commissionYer.toStringAsFixed(0)} ريال يمني*');
+      b.writeln(
+          '   العمولة = *${commissionYer.toStringAsFixed(0)} ريال يمني*');
     } else {
       b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
-      b.writeln('💰 الإجمالي: ${q.grandTotalLocal > 0 ? (subtotalSar + serviceFeeSar + shippingSar).toStringAsFixed(2) : "0.00"} SAR');
-      b.writeln('🇾🇪 بالريال اليمني: ${q.grandTotalLocal.toStringAsFixed(0)} ريال');
+      b.writeln(
+          '💰 الإجمالي: ${(subtotalSar + serviceFeeSar + shippingSar).toStringAsFixed(2)} SAR');
+      b.writeln(
+          '🇾🇪 بالريال اليمني: ${q.grandTotalLocal.toStringAsFixed(0)} ريال');
       b.writeln('📊 سعر الصرف: ${rate.toStringAsFixed(0)}');
       final String regionName =
           _cart.region.value == 'south' ? 'الجنوب' : 'الشمال';
@@ -332,7 +336,6 @@ class _CartScreenState extends State<CartScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    // العنوان
                     const Row(
                       children: <Widget>[
                         Icon(Icons.calculate, color: _purple, size: 24),
@@ -348,8 +351,6 @@ class _CartScreenState extends State<CartScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-
-                    // حقل الإدخال
                     TextField(
                       controller: controller,
                       keyboardType: const TextInputType.numberWithOptions(
@@ -361,14 +362,16 @@ class _CartScreenState extends State<CartScreen> {
                       decoration: InputDecoration(
                         labelText: 'مبلغ العمولة لكل قطعة',
                         hintText: 'مثال: 5.00',
-                        prefixIcon: const Icon(Icons.attach_money, color: _purple),
+                        prefixIcon:
+                            const Icon(Icons.attach_money, color: _purple),
                         suffixText: 'SAR',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: _purple, width: 2),
+                          borderSide:
+                              const BorderSide(color: _purple, width: 2),
                         ),
                       ),
                       onChanged: (String v) {
@@ -378,8 +381,6 @@ class _CartScreenState extends State<CartScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
-
-                    // النتائج
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
@@ -388,7 +389,8 @@ class _CartScreenState extends State<CartScreen> {
                         border: Border.all(color: _border),
                       ),
                       child: Obx(() {
-                        final double perPiece = _cart.commissionPerPiece.value;
+                        final double perPiece =
+                            _cart.commissionPerPiece.value;
                         final double totalSar = _cart.commissionTotalSar;
                         final double totalYer = _cart.commissionTotalYer;
                         final int count = _cart.items.length;
@@ -400,30 +402,24 @@ class _CartScreenState extends State<CartScreen> {
                           children: <Widget>[
                             _summaryRow('📦 عدد القطع', '$count'),
                             const SizedBox(height: 6),
-                            _summaryRow(
-                                '🎁 العمولة لكل قطعة',
+                            _summaryRow('🎁 العمولة لكل قطعة',
                                 '${perPiece.toStringAsFixed(2)} SAR'),
                             const Divider(height: 16),
-                            _summaryRow(
-                                '💰 إجمالي العمولة',
+                            _summaryRow('💰 إجمالي العمولة',
                                 '${totalSar.toStringAsFixed(2)} SAR',
                                 emphasize: true),
                             const SizedBox(height: 6),
-                            _summaryRow(
-                                '🇾🇪 بالريال اليمني',
+                            _summaryRow('🇾🇪 بالريال اليمني',
                                 '${totalYer.toStringAsFixed(0)} ريال',
                                 emphasize: true),
                             const SizedBox(height: 6),
-                            _summaryRow(
-                                '📊 سعر الصرف',
+                            _summaryRow('📊 سعر الصرف',
                                 '${rate.toStringAsFixed(0)}'),
                           ],
                         );
                       }),
                     ),
                     const SizedBox(height: 16),
-
-                    // زرّان: موافقة + مشاركة عادية
                     Obx(() {
                       final bool hasCom = _cart.hasCommission;
                       return Column(
@@ -439,10 +435,11 @@ class _CartScreenState extends State<CartScreen> {
                                   : null,
                               style: FilledButton.styleFrom(
                                 backgroundColor: _green,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 13),
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 13),
                                 shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12)),
+                                    borderRadius:
+                                        BorderRadius.circular(12)),
                               ),
                               icon: const Icon(Icons.share),
                               label: const Text(
@@ -465,10 +462,11 @@ class _CartScreenState extends State<CartScreen> {
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: _purple,
                                 side: const BorderSide(color: _purple),
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 13),
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 13),
                                 shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12)),
+                                    borderRadius:
+                                        BorderRadius.circular(12)),
                               ),
                               icon: const Icon(Icons.share),
                               label: const Text(
@@ -537,7 +535,17 @@ class _CartScreenState extends State<CartScreen> {
         backgroundColor: Colors.white,
         body: SafeArea(
           child: Obx(() {
-            if (_cart.items.isEmpty) return const _EmptyCart();
+            if (_cart.items.isEmpty) {
+              return Column(
+                children: <Widget>[
+                  _Header(count: _cart.items.length),
+                  const SizedBox(height: 8),
+                  // ⭐ زر الاستيراد يظهر حتى لو السلة فارغة
+                  _buildImportSheinCartButton(),
+                  const Expanded(child: _EmptyCart()),
+                ],
+              );
+            }
             return Column(
               children: <Widget>[
                 _Header(count: _cart.items.length),
@@ -565,6 +573,11 @@ class _CartScreenState extends State<CartScreen> {
                         ),
                       ),
                       const SizedBox(height: 14),
+
+                      // ⭐ زر استيراد سلة شي ان
+                      _buildImportSheinCartButton(),
+
+                      const SizedBox(height: 10),
                       ..._cart.items.map(
                         (CartItem item) => Padding(
                           padding: const EdgeInsets.only(bottom: 10),
@@ -583,14 +596,15 @@ class _CartScreenState extends State<CartScreen> {
                       _QuoteSummary(cart: _cart),
                       const SizedBox(height: 12),
 
-                      // ⭐ زر آلة حساب عمولة المندوب
+                      // آلة حساب عمولة المندوب
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
                           onPressed: _openCommissionCalculator,
                           style: OutlinedButton.styleFrom(
                             foregroundColor: _purple,
-                            side: const BorderSide(color: _purple, width: 1.5),
+                            side: const BorderSide(
+                                color: _purple, width: 1.5),
                             padding: const EdgeInsets.symmetric(vertical: 13),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -608,7 +622,7 @@ class _CartScreenState extends State<CartScreen> {
                       ),
                       const SizedBox(height: 10),
 
-                      // زر مشاركة عادية
+                      // مشاركة عادية
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton.icon(
@@ -650,6 +664,37 @@ class _CartScreenState extends State<CartScreen> {
               ],
             );
           }),
+        ),
+      ),
+    );
+  }
+
+  // ⭐ زر استيراد سلة شي ان (يظهر دائماً)
+  Widget _buildImportSheinCartButton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: () => Get.toNamed('/shein', arguments: <String, dynamic>{
+            'openUrl': 'https://ar.shein.com/cart',
+          }),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: _orange,
+            side: const BorderSide(color: _orange, width: 1.5),
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          icon: const Icon(Icons.download_outlined, size: 20),
+          label: const Text(
+            '📥 استيراد سلة شي ان',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
         ),
       ),
     );
