@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
@@ -41,6 +42,9 @@ class SheinBridgeController {
             return _reply('ok', '');
           case 'openYamanCart':
             return _handleOpenYamanCart();
+          case 'importComplete':
+            _handleImportComplete(envelope.payload);
+            return _reply('ok', 'تم الاستيراد');
           default:
             return _reply('invalid', 'إجراء غير معروف');
         }
@@ -96,6 +100,54 @@ class SheinBridgeController {
       debugPrint('[Seloo] استثناء أثناء الإضافة: $e');
       return _reply('error', 'تعذّرت الإضافة: $e');
     }
+  }
+
+  /// [الحل B] اكتمل استيراد سلة SHEIN — يُغلق WebView وينتقل للسلة.
+  void _handleImportComplete(Map<String, dynamic> payload) {
+    final int count = (payload['count'] as num?)?.toInt() ?? 0;
+    final int noPrice = (payload['noPrice'] as num?)?.toInt() ?? 0;
+
+    debugPrint('[Seloo] اكتمل الاستيراد: $count منتج، $noPrice بدون سعر');
+
+    // تأجيل العمليات لما بعد انتهاء الإطار الحالي
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // 1. إغلاق SheinWebScreen (إذا كانت مفتوحة)
+      if (Get.currentRoute == '/shein') {
+        Get.back();
+      }
+
+      // 2. تحديث العدّاد
+      try {
+        Get.find<CartCounter>().onItemAdded();
+      } catch (_) {}
+
+      // 3. الانتقال لتبويب السلة (index = 2)
+      try {
+        Get.find<MainTabController>().goToCart();
+      } catch (e) {
+        debugPrint('[Seloo] تعذّر الانتقال للسلة: $e');
+      }
+
+      // 4. رسالة نجاح
+      final String baseMsg = count > 0
+          ? 'أُضيف $count منتج من سلة شي إن إلى سلة يمن سيلو'
+          : 'لم يُرسل أي منتج — تأكد أنك في صفحة السلة';
+
+      final String finalMsg = noPrice > 0
+          ? '$baseMsg\n($noPrice منتج بدون سعر مقروء — عدّله يدوياً)'
+          : baseMsg;
+
+      Get.snackbar(
+        count > 0 ? '✅ تم الاستيراد' : '⚠️ لم يُستورد شيء',
+        finalMsg,
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 4),
+        backgroundColor: count > 0
+            ? const Color(0xFF7C3AED)
+            : const Color(0xFFF97316),
+        colorText: Colors.white,
+      );
+    });
   }
 
   Future<Map<String, dynamic>> _handleOpenYamanCart() async {
