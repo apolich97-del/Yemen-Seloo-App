@@ -85,15 +85,13 @@ class _CartScreenState extends State<CartScreen> {
       return;
     }
 
-    // ⭐ Dialog تأكيد شفاف
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext ctx) {
         final double commissionSar = _cart.commissionTotalSar;
         final double commissionYer = _cart.commissionTotalYer;
         final double rate = q.exchangeRate;
-        final double totalSar =
-            (q.grandTotalLocal / rate) + commissionSar;
+        final double totalSar = (q.grandTotalLocal / rate) + commissionSar;
         final double totalYer = q.grandTotalLocal + commissionYer;
 
         return Directionality(
@@ -540,7 +538,6 @@ class _CartScreenState extends State<CartScreen> {
                 children: <Widget>[
                   _Header(count: _cart.items.length),
                   const SizedBox(height: 8),
-                  // ⭐ زر الاستيراد يظهر حتى لو السلة فارغة
                   _buildImportSheinCartButton(),
                   const Expanded(child: _EmptyCart()),
                 ],
@@ -573,10 +570,7 @@ class _CartScreenState extends State<CartScreen> {
                         ),
                       ),
                       const SizedBox(height: 14),
-
-                      // ⭐ زر استيراد سلة شي ان
                       _buildImportSheinCartButton(),
-
                       const SizedBox(height: 10),
                       ..._cart.items.map(
                         (CartItem item) => Padding(
@@ -595,8 +589,6 @@ class _CartScreenState extends State<CartScreen> {
                       const SizedBox(height: 10),
                       _QuoteSummary(cart: _cart),
                       const SizedBox(height: 12),
-
-                      // آلة حساب عمولة المندوب
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
@@ -621,8 +613,6 @@ class _CartScreenState extends State<CartScreen> {
                         ),
                       ),
                       const SizedBox(height: 10),
-
-                      // مشاركة عادية
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton.icon(
@@ -677,7 +667,7 @@ class _CartScreenState extends State<CartScreen> {
         width: double.infinity,
         child: OutlinedButton.icon(
           onPressed: () => Get.toNamed('/shein', arguments: <String, dynamic>{
-            'openUrl': 'https://ar.shein.com/cart',
+            'openUrl': 'https://ar.shein.com.sa/cart',
           }),
           style: OutlinedButton.styleFrom(
             foregroundColor: _orange,
