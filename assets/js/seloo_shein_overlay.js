@@ -1,10 +1,11 @@
 /**
- * Yemen Seloo — Overlay JS (Commit 7)
+ * Yemen Seloo — Overlay JS
  * - قراءة اللون والمقاس والخيارات.
  * - استخراج صورة المنتج (مصادر متعددة).
  * - حجب سلة SHEIN وتوجيه المستخدم لسلة يمن سيلو.
  * - دالة تشخيص للصور.
  * - منع تسجيل الدخول الخارجي وزر SHEIN.
+ * - ⭐ الحل B: استيراد سلة SHEIN كاملة (استخراج DOM + إرسال عبر الجسر).
  */
 (function () {
   'use strict';
@@ -150,17 +151,6 @@
       if (!isBad(ogSrc.toLowerCase())) return ogSrc;
     }
     return '';
-  }
-
-  // ⭐ بناء رابط مختصر (للاستخدام عند المشاركة فقط — لا يُحفظ في CartItem)
-  function buildShortUrl(goodsId) {
-    var host = 'm.shein.com';
-    try {
-      if (location.host && location.host.indexOf('shein') !== -1) {
-        host = location.host;
-      }
-    } catch (e) {}
-    return 'https://' + host + '/ar/p-' + goodsId + '.html';
   }
 
   // ⭐ قراءة اللون والمقاس (محددات متعددة)
@@ -453,7 +443,7 @@
     if (!goodsIdFromUrl()) { removeFab(); return; }
     buildFab();
     blockExternalLogins();
-    blockSheinCartIcon(); // ⭐ جديد
+    blockSheinCartIcon();
   }
 
   var lastUrl = location.href;
@@ -490,4 +480,262 @@
     }
   }
   boot();
+
+  /* =========================================================
+   * ⭐ [الحل B] استيراد سلة SHEIN كاملة إلى سلة يمن سيلو
+   * - يستخرج منتجات صفحة السلة من DOM.
+   * - يرسل كل منتج كـ addToCart عادي عبر الجسر.
+   * - يرسل importComplete في النهاية.
+   * - الزر يظهر فقط في صفحة السلة.
+   * ========================================================= */
+  (function () {
+    if (window.__selooImportReady) return;
+    window.__selooImportReady = true;
+
+    var SELLO_CURRENCY = 'SAR';
+    var SEND_INTERVAL_MS = 200;
+    var IMPORT_FAB_ID = 'seloo-import-fab';
+
+    function selooSend(action, payload) {
+      try {
+        if (window.flutter_inappwebview &&
+            typeof window.flutter_inappwebview.callHandler === 'function') {
+          window.flutter_inappwebview.callHandler(BRIDGE, {
+            action: action,
+            payload: payload
+          });
+          return true;
+        }
+        log('لا يوجد جسر callHandler');
+      } catch (e) {
+        log('فشل الإرسال', e);
+      }
+      return false;
+    }
+
+    function txt(el) {
+      return (el && el.textContent ? el.textContent : '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    // ⭐ أول سعر منطقي (بين 0.5 و 100000 SAR)
+    function extractPrice(scope) {
+      var els = scope.querySelectorAll('[class*="price"], [class*="Price"]');
+      for (var i = 0; i < els.length; i++) {
+        var t = txt(els[i]);
+        var m = t.match(/[\d]+[.,]?[\d]*/);
+        if (m) {
+          var v = parseFloat(m[0].replace(/,/g, ''));
+          if (!isNaN(v) && v >= 0.5 && v <= 100000) return v;
+        }
+      }
+      return null;
+    }
+
+    function extractQty(scope) {
+      var input = scope.querySelector(
+        'input[type="number"], [class*="qty"] input, [class*="quantity"] input'
+      );
+      if (input) {
+        var v = parseInt(input.value || input.getAttribute('value') || '1', 10);
+        if (!isNaN(v) && v > 0) return v;
+      }
+      var m = txt(scope).match(/\b[x\u00d7]\s*(\d+)/i);
+      return m ? parseInt(m[1], 10) : 1;
+    }
+
+    function extractGoodsId(scope, href) {
+      var m = (href || '').match(/goods_id[=%\/]?(\d+)/i) ||
+              (href || '').match(/-p-(\d+)/);
+      if (m) return m[1];
+      var link = scope
+        ? scope.querySelector('a[href*="goods_id"], a[href*="-p-"]')
+        : null;
+      if (link) {
+        var href2 = link.getAttribute('href') || '';
+        var m2 = href2.match(/goods_id[=%\/]?(\d+)/i) ||
+                 href2.match(/-p-(\d+)/);
+        if (m2) return m2[1];
+      }
+      return null;
+    }
+
+    function extractImage(scope) {
+      var img = scope ? scope.querySelector('img') : null;
+      if (!img) return '';
+      var src = img.getAttribute('src') || img.getAttribute('data-src') || '';
+      if (/^https?:\/\//i.test(src)) return src;
+      if (src.indexOf('//') === 0) return 'https:' + src;
+      return '';
+    }
+
+    function absoluteUrl(href) {
+      if (!href) return null;
+      if (/^https?:\/\//i.test(href)) return href;
+      try { return new URL(href, location.origin).href; } catch (e) { return null; }
+    }
+
+    function extractCartItems() {
+      var items = [];
+      var seen = {};
+
+      var wrappers = document.querySelectorAll(
+        '[class*="cart-item"], [class*="cartItem"], [class*="CartItem"], ' +
+        '[class*="cartItem___"], [class*="CART_ITEM"], [class*="checkout-item"]'
+      );
+
+      wrappers.forEach(function (w) {
+        var link = w.querySelector('a[href*="goods_id"], a[href*="-p-"]');
+        var href = link ? (link.getAttribute('href') || '') : '';
+        var gid = extractGoodsId(w, href);
+        if (!gid || seen[gid]) return;
+
+        var nameEl = w.querySelector(
+          '[class*="name"], [class*="Name"], [class*="title"], [class*="Title"]'
+        );
+        var name = txt(nameEl) || (link ? txt(link) : '') || '';
+
+        var price = extractPrice(w);
+        if (!name && price === null) return;
+
+        seen[gid] = true;
+        items.push({
+          goodsId: gid,
+          title: name,
+          price: price,
+          image: extractImage(w),
+          quantity: extractQty(w),
+          url: absoluteUrl(href)
+        });
+      });
+
+      // طبقة احتياطية: البحث عن روابط المنتجات مباشرة
+      if (!items.length) {
+        var links = document.querySelectorAll('a[href*="goods_id"], a[href*="-p-"]');
+        links.forEach(function (a) {
+          var gid = extractGoodsId(null, a.getAttribute('href') || '');
+          if (!gid || seen[gid]) return;
+          var scope = a.closest('[class*="item"], li, div');
+          seen[gid] = true;
+          items.push({
+            goodsId: gid,
+            title: txt(a),
+            price: scope ? extractPrice(scope) : null,
+            image: scope ? extractImage(scope) : '',
+            quantity: scope ? extractQty(scope) : 1,
+            url: a.href
+          });
+        });
+      }
+      return items;
+    }
+    window.selooExtractCart = extractCartItems;
+
+    // ⭐ مطابق تماماً لـ SheinDraft.fromBridgePayload
+    function toPayload(item) {
+      var digits = String(item.goodsId || '').replace(/\D/g, '');
+
+      var qty = parseInt(item.quantity, 10);
+      if (isNaN(qty) || qty < 1) qty = 1;
+      if (qty > 50) qty = 50;
+
+      var priceOk = (typeof item.price === 'number' &&
+                     isFinite(item.price) && item.price > 0);
+      var price = priceOk ? item.price : 0.01;
+
+      return {
+        goodsId: digits,
+        productUrl: item.url || ('https://m.shein.com/ar/-p-' + digits + '.html'),
+        title: item.title || ('منتج SHEIN #' + digits),
+        imageUrl: item.image || '',
+        sourcePrice: price,
+        sourceCurrency: SELLO_CURRENCY,
+        quantity: qty,
+        color: '',
+        size: '',
+        options: {},
+        sourceStore: 'SHEIN',
+        sku: '',
+        variantId: '',
+        source: 'webview-cart'
+      };
+    }
+
+    function isCartPage() {
+      return location.pathname.toLowerCase().indexOf('cart') !== -1;
+    }
+
+    function injectImportFab() {
+      if (!document.body) return;
+
+      if (!isCartPage()) {
+        var old = document.getElementById(IMPORT_FAB_ID);
+        if (old) old.remove();
+        return;
+      }
+
+      if (document.getElementById(IMPORT_FAB_ID)) return;
+
+      var fab = document.createElement('div');
+      fab.id = IMPORT_FAB_ID;
+      fab.textContent = '📤 إرسال السلة إلى يمن سيلو';
+      fab.setAttribute('style',
+        'position:fixed;bottom:24px;left:16px;right:16px;z-index:2147483647;' +
+        'background:#7c3aed;color:#fff;padding:14px 18px;border-radius:14px;' +
+        'font-size:16px;font-weight:700;text-align:center;cursor:pointer;' +
+        'box-shadow:0 6px 18px rgba(124,58,237,.5);' +
+        'font-family:system-ui,sans-serif;direction:rtl;');
+
+      fab.onclick = function () {
+        var items = extractCartItems();
+        if (!items.length) {
+          fab.textContent = '⚠️ لم أجد منتجات — تأكد أنك في صفحة السلة';
+          setTimeout(function () {
+            fab.textContent = '📤 إرسال السلة إلى يمن سيلو';
+          }, 2500);
+          return;
+        }
+        fab.textContent = '⏳ جاري إرسال ' + items.length + ' منتج...';
+
+        var i = 0, sent = 0, noPrice = 0;
+        function next() {
+          if (i >= items.length) {
+            selooSend('importComplete', {
+              count: sent,
+              total: items.length,
+              noPrice: noPrice
+            });
+            fab.textContent = '✅ تم إرسال ' + sent + ' منتج';
+            return;
+          }
+          var item = items[i];
+          if (!(typeof item.price === 'number' && item.price > 0)) noPrice++;
+          if (selooSend('addToCart', toPayload(item))) sent++;
+          i++;
+          setTimeout(next, SEND_INTERVAL_MS);
+        }
+        next();
+      };
+
+      document.body.appendChild(fab);
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function () {
+        setTimeout(injectImportFab, 800);
+      });
+    } else {
+      setTimeout(injectImportFab, 800);
+    }
+
+    // SPA: تابع تغيّر المسار
+    var lastImportPath = location.pathname;
+    setInterval(function () {
+      if (location.pathname !== lastImportPath) {
+        lastImportPath = location.pathname;
+        setTimeout(injectImportFab, 1500);
+      }
+    }, 1500);
+  })();
 })();
