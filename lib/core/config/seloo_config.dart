@@ -48,31 +48,18 @@ abstract final class SelooConfig {
 }
 
 /// ثوابت التسعير والشحن والعملات.
-///
-/// ⚠️ القيم هنا هي المصدر الوحيد للحقيقة.
-/// لا تكتب قيمًا حرفية في مكان آخر.
 abstract final class SelooPricing {
-  /// العملة الافتراضية لسعر المصدر.
   static const String defaultCurrency = 'SAR';
 
-  /// سعر الصرف: 1 SAR → كم YER.
-  static const double northRate = 140.0; // شمال اليمن
-  static const double southRate = 413.0; // جنوب اليمن
-  static const double saudiRate = 1.0;   // السعودية
+  static const double northRate = 140.0;
+  static const double southRate = 413.0;
+  static const double saudiRate = 1.0;
 
-  /// الشحن الدولي (السعودية → اليمن).
-  /// - الحد المجاني: 75 SAR
-  /// - أقل من الحد: 1 SAR لكل قطعة
   static const double freeShippingThresholdSar = 75.0;
   static const double shippingPerPieceSar = 1.0;
-
-  /// رسوم الخدمة: ثابتة لكل طلب = 1.22 SAR.
   static const double serviceFeeSar = 1.22;
 
-  /// المنطقة الافتراضية عند غياب اختيار.
   static const String defaultRegion = 'north';
-
-  /// أنواع المناطق.
   static const String regionNorth = 'north';
   static const String regionSouth = 'south';
   static const String regionSaudi = 'saudi';
@@ -81,21 +68,17 @@ abstract final class SelooPricing {
 /// إعدادات الجانب الخاص بـSHEIN.
 abstract final class SheinWebConfig {
   static const String scheme = 'https';
-  static const String host = 'm.shein.com.sa';
+  static const String host = 'm.shein.com'; // ⭐ تم التصحيح
 
-  // ⭐ تم التعديل: النطاق السعودي
-  static const String homeAr = 'https://m.shein.com.sa/ar/';
-  static const String categoryAr = 'https://m.shein.com.sa/ar/category/';
+  // ⭐ النطاقات العربية العامة (sa.shein.com للغة الإنجليزية)
+  static const String homeAr = 'https://m.shein.com/ar/';
+  static const String categoryAr = 'https://m.shein.com/ar/category/';
 
   static const List<String> allowedHosts = <String>[
     'm.shein.com',
-    'm.shein.com.sa',
     'www.shein.com',
-    'www.shein.com.sa',
     'shein.com',
-    'shein.com.sa',
     'ar.shein.com',
-    'ar.shein.com.sa',
     'sa.shein.com',
   ];
 
@@ -105,7 +88,6 @@ abstract final class SheinWebConfig {
     'sheinpay.com',
   ];
 
-  /// نطاقات تسجيل الدخول لـSHEIN — تُمنع داخل WebView.
   static const List<String> loginHosts = <String>[
     'accounts.google.com',
     'appleid.apple.com',
