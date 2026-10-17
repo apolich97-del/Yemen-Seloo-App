@@ -463,7 +463,7 @@
     });
 
     fab.addEventListener('click', function (e) {
-      if (e.target === chk) return; // لا تُشغّل عند تفعيل checkbox
+      if (e.target === chk) return;
       if (sending) return;
 
       var product = collectProduct();
@@ -715,7 +715,8 @@
 
       return {
         goodsId: digits,
-        productUrl: item.url || ('https://m.shein.com.sa/ar/-p-' + digits + '.html'),
+        // ⭐ تم التصحيح: m.shein.com بدلاً من m.shein.com.sa
+        productUrl: item.url || ('https://m.shein.com/ar/-p-' + digits + '.html'),
         title: item.title || ('منتج SHEIN #' + digits),
         imageUrl: item.image || '',
         sourcePrice: price,
