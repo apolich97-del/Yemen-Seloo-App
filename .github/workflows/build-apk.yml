@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build APK
@@ -163,11 +166,9 @@ jobs:
       - name: ⭐ توليد أيقونة التطبيق
         run: dart run flutter_launcher_icons
 
-      # ⭐ 1. بناء APK أولاً
       - name: Build APK (release)
         run: flutter build apk --release --no-tree-shake-icons
 
-      # ⭐ 2. ثم إنشاء Release
       - name: Create Release
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
