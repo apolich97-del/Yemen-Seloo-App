@@ -45,11 +45,10 @@ class SheinBridgeController {
           case 'importComplete':
             _handleImportComplete(envelope.payload);
             return _reply('ok', 'تم الاستيراد');
-          // ⭐ الحالة التشخيصية الجديدة
           case 'debugHtml':
             final String html = envelope.payload['html']?.toString() ?? 'لا يوجد كود';
             Get.snackbar(
-              'HTML Code (أرسل هذا للمطور)',
+              'HTML Code',
               html,
               duration: const Duration(minutes: 5),
               snackPosition: SnackPosition.BOTTOM,
