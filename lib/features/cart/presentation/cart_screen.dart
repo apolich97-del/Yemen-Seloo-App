@@ -28,11 +28,18 @@ class CartScreen extends StatefulWidget {
 
 class _CartScreenState extends State<CartScreen> {
   final CartCounter _cart = Get.find<CartCounter>();
+  final TextEditingController _shareCartController = TextEditingController(); // ⭐ جديد
 
   @override
   void initState() {
     super.initState();
     _cart.refreshQuote();
+  }
+
+  @override
+  void dispose() {
+    _shareCartController.dispose();
+    super.dispose();
   }
 
   Future<void> _run(Future<String?> Function() action) async {
@@ -655,31 +662,66 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
+  // ⭐ زر استيراد سلة شي ان (مع حقل لصق الرابط)
   Widget _buildImportSheinCartButton() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: SizedBox(
-        width: double.infinity,
-        child: OutlinedButton.icon(
-          onPressed: () => Get.toNamed('/shein', arguments: <String, dynamic>{
-            'openUrl': 'https://ar.shein.com/cart',
-          }),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: _orange,
-            side: const BorderSide(color: _orange, width: 1.5),
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: _purpleLight,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _orange.withOpacity(0.5), width: 1.5),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const Row(
+              children: <Widget>[
+                Icon(Icons.download_outlined, color: _orange, size: 20),
+                SizedBox(width: 8),
+                Text(
+                  'استيراد سلة شي ان',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: _orange),
+                ),
+              ],
             ),
-          ),
-          icon: const Icon(Icons.download_outlined, size: 20),
-          label: const Text(
-            '📥 استيراد سلة شي ان',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
+            const SizedBox(height: 8),
+            const Text(
+              'افتح SHEIN في متصفح كروم، افتح السلة، انسخ الرابط، والصقه هنا:',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
-          ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _shareCartController,
+              style: const TextStyle(fontSize: 12),
+              decoration: const InputDecoration(
+                hintText: 'https://m.shein.com/ar/cart/share/landing?...',
+                isDense: true,
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () {
+                  final url = _shareCartController.text.trim();
+                  if (url.isEmpty || !url.contains('shein.com')) {
+                    _snack('يرجى لصق رابط صالح من SHEIN');
+                    return;
+                  }
+                  Get.toNamed('/shein', arguments: <String, dynamic>{
+                    'shareCartUrl': url,
+                  });
+                },
+                style: FilledButton.styleFrom(backgroundColor: _orange),
+                child: const Text('بدء الاستيراد', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
         ),
       ),
     );
