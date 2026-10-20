@@ -42,9 +42,22 @@ class SheinBridgeController {
             return _reply('ok', '');
           case 'openYamanCart':
             return _handleOpenYamanCart();
-          case 'importComplete': // ⭐
+          case 'importComplete':
             _handleImportComplete(envelope.payload);
             return _reply('ok', 'تم الاستيراد');
+          // ⭐ الحالة التشخيصية الجديدة
+          case 'debugHtml':
+            final String html = envelope.payload['html']?.toString() ?? 'لا يوجد كود';
+            Get.snackbar(
+              'HTML Code (أرسل هذا للمطور)',
+              html,
+              duration: const Duration(minutes: 5),
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.black,
+              colorText: Colors.greenAccent,
+              maxWidth: 800,
+            );
+            return _reply('ok', 'تم التشخيص');
           default:
             return _reply('invalid', 'إجراء غير معروف');
         }
@@ -101,7 +114,7 @@ class SheinBridgeController {
     }
   }
 
-  /// ⭐ [الحل B] اكتمل استيراد سلة SHEIN — إضافة المنتجات مباشرة
+  /// [الحل B] اكتمل استيراد سلة SHEIN
   void _handleImportComplete(Map<String, dynamic> payload) {
     final int count = (payload['count'] as num?)?.toInt() ?? 0;
     final List<dynamic>? lines = payload['lines'] as List<dynamic>?;
@@ -159,8 +172,7 @@ class SheinBridgeController {
     if (controller == null) return;
     try {
       await controller.evaluateJavascript(
-        source:
-            'window.__selooEditCompleted && window.__selooEditCompleted();',
+        source: 'window.__selooEditCompleted && window.__selooEditCompleted();',
       );
     } catch (_) {}
   }
