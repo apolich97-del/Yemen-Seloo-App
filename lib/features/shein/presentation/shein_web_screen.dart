@@ -6,9 +6,6 @@ import '../../../core/config/seloo_config.dart';
 import '../../cart/application/cart_counter.dart';
 import 'shein_bridge_controller.dart';
 
-/// شاشة SHEIN داخل WebView (flutter_inappwebview).
-/// ⚠️ لا تحتوي Scaffold/AppBar — لأنها تُعرض داخل MainShell.
-/// ✅ تُضيف AppBar برتقالي فقط في وضع التعديل.
 class SheinWebScreen extends StatefulWidget {
   const SheinWebScreen({super.key});
 
@@ -23,6 +20,7 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
   InAppWebViewController? _webViewController;
   String? _editLineId;
   String? _editUrl;
+  String? _shareCartUrl; // ⭐ جديد
   double _progress = 0;
   bool _isLoading = true;
 
@@ -34,9 +32,7 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
     if (args is Map) {
       _editLineId = args['editLineId'] as String?;
       _editUrl = args['editUrl'] as String?;
-      if (_editUrl == null && args['openUrl'] is String) {
-        _editUrl = args['openUrl'] as String?;
-      }
+      _shareCartUrl = args['shareCartUrl'] as String?; // ⭐ استقبال
     }
 
     if (_editLineId != null) {
@@ -50,7 +46,12 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
     super.dispose();
   }
 
-  String get _initialUrl => _editUrl ?? SheinWebConfig.homeAr;
+  String get _initialUrl {
+    if (_shareCartUrl != null && _shareCartUrl!.isNotEmpty) {
+      return _shareCartUrl!;
+    }
+    return _editUrl ?? SheinWebConfig.homeAr;
+  }
 
   InAppWebViewSettings _buildSettings() {
     return InAppWebViewSettings(
@@ -67,12 +68,9 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
           '(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
       supportMultipleWindows: false,
       javaScriptCanOpenWindowsAutomatically: false,
-      supportZoom: false,
-      builtInZoomControls: false,
-      displayZoomControls: false,
+      supportZoom: true,
       useWideViewPort: true,
       loadWithOverviewMode: true,
-      transparentBackground: false,
     );
   }
 
@@ -82,8 +80,45 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
       await controller.evaluateJavascript(
         source: 'window.__SELOO_EDITING_LINE_ID__ = "$editId";',
       );
+      
       final String script = await _bridgeController.loadOverlayScript();
       await controller.evaluateJavascript(source: script);
+
+      // ⭐ إذا كان رابط سلة، ننتظر ثم نستخرج المنتجات ونرسلها
+      if (_shareCartUrl != null && _shareCartUrl!.isNotEmpty) {
+        await controller.evaluateJavascript(source: '''
+          setTimeout(function() {
+            if (window.selooExtractCart) {
+              var items = window.selooExtractCart();
+              if (items && items.length > 0) {
+                var payload = items.map(function(i) {
+                  return {
+                    goodsId: String(i.goodsId),
+                    productUrl: i.url || ('https://m.shein.com/ar/-p-' + i.goodsId + '.html'),
+                    title: i.title || 'منتج SHEIN',
+                    imageUrl: i.image || '',
+                    sourcePrice: i.price || 0.01,
+                    sourceCurrency: 'SAR',
+                    quantity: i.quantity || 1,
+                    color: '', size: '', options: {},
+                    sourceStore: 'SHEIN', sku: '', variantId: '',
+                    source: 'cart_share'
+                  };
+                });
+                window.flutter_inappwebview.callHandler('selooBridge', {
+                  action: 'importComplete',
+                  payload: { count: payload.length, total: payload.length, noPrice: 0, lines: payload }
+                });
+              } else {
+                window.flutter_inappwebview.callHandler('selooBridge', {
+                  action: 'importComplete',
+                  payload: { count: 0, total: 0, noPrice: 0, error: 'لم يتم العثور على منتجات' }
+                });
+              }
+            }
+          }, 4000); // انتظار 4 ثواني
+        ''');
+      }
     } catch (e) {
       debugPrint('[Seloo] فشل حقن السكربت: $e');
     }
@@ -92,31 +127,26 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
   @override
   Widget build(BuildContext context) {
     final bool isEditing = _editLineId != null;
+    final bool isImportingCart = _shareCartUrl != null;
 
     return Column(
       children: <Widget>[
-        // ⭐ AppBar صغير — يظهر فقط في وضع التعديل
-        if (isEditing)
+        if (isEditing || isImportingCart)
           Container(
-            color: const Color(0xFFF97316),
+            color: isEditing ? const Color(0xFFF97316) : const Color(0xFF7C3AED),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: <Widget>[
-                const Icon(Icons.edit, color: Colors.white, size: 20),
+                Icon(isEditing ? Icons.edit : Icons.download, color: Colors.white, size: 20),
                 const SizedBox(width: 8),
-                const Text(
-                  'وضع التعديل',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
+                Text(
+                  isEditing ? 'وضع التعديل' : 'جاري استيراد السلة...',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 const Spacer(),
                 TextButton.icon(
                   onPressed: () {
                     _cartCounter.clearEditing();
-                    // العودة إلى تبويب السلة
                     Get.back();
                   },
                   style: TextButton.styleFrom(foregroundColor: Colors.white),
@@ -126,7 +156,6 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
               ],
             ),
           ),
-        // شريط التحميل
         if (_isLoading && _progress < 1)
           LinearProgressIndicator(
             value: _progress,
@@ -134,7 +163,6 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
             backgroundColor: Colors.transparent,
             minHeight: 3,
           ),
-        // WebView
         Expanded(
           child: InAppWebView(
             initialUrlRequest: URLRequest(
@@ -174,9 +202,7 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
               if (request.isForMainFrame ?? false) {
                 if (mounted) setState(() => _isLoading = false);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('فشل تحميل الصفحة: ${error.description}'),
-                  ),
+                  SnackBar(content: Text('فشل تحميل الصفحة: ${error.description}')),
                 );
               }
             },
