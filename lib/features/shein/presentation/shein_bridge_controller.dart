@@ -42,7 +42,7 @@ class SheinBridgeController {
             return _reply('ok', '');
           case 'openYamanCart':
             return _handleOpenYamanCart();
-          case 'importComplete':
+          case 'importComplete': // ⭐
             _handleImportComplete(envelope.payload);
             return _reply('ok', 'تم الاستيراد');
           default:
@@ -66,7 +66,6 @@ class SheinBridgeController {
       return _reply('invalid', 'بيانات المنتج غير مكتملة (${error.field})');
     }
 
-    // ⭐ اقرأ حالة التعديل من CartCounter
     String? editingLineId;
     try {
       final CartCounter cart = Get.find<CartCounter>();
@@ -102,49 +101,43 @@ class SheinBridgeController {
     }
   }
 
-  /// [الحل B] اكتمل استيراد سلة SHEIN — يُغلق WebView وينتقل للسلة.
+  /// ⭐ [الحل B] اكتمل استيراد سلة SHEIN — إضافة المنتجات مباشرة
   void _handleImportComplete(Map<String, dynamic> payload) {
     final int count = (payload['count'] as num?)?.toInt() ?? 0;
-    final int noPrice = (payload['noPrice'] as num?)?.toInt() ?? 0;
+    final List<dynamic>? lines = payload['lines'] as List<dynamic>?;
+    
+    if (count == 0 || lines == null || lines.isEmpty) {
+      Get.snackbar('⚠️ تنبيه', payload['error'] ?? 'لم يتم العثور على منتجات',
+          snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.orange, colorText: Colors.white);
+      return;
+    }
 
-    debugPrint('[Seloo] اكتمل الاستيراد: $count منتج، $noPrice بدون سعر');
-
-    // تأجيل العمليات لما بعد انتهاء الإطار الحالي
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      // 1. إغلاق SheinWebScreen (إذا كانت مفتوحة)
-      if (Get.currentRoute == '/shein') {
-        Get.back();
-      }
-
-      // 2. تحديث العدّاد
+    int added = 0;
+    for (var item in lines) {
+      if (item is! Map) continue;
       try {
-        Get.find<CartCounter>().onItemAdded();
+        final draft = SheinDraft.fromBridgePayload(Map<String, dynamic>.from(item));
+        _cartService.addToCart(draft);
+        added++;
+      } catch (e) {
+        debugPrint('[Seloo] تخطي سطر: $e');
+      }
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (Get.currentRoute == '/shein') Get.back();
+      try {
+        final CartCounter cart = Get.find<CartCounter>();
+        await cart.onItemAdded();
+        cart.clearEditing();
+        Get.find<MainTabController>().goToCart();
       } catch (_) {}
 
-      // 3. الانتقال لتبويب السلة (index = 2)
-      try {
-        Get.find<MainTabController>().goToCart();
-      } catch (e) {
-        debugPrint('[Seloo] تعذّر الانتقال للسلة: $e');
-      }
-
-      // 4. رسالة نجاح
-      final String baseMsg = count > 0
-          ? 'أُضيف $count منتج من سلة شي إن إلى سلة يمن سيلو'
-          : 'لم يُرسل أي منتج — تأكد أنك في صفحة السلة';
-
-      final String finalMsg = noPrice > 0
-          ? '$baseMsg\n($noPrice منتج بدون سعر مقروء — عدّله يدوياً)'
-          : baseMsg;
-
       Get.snackbar(
-        count > 0 ? '✅ تم الاستيراد' : '⚠️ لم يُستورد شيء',
-        finalMsg,
+        '✅ تم الاستيراد',
+        'أُضيف $added منتج من سلة شي إن إلى سلة يمن سيلو',
         snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(seconds: 4),
-        backgroundColor: count > 0
-            ? const Color(0xFF7C3AED)
-            : const Color(0xFFF97316),
+        backgroundColor: const Color(0xFF7C3AED),
         colorText: Colors.white,
       );
     });
