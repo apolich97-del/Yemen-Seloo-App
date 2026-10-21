@@ -24,12 +24,6 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
   double _progress = 0;
   bool _isLoading = true;
 
-  // ⭐ متغيرات الزحف
-  List<String> _crawlUrls = [];
-  int _currentCrawlIndex = 0;
-  int _addedCount = 0;
-  bool _isCrawling = false;
-
   @override
   void initState() {
     super.initState();
@@ -64,8 +58,6 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
       useHybridComposition: true,
       mediaPlaybackRequiresUserGesture: false,
       applicationNameForUserAgent: 'Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-      supportZoom: true,
-      useWideViewPort: true,
     );
   }
 
@@ -73,79 +65,29 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
     try {
       final String script = await _bridgeController.loadOverlayScript();
       await controller.evaluateJavascript(source: script);
-      
-      // ⭐ إذا كنا في عملية زحف، نقوم بحقن سكربت لضغط الزر
-      if (_isCrawling) {
-        await controller.evaluateJavascript(source: '''
-          setTimeout(function() {
-            var fab = document.getElementById('seloo-fab');
-            if (fab) {
-              fab.click();
-              setTimeout(function() {
-                window.flutter_inappwebview.callHandler('selooBridge', { action: 'crawlStepDone', payload: {} });
-              }, 1500);
-            } else {
-              window.flutter_inappwebview.callHandler('selooBridge', { action: 'crawlStepDone', payload: {} });
-            }
-          }, 2500);
-        ''');
-      }
     } catch (e) {
       debugPrint('[Seloo] فشل حقن السكربت: $e');
     }
   }
 
-  // ⭐ دالة بدء الزحف
-  Future<void> _startCrawling(List<String> urls) async {
-    setState(() {
-      _crawlUrls = urls;
-      _currentCrawlIndex = 0;
-      _addedCount = 0;
-      _isCrawling = true;
-    });
-    _loadNextCrawlUrl();
-  }
-
-  void _loadNextCrawlUrl() {
-    if (_currentCrawlIndex >= _crawlUrls.length) {
-      // انتهى الزحف
-      setState(() => _isCrawling = false);
-      Get.snackbar('✅ اكتمل الاستيراد', 'تمت إضافة $_addedCount منتج', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.green, colorText: Colors.white);
-      if (Get.currentRoute == '/shein') Get.back();
-      return;
-    }
-    setState(() => _addedCount++); // زيادة عداد الإضافة
-    _webViewController?.loadUrl(urlRequest: URLRequest(url: WebUri(_crawlUrls[_currentCrawlIndex])));
-    _currentCrawlIndex++;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final bool isEditing = _editLineId != null;
     final bool isImportingCart = _shareCartUrl != null;
 
     return Column(
       children: <Widget>[
-        if (isEditing || isImportingCart || _isCrawling)
+        if (isImportingCart)
           Container(
-            color: _isCrawling ? Colors.green : (isEditing ? const Color(0xFFF97316) : const Color(0xFF7C3AED)),
+            color: const Color(0xFF7C3AED),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: <Widget>[
-                if (_isCrawling) const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
-                else Icon(isEditing ? Icons.edit : Icons.download, color: Colors.white, size: 20),
-                const SizedBox(width: 12),
-                Text(
-                  _isCrawling ? 'جاري استيراد المنتجات ($_currentCrawlIndex/${_crawlUrls.length})...' : (isEditing ? 'وضع التعديل' : 'جاري استيراد السلة...'),
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                ),
+                const Icon(Icons.download, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                const Text('جاري استيراد السلة...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
                 const Spacer(),
                 TextButton.icon(
-                  onPressed: () { 
-                    if (_isCrawling) setState(() => _isCrawling = false);
-                    _cartCounter.clearEditing(); 
-                    Get.back(); 
-                  }, 
+                  onPressed: () { _cartCounter.clearEditing(); Get.back(); }, 
                   style: TextButton.styleFrom(foregroundColor: Colors.white), 
                   icon: const Icon(Icons.close, size: 18), 
                   label: const Text('إلغاء')
@@ -162,17 +104,10 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
             onWebViewCreated: (controller) async { 
               _webViewController = controller; 
               await _bridgeController.attach(controller); 
-              _bridgeController.onCrawlStepDone = () { _loadNextCrawlUrl(); };
-              _bridgeController.onStartCrawl = (urls) { _startCrawling(urls); };
             },
             onLoadStart: (controller, url) { if (mounted) setState(() { _isLoading = true; _progress = 0; }); },
             onLoadStop: (controller, url) async { if (mounted) setState(() { _isLoading = false; _progress = 1; }); await _injectScripts(controller); },
             onProgressChanged: (controller, progress) { if (mounted) setState(() => _progress = progress / 100); },
-            shouldOverrideUrlLoading: (controller, action) async {
-              final WebUri? webUri = action.request.url;
-              if (webUri == null) return NavigationActionPolicy.ALLOW;
-              return SheinNavigationPolicy.decide(Uri.parse(webUri.toString()));
-            },
           ),
         ),
       ],
