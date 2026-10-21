@@ -1,12 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
-
 import '../../../core/config/seloo_config.dart';
 import '../../cart/application/cart_counter.dart';
 import '../../cart/data/seloo_cart_service.dart';
@@ -18,6 +16,10 @@ class SheinBridgeController {
   final SelooCartService _cartService;
   String? _scriptSource;
   InAppWebViewController? _webView;
+
+  // ⭐ دوال التحكم في الزحف
+  Function(int total)? onStartClickCrawl;
+  Function()? onCrawlStepFailed;
 
   Future<void> attach(InAppWebViewController controller) async {
     _webView = controller;
@@ -31,9 +33,12 @@ class SheinBridgeController {
         switch (envelope.action) {
           case 'addToCart':
             return await _handleAddToCart(envelope.payload);
-          case 'batchAddToCart': 
-            _handleBatchAddToCart(envelope.payload);
-            return _reply('ok', 'بدأ الاستيراد');
+          case 'startClickCrawl':
+            onStartClickCrawl?.call(envelope.payload['total'] ?? 0);
+            return _reply('ok', 'بدأ الزحف');
+          case 'crawlStepFailed':
+            onCrawlStepFailed?.call();
+            return _reply('ok', 'تخطي');
           default:
             return _reply('invalid', 'إجراء غير معروف');
         }
@@ -46,53 +51,18 @@ class SheinBridgeController {
     try {
       draft = SheinDraft.fromBridgePayload(payload);
     } on DraftValidationException catch (error) {
+      onCrawlStepFailed?.call();
       return _reply('invalid', 'بيانات المنتج غير مكتملة');
     }
+
     try {
       final BridgeResult result = await _cartService.addToCart(draft);
       try { await Get.find<CartCounter>().onItemAdded(); } catch (_) {}
       return result.toJson();
     } catch (e) {
+      onCrawlStepFailed?.call();
       return _reply('error', 'تعذّرت الإضافة: $e');
     }
-  }
-
-  // ⭐ دالة استقبال المنتجات دفعة واحدة مع المقاسات
-  void _handleBatchAddToCart(Map<String, dynamic> payload) async {
-    final List<dynamic> items = payload['items'] as List<dynamic>? ?? [];
-    if (items.isEmpty) return;
-
-    int added = 0;
-    for (var item in items) {
-      if (item is! Map) continue;
-      try {
-        final draft = SheinDraft.fromBridgePayload({
-          ...Map<String, dynamic>.from(item),
-          'sourceCurrency': 'SAR',
-        });
-        await _cartService.addToCart(draft);
-        added++;
-      } catch (e) {
-        debugPrint('[Seloo] تخطي منتج: $e');
-      }
-    }
-
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (Get.currentRoute == '/shein') Get.back();
-      try {
-        final CartCounter cart = Get.find<CartCounter>();
-        await cart.onItemAdded();
-        Get.find<MainTabController>().goToCart();
-      } catch (_) {}
-
-      Get.snackbar(
-        '✅ تم الاستيراد الجماعي',
-        'أُضيف $added منتج (بالمقاسات) من سلة شي إن',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: const Color(0xFF10B981),
-        colorText: Colors.white,
-      );
-    });
   }
 
   Future<String> loadOverlayScript() async {
