@@ -115,9 +115,6 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                 if (_isCrawling && url.toString().contains('-p-')) {
                   await controller.evaluateJavascript(source: 'setTimeout(function() { if(window.__selooAddCurrentProduct) window.__selooAddCurrentProduct(); }, 1500);');
                   
-                  // بعد الإضافة ننتقل للخطوة التالية
-                  await _bridgeController._handleAddToCart({}); // mock to trigger next
-                  
                   // ⭐ نعتمد على الـ Bridge لإخبارنا بالنجاح، لكن للتبسيط ننتقل بعد 3 ثوانٍ
                   Future.delayed(const Duration(seconds: 3), () {
                     if (mounted && _isCrawling) {
