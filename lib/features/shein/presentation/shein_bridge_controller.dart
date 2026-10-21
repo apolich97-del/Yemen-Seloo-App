@@ -13,19 +13,13 @@ import '../../cart/data/seloo_cart_service.dart';
 import '../../home/presentation/main_tab_controller.dart';
 import '../domain/shein_draft.dart';
 
-/// يربط WebView SHEIN بمنطق التطبيق.
 class SheinBridgeController {
   SheinBridgeController({SelooCartService? cartService})
       : _cartService = cartService ?? SelooCartService();
 
   final SelooCartService _cartService;
-
   String? _scriptSource;
   InAppWebViewController? _webView;
-
-  // ⭐ متغيرات الزحف
-  Function(List<String>)? onStartCrawl;
-  Function()? onCrawlStepDone;
 
   Future<void> attach(InAppWebViewController controller) async {
     _webView = controller;
@@ -40,35 +34,11 @@ class SheinBridgeController {
         switch (envelope.action) {
           case 'addToCart':
             return _handleAddToCart(envelope.payload);
-          case 'openCart':
-            return _reply('ok', '');
-          case 'requestCartCount':
-            return _reply('ok', '');
           case 'openYamanCart':
             return _handleOpenYamanCart();
-          case 'importComplete':
-            _handleImportComplete(envelope.payload);
-            return _reply('ok', 'تم الاستيراد');
-          // ⭐ حالات الزحف الجديدة
-          case 'startCrawl':
-            final List<dynamic> urls = envelope.payload['urls'] as List<dynamic>? ?? [];
-            onStartCrawl?.call(urls.cast<String>());
-            return _reply('ok', 'بدأ الزحف');
-          case 'crawlStepDone':
-            onCrawlStepDone?.call();
-            return _reply('ok', '');
-          case 'debugHtml':
-            final String html = envelope.payload['html']?.toString() ?? 'لا يوجد كود';
-            Get.snackbar(
-              'HTML Code',
-              html,
-              duration: const Duration(minutes: 5),
-              snackPosition: SnackPosition.BOTTOM,
-              backgroundColor: Colors.black,
-              colorText: Colors.greenAccent,
-              maxWidth: 800,
-            );
-            return _reply('ok', 'تم التشخيص');
+          case 'batchAddToCart': 
+            _handleBatchAddToCart(envelope.payload);
+            return _reply('ok', 'بدأ الاستيراد');
           default:
             return _reply('invalid', 'إجراء غير معروف');
         }
@@ -76,8 +46,7 @@ class SheinBridgeController {
     );
   }
 
-  Future<Map<String, dynamic>> _handleAddToCart(
-      Map<String, dynamic> payload) async {
+  Future<Map<String, dynamic>> _handleAddToCart(Map<String, dynamic> payload) async {
     if (jsonEncode(payload).length > SelooConfig.maxPayloadBytes) {
       return _reply('invalid', 'حمولة أكبر من الحد المسموح');
     }
@@ -86,47 +55,59 @@ class SheinBridgeController {
     try {
       draft = SheinDraft.fromBridgePayload(payload);
     } on DraftValidationException catch (error) {
-      debugPrint('[Seloo] رفض مسودة: ${error.field} — ${error.reason}');
       return _reply('invalid', 'بيانات المنتج غير مكتملة (${error.field})');
     }
 
     String? editingLineId;
-    try {
-      final CartCounter cart = Get.find<CartCounter>();
-      editingLineId = cart.editingLineId.value;
-    } catch (e) {
-      debugPrint('[Seloo] CartCounter غير متاح: $e');
-    }
+    try { editingLineId = Get.find<CartCounter>().editingLineId.value; } catch (e) {}
 
     try {
-      final BridgeResult result = await _cartService.addToCart(
-        draft,
-        editingLineId: editingLineId,
-      );
-      debugPrint('[Seloo] نتيجة الإضافة: ${result.status}');
-
-      try {
-        final CartCounter cart = Get.find<CartCounter>();
-        await cart.onItemAdded();
-      } catch (_) {}
-
+      final BridgeResult result = await _cartService.addToCart(draft, editingLineId: editingLineId);
+      try { await Get.find<CartCounter>().onItemAdded(); } catch (_) {}
       if (editingLineId != null && editingLineId.isNotEmpty && result.isOk) {
-        try {
-          Get.find<CartCounter>().clearEditing();
-        } catch (_) {}
-        unawaited(_notifyEditCompleted());
+        try { Get.find<CartCounter>().clearEditing(); } catch (_) {}
       }
-
-      unawaited(pushCartCountToPage());
       return result.toJson();
     } catch (e) {
-      debugPrint('[Seloo] استثناء أثناء الإضافة: $e');
       return _reply('error', 'تعذّرت الإضافة: $e');
     }
   }
 
-  void _handleImportComplete(Map<String, dynamic> payload) {
-    // ... (نفس الكود السابق)
+  // ⭐ دالة استقبال المنتجات دفعة واحدة (المسح الذكي)
+  void _handleBatchAddToCart(Map<String, dynamic> payload) async {
+    final List<dynamic> items = payload['items'] as List<dynamic>? ?? [];
+    if (items.isEmpty) return;
+
+    int added = 0;
+    for (var item in items) {
+      if (item is! Map) continue;
+      try {
+        // نمرر البيانات التي جمعها السكربت الذكي
+        final draft = SheinDraft.fromBridgePayload(Map<String, dynamic>.from(item));
+        await _cartService.addToCart(draft);
+        added++;
+      } catch (e) {
+        debugPrint('[Seloo] تخطي منتج: $e');
+      }
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (Get.currentRoute == '/shein') Get.back();
+      try {
+        final CartCounter cart = Get.find<CartCounter>();
+        await cart.onItemAdded();
+        cart.clearEditing();
+        Get.find<MainTabController>().goToCart();
+      } catch (_) {}
+
+      Get.snackbar(
+        '✅ تم الاستيراد الجماعي',
+        'أُضيف $added منتج من سلة شي إن',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: const Color(0xFF7C3AED),
+        colorText: Colors.white,
+      );
+    });
   }
 
   Future<Map<String, dynamic>> _handleOpenYamanCart() async {
@@ -135,25 +116,8 @@ class SheinBridgeController {
       tabCtrl.goToCart();
       return _reply('ok', 'تم فتح السلة');
     } catch (e) {
-      debugPrint('[Seloo] فشل الانتقال للسلة: $e');
       return _reply('error', 'تعذّر فتح السلة');
     }
-  }
-
-  Future<void> _notifyEditCompleted() async {
-    final InAppWebViewController? controller = _webView;
-    if (controller == null) return;
-    try {
-      await controller.evaluateJavascript(source: 'window.__selooEditCompleted && window.__selooEditCompleted();');
-    } catch (_) {}
-  }
-
-  Future<void> pushCartCountToPage() async {
-    final InAppWebViewController? controller = _webView;
-    if (controller == null) return;
-    try {
-      await controller.evaluateJavascript(source: 'window.__selooSetCartCount && window.__selooSetCartCount();');
-    } catch (_) {}
   }
 
   Future<String> loadOverlayScript() async {
@@ -161,26 +125,15 @@ class SheinBridgeController {
   }
 
   Map<String, dynamic> _reply(String status, String message, [int? cartCount]) =>
-      <String, dynamic>{
-        'status': status,
-        'message': message,
-        if (cartCount != null) 'cartCount': cartCount,
-      };
+      <String, dynamic>{ 'status': status, 'message': message, if (cartCount != null) 'cartCount': cartCount };
 }
 
 abstract final class SheinNavigationPolicy {
   static bool isInternal(Uri uri) {
     if (!uri.hasScheme) return false;
     if (uri.scheme != 'https' && uri.scheme != 'http') return false;
-    return SheinWebConfig.allowedHosts.any(
-      (String host) => uri.host == host || uri.host.endsWith('.$host'),
-    );
+    return SheinWebConfig.allowedHosts.any((String host) => uri.host == host || uri.host.endsWith('.$host'));
   }
-
-  static bool isExternalRedirect(Uri uri) => SheinWebConfig.externalHosts.any(
-        (String host) => uri.host == host || uri.host.endsWith('.$host'),
-      );
-
   static NavigationActionPolicy decide(Uri uri) {
     if (isInternal(uri)) return NavigationActionPolicy.ALLOW;
     return NavigationActionPolicy.CANCEL;
