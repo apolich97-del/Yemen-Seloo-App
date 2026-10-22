@@ -6,6 +6,21 @@ import '../../cart/data/seloo_cart_service.dart';
 import '../data/shein_share_api.dart';
 import '../domain/shein_draft.dart';
 
+/// نتيجة استيراد السلة المشتركة.
+class SheinCartImportResult {
+  const SheinCartImportResult({
+    required this.success,
+    required this.message,
+    this.addedCount = 0,
+    this.failedCount = 0,
+  });
+
+  final bool success;
+  final String message;
+  final int addedCount;
+  final int failedCount;
+}
+
 class SheinCartImporter {
   SheinCartImporter({
     SheinShareApi? api,
@@ -19,8 +34,18 @@ class SheinCartImporter {
   Future<SheinCartImportResult> importSharedCart(
     String sharedLink,
   ) async {
+    final String text = sharedLink.trim();
+
+    if (text.isEmpty) {
+      return const SheinCartImportResult(
+        success: false,
+        message: 'الصق رابط السلة المشتركة أولاً.',
+      );
+    }
+
     try {
-      final products = await _api.fetchSharedCart(sharedLink);
+      final List<Map<String, dynamic>> products =
+          await _api.fetchSharedCart(text);
 
       if (products.isEmpty) {
         return const SheinCartImportResult(
@@ -29,46 +54,50 @@ class SheinCartImporter {
         );
       }
 
-      int addedCount = 0;
-      int failedCount = 0;
+      int added = 0;
+      int failed = 0;
 
-      for (final product in products) {
+      for (final Map<String, dynamic> product in products) {
         try {
-          final draft = SheinDraft.fromBridgePayload(product);
+          final SheinDraft draft =
+              SheinDraft.fromBridgePayload(product);
+
           final result = await _cartService.addToCart(draft);
 
           if (result.isOk) {
-            addedCount++;
+            added++;
 
             if (Get.isRegistered<CartCounter>()) {
-              Get.find<CartCounter>().onItemAdded();
+              await Get.find<CartCounter>().onItemAdded();
             }
           } else {
-            failedCount++;
+            failed++;
           }
         } catch (_) {
-          failedCount++;
+          failed++;
         }
       }
 
-      if (addedCount > 0) {
-        final message = failedCount == 0
-            ? 'تمت إضافة $addedCount منتج إلى سلة يمن سيلو.'
-            : 'تمت إضافة $addedCount منتج، وتعذرت إضافة '
-                '$failedCount منتج.';
-
+      if (added == 0) {
         return SheinCartImportResult(
-          success: true,
-          addedCount: addedCount,
-          failedCount: failedCount,
-          message: message,
+          success: false,
+          message: 'لم نتمكن من إضافة المنتجات. '
+              'تحقق من بيانات المنتجات وحاول مجددًا.',
+          failedCount: failed,
         );
       }
 
+      String message = 'تم استيراد $added منتج إلى سلة يمن سيلو.';
+
+      if (failed > 0) {
+        message += ' تعذرت إضافة $failed منتج.';
+      }
+
       return SheinCartImportResult(
-        success: false,
-        failedCount: failedCount,
-        message: 'لم نتمكن من إضافة المنتجات إلى السلة.',
+        success: true,
+        message: message,
+        addedCount: added,
+        failedCount: failed,
       );
     } catch (e) {
       return SheinCartImportResult(
@@ -77,18 +106,4 @@ class SheinCartImporter {
       );
     }
   }
-}
-
-class SheinCartImportResult {
-  const SheinCartImportResult({
-    required this.success,
-    required this.message,
-    this.addedCount = 0,
-    this.failedCount = 0,
-  });
-
-  final bool success;
-  final String message;
-  final int addedCount;
-  final int failedCount;
 }
