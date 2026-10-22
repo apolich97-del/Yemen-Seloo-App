@@ -70,7 +70,7 @@ class SheinShareApi {
           landing.headers['set-cookie']?.split(', ') ?? <String>[];
       final List<String> pairs = <String>[];
       for (final String raw in rawCookies) {
-        final String? pair = raw.split(';').first.trim();
+        final String pair = raw.split(';').first.trim();
         if (pair.contains('=')) pairs.add(pair);
       }
       cookieHeader = pairs.join('; ');
