@@ -1,164 +1,219 @@
 
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 
+/// استثناء برسالة عربية واضحة.
+class SheinShareException implements Exception {
+  const SheinShareException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// قراءة منتجات سلة SHEIN المشتركة.
 class SheinShareApi {
-  SheinShareApi({http.Client? client})
-      : _client = client ?? http.Client();
+  static const String _api =
+      'https://m.shein.com/ar/bff-api/order/cart/share/landing'
+      '?_ver=1.1.8&_lang=ar';
 
-  final http.Client _client;
+  static const String _ua =
+      'Mozilla/5.0 (Linux; Android 13) '
+      'AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36';
 
-  static const String _endpoint =
-      'https://m.shein.com/ar/bff-api/order/cart/share/landing';
+  static const Duration _timeout = Duration(seconds: 25);
+  static const int _maxTitleLength = 300;
 
+  /// يقبل رابط السلة الكامل أو group_id مباشرة.
   Future<List<Map<String, dynamic>>> fetchSharedCart(
-      String sharedLink) async {
-    final groupId = _extractGroupId(sharedLink);
+    String input,
+  ) async {
+    final String text = input.trim();
 
-    if (groupId == null || groupId.isEmpty) {
-      throw Exception(
-        'تعذّر استخراج معرّف السلة من الرابط. '
-        'قد يحتاج رابط SHEIN المختصر إلى معالجة إضافية.',
+    if (text.isEmpty) {
+      throw const SheinShareException(
+        'الصق رابط السلة المشتركة أولاً.',
       );
     }
 
-    final uri = Uri.parse(_endpoint).replace(
-      queryParameters: const {
-        '_ver': '1.1.8',
-        '_lang': 'ar',
-      },
-    );
+    String? groupId = _extractGroupId(text);
 
-    final response = await _client
-        .post(
-          uri,
-          headers: const {
-            'Accept': 'application/json, text/plain, */*',
-            'Content-Type': 'application/json',
-            'Referer': 'https://m.shein.com/',
-          },
-          body: jsonEncode({
-            'groupId': groupId,
-            'localCountry': 'SA',
-            'userLocalSizeCountry': '',
-          }),
-        )
-        .timeout(const Duration(seconds: 25));
+    if (groupId == null &&
+        RegExp(r'^\d{5,}$').hasMatch(text)) {
+      groupId = text;
+    }
 
-    if (response.statusCode < 200 ||
-        response.statusCode >= 300) {
-      throw Exception(
-        'فشل الاتصال بـ SHEIN: ${response.statusCode}',
+    if (groupId == null) {
+      final Match? match =
+          RegExp(r'https?://[^\s"<>]+').firstMatch(text);
+
+      final String? url = match?.group(0);
+
+      if (url != null) {
+        try {
+          final http.Response response = await http
+              .get(
+                Uri.parse(url),
+                headers: <String, String>{
+                  'User-Agent': _ua,
+                },
+              )
+              .timeout(_timeout);
+
+          groupId = _extractGroupId(
+            '${response.headers['location'] ?? ''}\n'
+            '${response.body}',
+          );
+        } catch (_) {
+          // ستظهر رسالة مناسبة إذا تعذر استخراج المعرّف.
+        }
+      }
+    }
+
+    if (groupId == null) {
+      throw const SheinShareException(
+        'لم أجد معرّف السلة. تأكد من نسخ رابط المشاركة كاملاً.',
       );
     }
 
-    final dynamic decoded;
+    final http.Response response;
 
     try {
-      decoded = jsonDecode(
+      response = await http
+          .post(
+            Uri.parse(_api),
+            headers: <String, String>{
+              'Accept': 'application/json, text/plain, */*',
+              'Content-Type': 'application/json',
+              'Referer': 'https://m.shein.com/',
+              'AppCurrency': 'SAR',
+              'AppLanguage': 'ar',
+              'User-Agent': _ua,
+            },
+            body: jsonEncode(<String, dynamic>{
+              'groupId': groupId,
+              'localCountry': 'SA',
+              'userLocalSizeCountry': '',
+            }),
+          )
+          .timeout(_timeout);
+    } catch (_) {
+      throw const SheinShareException(
+        'تعذر الاتصال بشي إن. تحقق من الإنترنت وأعد المحاولة.',
+      );
+    }
+
+    if (response.statusCode != 200 ||
+        !response.body.trimLeft().startsWith('{')) {
+      throw const SheinShareException(
+        'تعذر الحصول على السلة من شي إن. أعد المحاولة لاحقاً.',
+      );
+    }
+
+    final Map<String, dynamic> data;
+
+    try {
+      final dynamic decoded = jsonDecode(
         utf8.decode(response.bodyBytes),
       );
-    } on FormatException {
-      throw Exception('استجابة SHEIN ليست بصيغة JSON صالحة.');
+
+      if (decoded is! Map) {
+        throw const FormatException();
+      }
+
+      data = Map<String, dynamic>.from(decoded);
+    } catch (_) {
+      throw const SheinShareException(
+        'استجابة شي إن غير متوقعة.',
+      );
     }
 
-    if (decoded is! Map<String, dynamic>) {
-      throw Exception('صيغة استجابة SHEIN غير متوقعة.');
-    }
+    final Object? rawData = data['data'];
+    final Map<String, dynamic> source =
+        rawData is Map
+            ? Map<String, dynamic>.from(rawData)
+            : data;
 
-    final data = decoded;
-    final nested = data['data'];
-    final source =
-        nested is Map<String, dynamic> ? nested : data;
-
-    final code = source['code'] ?? data['code'];
+    final Object? code = source['code'] ?? data['code'];
 
     if (code != null && code.toString() != '0') {
-      throw Exception(
+      throw SheinShareException(
         (source['info'] ?? data['info'] ??
-                'تعذّر الحصول على السلة المشتركة')
+                'السلة غير متاحة أو انتهت صلاحيتها.')
             .toString(),
       );
     }
 
-    final candidates = [
-      source['normalProducts'],
-      source['products'],
-      source['productList'],
-      source['goodsList'],
+    // قد تختلف بنية الاستجابة بين إصدارات SHEIN.
+    final Object? rawInfo = source['info'] ?? data['info'];
+
+    final Map<String, dynamic> info =
+        rawInfo is Map
+            ? Map<String, dynamic>.from(rawInfo)
+            : source;
+
+    final List<Object?> candidates = <Object?>[
+      info['normalProducts'],
+      info['products'],
+      info['productList'],
+      info['goodsList'],
     ];
 
-    for (final candidate in candidates) {
+    final List<Map<String, dynamic>> products =
+        <Map<String, dynamic>>[];
+
+    for (final Object? candidate in candidates) {
       if (candidate is! List) continue;
 
-      final products = <Map<String, dynamic>>[];
+      for (final Object? rawProduct in candidate) {
+        if (rawProduct is! Map) continue;
 
-      for (final item in candidate) {
-        if (item is! Map) continue;
+        try {
+          final Map<String, dynamic>? payload =
+              _mapPayload(
+            Map<String, dynamic>.from(rawProduct),
+          );
 
-        final product = Map<String, dynamic>.from(item);
-        final normalized = _normalizeProduct(product);
-
-        if (normalized != null) {
-          products.add(normalized);
+          if (payload != null) {
+            products.add(payload);
+          }
+        } catch (_) {
+          // تجاوز المنتج ذي البيانات غير الصالحة.
         }
       }
 
-      if (products.isNotEmpty) return products;
+      if (products.isNotEmpty) break;
     }
 
-    throw Exception(
-      'لم يتم العثور على منتجات في السلة المشتركة.',
-    );
+    if (products.isEmpty) {
+      throw const SheinShareException(
+        'لم يتم العثور على منتجات قابلة للاستيراد. '
+        'قد تكون السلة فارغة أو أن استجابة شي إن مختلفة.',
+      );
+    }
+
+    return products;
   }
 
-  String? _extractGroupId(String input) {
-    final value = input.trim();
+  static String? _extractGroupId(String text) {
+    final Match? match = RegExp(
+      r'[?&]group_id=(\d+)',
+      caseSensitive: false,
+    ).firstMatch(text);
 
-    if (value.isEmpty) return null;
-
-    final patterns = [
-      RegExp(
-        r'[?&](?:group_id|groupId|groupid)=([^&#]+)',
-        caseSensitive: false,
-      ),
-      RegExp(
-        r'["\x27]?(?:group_id|groupId|groupid)["\x27]?\s*:\s*'
-        r'["\x27]([^"\x27]+)["\x27]',
-        caseSensitive: false,
-      ),
-    ];
-
-    for (final pattern in patterns) {
-      final match = pattern.firstMatch(value);
-
-      if (match != null) {
-        final id = Uri.decodeComponent(
-          match.group(1) ?? '',
-        ).trim();
-
-        if (id.isNotEmpty) return id;
-      }
-    }
-
-    // يقبل المعرّف المباشر فقط، ولا يفترض أن رمز onelink
-    // هو معرّف المجموعة.
-    if (RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(value) &&
-        !value.toLowerCase().contains('onelink')) {
-      return value;
-    }
-
-    return null;
+    return match?.group(1);
   }
 
-  Map<String, dynamic>? _normalizeProduct(
-      Map<String, dynamic> item) {
-    String read(List<String> keys) {
-      for (final key in keys) {
-        final value = item[key];
+  static Map<String, dynamic>? _mapPayload(
+    Map<String, dynamic> item,
+  ) {
+    String readText(List<String> keys) {
+      for (final String key in keys) {
+        final Object? value = item[key];
 
-        if (value != null &&
-            value.toString().trim().isNotEmpty) {
+        if (value != null && value.toString().trim().isNotEmpty) {
           return value.toString().trim();
         }
       }
@@ -166,90 +221,86 @@ class SheinShareApi {
       return '';
     }
 
-    final id = read([
-      'goods_id',
-      'goodsId',
-      'productId',
-      'product_id',
-      'id',
-    ]);
+    final String goodsId = readText(
+      <String>['goods_id', 'goodsId', 'product_id'],
+    );
 
-    final name = read([
-      'goods_name',
-      'goodsName',
-      'productName',
-      'title',
-      'name',
-    ]);
-
-    final image = read([
-      'goods_img',
-      'goodsImg',
-      'goods_image',
-      'image',
-      'imageUrl',
-      'cover',
-    ]);
-
-    final url = read([
-      'goods_url',
-      'goodsUrl',
-      'productUrl',
-      'url',
-      'detailUrl',
-    ]);
-
-    final rawPrice = read([
-      'salePrice',
-      'sale_price',
-      'retailPrice',
-      'retail_price',
-      'price',
-      'unitPrice',
-    ]);
-
-    final price = _parsePrice(rawPrice);
-
-    if (id.isEmpty && name.isEmpty && url.isEmpty) {
+    if (goodsId.isEmpty ||
+        !RegExp(r'^\d+$').hasMatch(goodsId)) {
       return null;
     }
 
-    final title = name.isEmpty ? 'منتج من SHEIN' : name;
+    double readPrice(Object? value) {
+      if (value is num) return value.toDouble();
 
-    return {
-      'goodsId': id,
-      'goods_id': id,
-      'title': title.length > 300
-          ? title.substring(0, 300)
-          : title,
-      'name': title,
-      'image': image,
-      'imageUrl': image,
-      'url': url,
-      'productUrl': url,
-      'price': price,
-      'salePrice': price,
-      'currency': 'SAR',
+      if (value is Map) {
+        final Object? amount = value['amount'];
+        if (amount is num) return amount.toDouble();
+
+        return double.tryParse('$amount') ?? 0;
+      }
+
+      return double.tryParse('$value') ?? 0;
+    }
+
+    final double salePrice = readPrice(item['salePrice']);
+    final double retailPrice = readPrice(item['retailPrice']);
+    final double price =
+        salePrice > 0 ? salePrice : retailPrice;
+
+    if (price <= 0) return null;
+
+    String title = readText(
+      <String>['goods_name', 'goodsName', 'title', 'name'],
+    );
+
+    if (title.isEmpty) {
+      title = 'منتج SHEIN #$goodsId';
+    }
+
+    if (title.length > _maxTitleLength) {
+      title = '${title.substring(0, _maxTitleLength - 1)}…';
+    }
+
+    String imageUrl = readText(
+      <String>['goods_img', 'goodsImg', 'image', 'imageUrl'],
+    );
+
+    if (imageUrl.startsWith('//')) {
+      imageUrl = 'https:$imageUrl';
+    }
+
+    String productUrl = readText(
+      <String>['goods_url', 'goodsUrl', 'productUrl', 'url'],
+    );
+
+    if (productUrl.startsWith('//')) {
+      productUrl = 'https:$productUrl';
+    }
+
+    if (!productUrl.startsWith('https://') &&
+        !productUrl.startsWith('http://')) {
+      productUrl = 'https://ar.shein.com/-p-$goodsId.html';
+    }
+
+    final List<String> attributes =
+        readText(<String>['goodsAttr']).split('/');
+
+    return <String, dynamic>{
+      'goodsId': goodsId,
+      'productUrl': productUrl,
+      'title': title,
+      'imageUrl': imageUrl,
+      'sourcePrice': price,
+      'sourceCurrency': 'SAR',
       'quantity': 1,
+      'color': attributes.isNotEmpty ? attributes[0].trim() : '',
+      'size': attributes.length > 1 ? attributes[1].trim() : '',
+      'options': <String, String>{},
+      'sourceStore': 'SHEIN',
+      'sku': readText(<String>['sku_code', 'itemSku', 'sku']),
+      'variantId': '',
+      'source': 'shared-cart',
     };
-  }
-
-  double _parsePrice(String value) {
-    final normalized = value
-        .replaceAll(',', '')
-        .replaceAll('SAR', '')
-        .replaceAll('ر.س', '')
-        .trim();
-
-    final match =
-        RegExp(r'\d+(?:\.\d+)?').firstMatch(normalized);
-
-    if (match == null) return 0;
-
-    return double.tryParse(match.group(0) ?? '') ?? 0;
-  }
-
-  void close() {
-    _client.close();
   }
 }
