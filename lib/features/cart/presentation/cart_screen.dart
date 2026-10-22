@@ -1,3 +1,4 @@
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -29,8 +30,10 @@ class CartScreen extends StatefulWidget {
 
 class _CartScreenState extends State<CartScreen> {
   final CartCounter _cart = Get.find<CartCounter>();
-  final TextEditingController _shareCartController = TextEditingController();
-  bool _importing = false; // ⭐ جديد: منع النقر المزدوج أثناء الاستيراد
+  final TextEditingController _shareCartController =
+      TextEditingController();
+
+  bool _importing = false;
 
   @override
   void initState() {
@@ -47,9 +50,50 @@ class _CartScreenState extends State<CartScreen> {
   Future<void> _run(Future<String?> Function() action) async {
     final String? error = await action();
     if (!mounted) return;
+
     if (error != null) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(error)));
+    }
+  }
+
+  // استيراد سلة SHEIN المشتركة عبر واجهة المستورد الحالية.
+  Future<void> _importSharedCart() async {
+    if (_importing) return;
+
+    final String text = _shareCartController.text.trim();
+
+    if (text.isEmpty) {
+      _snack('الصق رابط السلة المشتركة أولاً');
+      return;
+    }
+
+    setState(() => _importing = true);
+
+    try {
+      final SheinCartImportResult result =
+          await SheinCartImporter().importSharedCart(text);
+
+      if (!mounted) return;
+
+      setState(() => _importing = false);
+
+      if (!result.success) {
+        _snack(result.message);
+        return;
+      }
+
+      _shareCartController.clear();
+      await _cart.refreshQuote();
+
+      _snack(result.message);
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() => _importing = false);
+      _snack(
+        'فشل استيراد السلة. تحقق من الرابط والاتصال ثم أعد المحاولة.',
+      );
     }
   }
 
@@ -61,6 +105,7 @@ class _CartScreenState extends State<CartScreen> {
 
     await _cart.refreshQuote();
     final CartQuote? q = _cart.quote.value;
+
     if (q == null) {
       _snack('تعذّر حساب الإجمالي، حاول مرة أخرى.');
       return;
@@ -70,6 +115,7 @@ class _CartScreenState extends State<CartScreen> {
       q: q,
       includeCommission: false,
     );
+
     await _sendWhatsApp(message);
   }
 
@@ -86,6 +132,7 @@ class _CartScreenState extends State<CartScreen> {
 
     await _cart.refreshQuote();
     final CartQuote? q = _cart.quote.value;
+
     if (q == null) {
       _snack('تعذّر حساب الإجمالي.');
       return;
@@ -97,8 +144,10 @@ class _CartScreenState extends State<CartScreen> {
         final double commissionSar = _cart.commissionTotalSar;
         final double commissionYer = _cart.commissionTotalYer;
         final double rate = q.exchangeRate;
-        final double totalSar = (q.grandTotalLocal / rate) + commissionSar;
-        final double totalYer = q.grandTotalLocal + commissionYer;
+        final double totalSar =
+            (q.grandTotalLocal / rate) + commissionSar;
+        final double totalYer =
+            q.grandTotalLocal + commissionYer;
 
         return Directionality(
           textDirection: TextDirection.rtl,
@@ -118,26 +167,32 @@ class _CartScreenState extends State<CartScreen> {
                   ),
                   const SizedBox(height: 12),
                   _summaryRow(
-                      '💵 قيمة السلة',
-                      '${(q.itemsSubtotalLocal / rate).toStringAsFixed(2)} SAR'),
+                    '💵 قيمة السلة',
+                    '${(q.itemsSubtotalLocal / rate).toStringAsFixed(2)} SAR',
+                  ),
                   _summaryRow(
-                      '🛠️ رسوم الخدمة',
-                      '${(q.serviceFeeLocal / rate).toStringAsFixed(2)} SAR'),
+                    '🛠️ رسوم الخدمة',
+                    '${(q.serviceFeeLocal / rate).toStringAsFixed(2)} SAR',
+                  ),
                   _summaryRow(
-                      '🚚 الشحن',
-                      '${(q.shippingLocal / rate).toStringAsFixed(2)} SAR'),
+                    '🚚 الشحن',
+                    '${(q.shippingLocal / rate).toStringAsFixed(2)} SAR',
+                  ),
                   _summaryRow(
-                      '🎁 العمولة (${_cart.commissionPerPiece.value.toStringAsFixed(2)} × ${_cart.items.length})',
-                      '${commissionSar.toStringAsFixed(2)} SAR'),
+                    '🎁 العمولة (${_cart.commissionPerPiece.value.toStringAsFixed(2)} × ${_cart.items.length})',
+                    '${commissionSar.toStringAsFixed(2)} SAR',
+                  ),
                   const Divider(height: 20),
                   _summaryRow(
-                      '💰 الإجمالي المطلوب',
-                      '${totalSar.toStringAsFixed(2)} SAR',
-                      emphasize: true),
+                    '💰 الإجمالي المطلوب',
+                    '${totalSar.toStringAsFixed(2)} SAR',
+                    emphasize: true,
+                  ),
                   _summaryRow(
-                      '🇾🇪 بالريال اليمني',
-                      '${totalYer.toStringAsFixed(0)} ريال',
-                      emphasize: true),
+                    '🇾🇪 بالريال اليمني',
+                    '${totalYer.toStringAsFixed(0)} ريال',
+                    emphasize: true,
+                  ),
                   const Divider(height: 20),
                   Container(
                     padding: const EdgeInsets.all(10),
@@ -182,12 +237,16 @@ class _CartScreenState extends State<CartScreen> {
             actions: <Widget>[
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('إلغاء',
-                    style: TextStyle(color: Color(0xFF6B7280))),
+                child: const Text(
+                  'إلغاء',
+                  style: TextStyle(color: Color(0xFF6B7280)),
+                ),
               ),
               FilledButton(
                 onPressed: () => Navigator.of(ctx).pop(true),
-                style: FilledButton.styleFrom(backgroundColor: _green),
+                style: FilledButton.styleFrom(
+                  backgroundColor: _green,
+                ),
                 child: const Text('موافق ✓'),
               ),
             ],
@@ -199,10 +258,12 @@ class _CartScreenState extends State<CartScreen> {
     if (confirmed != true) return;
 
     _cart.approveCommission();
+
     final String message = _buildWhatsAppMessage(
       q: q,
       includeCommission: true,
     );
+
     await _sendWhatsApp(message);
   }
 
@@ -211,27 +272,43 @@ class _CartScreenState extends State<CartScreen> {
     required bool includeCommission,
   }) {
     final StringBuffer b = StringBuffer();
+
     b.writeln('🛍️ *طلب جديد من يمن سيلو*');
     b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
     b.writeln('');
 
     for (int i = 0; i < _cart.items.length; i++) {
       final CartItem item = _cart.items[i];
+
       b.writeln('${i + 1}. ${item.title}');
-      if (item.color.isNotEmpty) b.writeln('   اللون: ${item.color}');
-      if (item.size.isNotEmpty) b.writeln('   المقاس: ${item.size}');
+
+      if (item.color.isNotEmpty) {
+        b.writeln('   اللون: ${item.color}');
+      }
+
+      if (item.size.isNotEmpty) {
+        b.writeln('   المقاس: ${item.size}');
+      }
+
       if (item.options.isNotEmpty) {
         item.options.forEach((String k, String v) {
           b.writeln('   $k: $v');
         });
       }
+
       b.writeln('   الكمية: ${item.quantity}');
-      b.writeln('   السعر: ${item.sourcePrice.toStringAsFixed(2)} SAR');
+      b.writeln(
+        '   السعر: ${item.sourcePrice.toStringAsFixed(2)} SAR',
+      );
+
       if (item.goodsId.isNotEmpty) {
-        b.writeln('   الرابط: https://m.shein.com/ar/p-${item.goodsId}.html');
+        b.writeln(
+          '   الرابط: https://m.shein.com/ar/p-${item.goodsId}.html',
+        );
       } else if (item.sourceUrl.isNotEmpty) {
         b.writeln('   الرابط: ${item.sourceUrl}');
       }
+
       b.writeln('');
     }
 
@@ -245,40 +322,59 @@ class _CartScreenState extends State<CartScreen> {
     final double serviceFeeSar = q.serviceFeeLocal / rate;
     final double shippingSar = q.shippingLocal / rate;
 
-    b.writeln('💵 قيمة السلة: ${subtotalSar.toStringAsFixed(2)} SAR');
-    b.writeln('🛠️ رسوم الخدمة: ${serviceFeeSar.toStringAsFixed(2)} SAR');
-    b.writeln('🚚 الشحن: ${shippingSar.toStringAsFixed(2)} SAR');
+    b.writeln(
+      '💵 قيمة السلة: ${subtotalSar.toStringAsFixed(2)} SAR',
+    );
+    b.writeln(
+      '🛠️ رسوم الخدمة: ${serviceFeeSar.toStringAsFixed(2)} SAR',
+    );
+    b.writeln(
+      '🚚 الشحن: ${shippingSar.toStringAsFixed(2)} SAR',
+    );
 
     if (includeCommission) {
       final double commissionSar = _cart.commissionTotalSar;
       final double commissionYer = _cart.commissionTotalYer;
+
       final double totalSar =
           subtotalSar + serviceFeeSar + shippingSar + commissionSar;
+
       final double totalYer = q.grandTotalLocal + commissionYer;
 
       b.writeln(
-          '🎁 عمولة المندوب: ${commissionSar.toStringAsFixed(2)} SAR');
+        '🎁 عمولة المندوب: ${commissionSar.toStringAsFixed(2)} SAR',
+      );
       b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
-      b.writeln('💰 الإجمالي المطلوب: ${totalSar.toStringAsFixed(2)} SAR');
       b.writeln(
-          '🇾🇪 بالريال اليمني: ${totalYer.toStringAsFixed(0)} ريال');
+        '💰 الإجمالي المطلوب: ${totalSar.toStringAsFixed(2)} SAR',
+      );
+      b.writeln(
+        '🇾🇪 بالريال اليمني: ${totalYer.toStringAsFixed(0)} ريال',
+      );
       b.writeln('📊 سعر الصرف: ${rate.toStringAsFixed(0)}');
+
       final String regionName =
           _cart.region.value == 'south' ? 'الجنوب' : 'الشمال';
+
       b.writeln('📍 المنطقة: $regionName');
       b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
       b.writeln('🎁 *المستحق للمندوب* (بعد خصم قيمة السلة):');
       b.writeln(
-          '   العمولة = *${commissionYer.toStringAsFixed(0)} ريال يمني*');
+        '   العمولة = *${commissionYer.toStringAsFixed(0)} ريال يمني*',
+      );
     } else {
       b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
       b.writeln(
-          '💰 الإجمالي: ${(subtotalSar + serviceFeeSar + shippingSar).toStringAsFixed(2)} SAR');
+        '💰 الإجمالي: ${(subtotalSar + serviceFeeSar + shippingSar).toStringAsFixed(2)} SAR',
+      );
       b.writeln(
-          '🇾🇪 بالريال اليمني: ${q.grandTotalLocal.toStringAsFixed(0)} ريال');
+        '🇾🇪 بالريال اليمني: ${q.grandTotalLocal.toStringAsFixed(0)} ريال',
+      );
       b.writeln('📊 سعر الصرف: ${rate.toStringAsFixed(0)}');
+
       final String regionName =
           _cart.region.value == 'south' ? 'الجنوب' : 'الشمال';
+
       b.writeln('📍 المنطقة: $regionName');
     }
 
@@ -295,9 +391,13 @@ class _CartScreenState extends State<CartScreen> {
     final Uri url = Uri.parse(
       'https://wa.me/$_primaryWhatsApp?text=${Uri.encodeComponent(message)}',
     );
+
     try {
-      final bool ok =
-          await launchUrl(url, mode: LaunchMode.externalApplication);
+      final bool ok = await launchUrl(
+        url,
+        mode: LaunchMode.externalApplication,
+      );
+
       if (!ok) _snack('تعذّر فتح الواتساب');
     } catch (e) {
       _snack('تعذّر فتح الواتساب: $e');
@@ -321,7 +421,9 @@ class _CartScreenState extends State<CartScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(20),
+        ),
       ),
       builder: (BuildContext ctx) {
         return Directionality(
@@ -356,25 +458,32 @@ class _CartScreenState extends State<CartScreen> {
                     const SizedBox(height: 16),
                     TextField(
                       controller: controller,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       inputFormatters: <TextInputFormatter>[
                         FilteringTextInputFormatter.allow(
-                            RegExp(r'^\d*\.?\d{0,2}')),
+                          RegExp(r'^\d*\.?\d{0,2}'),
+                        ),
                       ],
                       decoration: InputDecoration(
                         labelText: 'مبلغ العمولة لكل قطعة',
                         hintText: 'مثال: 5.00',
-                        prefixIcon:
-                            const Icon(Icons.attach_money, color: _purple),
+                        prefixIcon: const Icon(
+                          Icons.attach_money,
+                          color: _purple,
+                        ),
                         suffixText: 'SAR',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              const BorderSide(color: _purple, width: 2),
+                          borderSide: const BorderSide(
+                            color: _purple,
+                            width: 2,
+                          ),
                         ),
                       ),
                       onChanged: (String v) {
@@ -397,7 +506,8 @@ class _CartScreenState extends State<CartScreen> {
                         final double totalSar = _cart.commissionTotalSar;
                         final double totalYer = _cart.commissionTotalYer;
                         final int count = _cart.items.length;
-                        final double rate = _cart.commissionTotalSar > 0
+
+                        final double rate = totalSar > 0
                             ? totalYer / totalSar
                             : _cart.quote.value?.exchangeRate ?? 140;
 
@@ -405,19 +515,27 @@ class _CartScreenState extends State<CartScreen> {
                           children: <Widget>[
                             _summaryRow('📦 عدد القطع', '$count'),
                             const SizedBox(height: 6),
-                            _summaryRow('🎁 العمولة لكل قطعة',
-                                '${perPiece.toStringAsFixed(2)} SAR'),
+                            _summaryRow(
+                              '🎁 العمولة لكل قطعة',
+                              '${perPiece.toStringAsFixed(2)} SAR',
+                            ),
                             const Divider(height: 16),
-                            _summaryRow('💰 إجمالي العمولة',
-                                '${totalSar.toStringAsFixed(2)} SAR',
-                                emphasize: true),
+                            _summaryRow(
+                              '💰 إجمالي العمولة',
+                              '${totalSar.toStringAsFixed(2)} SAR',
+                              emphasize: true,
+                            ),
                             const SizedBox(height: 6),
-                            _summaryRow('🇾🇪 بالريال اليمني',
-                                '${totalYer.toStringAsFixed(0)} ريال',
-                                emphasize: true),
+                            _summaryRow(
+                              '🇾🇪 بالريال اليمني',
+                              '${totalYer.toStringAsFixed(0)} ريال',
+                              emphasize: true,
+                            ),
                             const SizedBox(height: 6),
-                            _summaryRow('📊 سعر الصرف',
-                                '${rate.toStringAsFixed(0)}'),
+                            _summaryRow(
+                              '📊 سعر الصرف',
+                              rate.toStringAsFixed(0),
+                            ),
                           ],
                         );
                       }),
@@ -425,6 +543,7 @@ class _CartScreenState extends State<CartScreen> {
                     const SizedBox(height: 16),
                     Obx(() {
                       final bool hasCom = _cart.hasCommission;
+
                       return Column(
                         children: <Widget>[
                           SizedBox(
@@ -439,10 +558,11 @@ class _CartScreenState extends State<CartScreen> {
                               style: FilledButton.styleFrom(
                                 backgroundColor: _green,
                                 padding: const EdgeInsets.symmetric(
-                                    vertical: 13),
+                                  vertical: 13,
+                                ),
                                 shape: RoundedRectangleBorder(
-                                    borderRadius:
-                                        BorderRadius.circular(12)),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
                               icon: const Icon(Icons.share),
                               label: const Text(
@@ -466,10 +586,11 @@ class _CartScreenState extends State<CartScreen> {
                                 foregroundColor: _purple,
                                 side: const BorderSide(color: _purple),
                                 padding: const EdgeInsets.symmetric(
-                                    vertical: 13),
+                                  vertical: 13,
+                                ),
                                 shape: RoundedRectangleBorder(
-                                    borderRadius:
-                                        BorderRadius.circular(12)),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
                               icon: const Icon(Icons.share),
                               label: const Text(
@@ -497,9 +618,15 @@ class _CartScreenState extends State<CartScreen> {
         );
       },
     );
+
+    controller.dispose();
   }
 
-  Widget _summaryRow(String label, String value, {bool emphasize = false}) {
+  Widget _summaryRow(
+    String label,
+    String value, {
+    bool emphasize = false,
+  }) {
     return Row(
       children: <Widget>[
         Expanded(
@@ -507,7 +634,8 @@ class _CartScreenState extends State<CartScreen> {
             label,
             style: TextStyle(
               color: emphasize ? _purple : const Color(0xFF374151),
-              fontWeight: emphasize ? FontWeight.w900 : FontWeight.w500,
+              fontWeight:
+                  emphasize ? FontWeight.w900 : FontWeight.w500,
               fontSize: emphasize ? 14 : 13,
             ),
           ),
@@ -516,7 +644,8 @@ class _CartScreenState extends State<CartScreen> {
           value,
           style: TextStyle(
             color: emphasize ? _purple : const Color(0xFF374151),
-            fontWeight: emphasize ? FontWeight.w900 : FontWeight.w600,
+            fontWeight:
+                emphasize ? FontWeight.w900 : FontWeight.w600,
             fontSize: emphasize ? 14 : 13,
           ),
         ),
@@ -526,8 +655,85 @@ class _CartScreenState extends State<CartScreen> {
 
   void _snack(String message) {
     if (!mounted) return;
+
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Widget _buildImportSheinCartButton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: _purpleLight,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: _orange.withOpacity(0.5),
+            width: 1.5,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const Row(
+              children: <Widget>[
+                Icon(Icons.download_outlined, color: _orange, size: 20),
+                SizedBox(width: 8),
+                Text(
+                  'استيراد سلة شي ان',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: _orange,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'الصق رابط السلة المشتركة من شي إن (أو نص المشاركة الكامل):',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _shareCartController,
+              style: const TextStyle(fontSize: 12),
+              decoration: const InputDecoration(
+                hintText: 'https://m.shein.com/ar/cart/share/landing?...',
+                isDense: true,
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _importing ? null : _importSharedCart,
+                style: FilledButton.styleFrom(
+                  backgroundColor: _orange,
+                ),
+                child: _importing
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'بدء الاستيراد',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -548,6 +754,7 @@ class _CartScreenState extends State<CartScreen> {
                 ],
               );
             }
+
             return Column(
               children: <Widget>[
                 _Header(count: _cart.items.length),
@@ -601,8 +808,12 @@ class _CartScreenState extends State<CartScreen> {
                           style: OutlinedButton.styleFrom(
                             foregroundColor: _purple,
                             side: const BorderSide(
-                                color: _purple, width: 1.5),
-                            padding: const EdgeInsets.symmetric(vertical: 13),
+                              color: _purple,
+                              width: 1.5,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 13,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -624,7 +835,9 @@ class _CartScreenState extends State<CartScreen> {
                           onPressed: _shareCartToWhatsApp,
                           style: FilledButton.styleFrom(
                             backgroundColor: _green,
-                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 13,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -663,108 +876,12 @@ class _CartScreenState extends State<CartScreen> {
       ),
     );
   }
-
-  // ⭐ استيراد سلة شي إن المشتركة مباشرة عبر API (بدون WebView)
-  Future<void> _importSharedCart() async {
-    if (_importing) return;
-    final String text = _shareCartController.text.trim();
-    if (text.isEmpty) {
-      _snack('الصق رابط السلة المشتركة أولاً');
-      return;
-    }
-
-    setState(() => _importing = true);
-    final SheinCartImportOutcome outcome =
-        await SheinCartImporter.importFromText(text);
-    if (!mounted) return;
-    setState(() => _importing = false);
-
-    if (!outcome.ok) {
-      _snack(outcome.error ?? 'فشل الاستيراد — أعد المحاولة');
-      return;
-    }
-
-    _shareCartController.clear();
-    String msg = 'تم استيراد ${outcome.added} منتج إلى سلة يمن سيلو';
-    if (outcome.skipped > 0) {
-      msg += ' (تم تجاهل ${outcome.skipped} غير متوفر)';
-    }
-    _snack(msg);
-  }
-
-  // ⭐ زر استيراد سلة شي ان (حقل لصق + زر)
-  Widget _buildImportSheinCartButton() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: _purpleLight,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _orange.withOpacity(0.5), width: 1.5),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            const Row(
-              children: <Widget>[
-                Icon(Icons.download_outlined, color: _orange, size: 20),
-                SizedBox(width: 8),
-                Text(
-                  'استيراد سلة شي ان',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: _orange),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'الصق رابط السلة المشتركة من شي إن (أو نص المشاركة الكامل):',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _shareCartController,
-              style: const TextStyle(fontSize: 12),
-              decoration: const InputDecoration(
-                hintText: 'https://m.shein.com/ar/cart/share/landing?...',
-                isDense: true,
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: _importing ? null : _importSharedCart,
-                style: FilledButton.styleFrom(backgroundColor: _orange),
-                child: _importing
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Text('بدء الاستيراد',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// _Header
-// ═══════════════════════════════════════════════════════════════
+// Header
 class _Header extends StatelessWidget {
   const _Header({required this.count});
+
   final int count;
 
   @override
@@ -773,7 +890,9 @@ class _Header extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(bottom: BorderSide(color: Color(0xFFF3F4F6))),
+        border: Border(
+          bottom: BorderSide(color: Color(0xFFF3F4F6)),
+        ),
       ),
       child: Row(
         children: <Widget>[
@@ -787,16 +906,21 @@ class _Header extends StatelessWidget {
                   color: _purpleLight,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.shopping_cart_outlined,
-                    color: _purple, size: 22),
+                child: const Icon(
+                  Icons.shopping_cart_outlined,
+                  color: _purple,
+                  size: 22,
+                ),
               ),
               if (count > 0)
                 Positioned(
                   top: -6,
                   right: -6,
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFEF4444),
                       borderRadius: BorderRadius.circular(10),
@@ -827,7 +951,11 @@ class _Header extends StatelessWidget {
               ),
               Text(
                 'YEMEN SELOO',
-                style: TextStyle(fontSize: 8, letterSpacing: 2, color: _purple),
+                style: TextStyle(
+                  fontSize: 8,
+                  letterSpacing: 2,
+                  color: _purple,
+                ),
               ),
             ],
           ),
@@ -839,7 +967,11 @@ class _Header extends StatelessWidget {
               color: _purpleLight,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.storefront, color: _purple, size: 20),
+            child: const Icon(
+              Icons.storefront,
+              color: _purple,
+              size: 20,
+            ),
           ),
         ],
       ),
@@ -847,9 +979,7 @@ class _Header extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// _CartLineTile
-// ═══════════════════════════════════════════════════════════════
+// Cart line
 class _CartLineTile extends StatelessWidget {
   const _CartLineTile({
     required this.item,
@@ -899,8 +1029,11 @@ class _CartLineTile extends StatelessWidget {
                           onPressed: onRemove,
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
-                          icon: const Icon(Icons.delete_outline,
-                              color: Color(0xFFEF4444), size: 20),
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            color: Color(0xFFEF4444),
+                            size: 20,
+                          ),
                         ),
                         const Spacer(),
                         Text(
@@ -955,11 +1088,13 @@ class _CartLineTile extends StatelessWidget {
                           spacing: 6,
                           runSpacing: 4,
                           children: item.options.entries
-                              .map((MapEntry<String, String> e) => _InfoChip(
-                                    label: e.key,
-                                    value: e.value,
-                                    color: const Color(0xFF10B981),
-                                  ))
+                              .map(
+                                (MapEntry<String, String> e) => _InfoChip(
+                                  label: e.key,
+                                  value: e.value,
+                                  color: const Color(0xFF10B981),
+                                ),
+                              )
                               .toList(),
                         ),
                       ),
@@ -987,13 +1122,18 @@ class _CartLineTile extends StatelessWidget {
               const SizedBox(width: 12),
               _QuantityButton(
                 icon: Icons.add,
-                enabled: item.quantity < SelooConfig.maxQuantityPerLine,
+                enabled:
+                    item.quantity < SelooConfig.maxQuantityPerLine,
                 onTap: () => onQuantity(item.quantity + 1),
               ),
               const Spacer(),
               IconButton(
                 onPressed: onEdit,
-                icon: const Icon(Icons.edit_outlined, color: _orange, size: 20),
+                icon: const Icon(
+                  Icons.edit_outlined,
+                  color: _orange,
+                  size: 20,
+                ),
                 tooltip: 'تعديل',
               ),
             ],
@@ -1004,9 +1144,6 @@ class _CartLineTile extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// _InfoChip
-// ═══════════════════════════════════════════════════════════════
 class _InfoChip extends StatelessWidget {
   const _InfoChip({
     required this.label,
@@ -1052,16 +1189,15 @@ class _InfoChip extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// _ProductImage
-// ═══════════════════════════════════════════════════════════════
 class _ProductImage extends StatelessWidget {
   const _ProductImage({required this.url});
+
   final String url;
 
   @override
   Widget build(BuildContext context) {
     if (url.isEmpty) return _placeholder();
+
     return CachedNetworkImage(
       imageUrl: url,
       fit: BoxFit.cover,
@@ -1071,7 +1207,10 @@ class _ProductImage extends StatelessWidget {
           child: SizedBox(
             width: 20,
             height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2, color: _purple),
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: _purple,
+            ),
           ),
         ),
       ),
@@ -1081,13 +1220,14 @@ class _ProductImage extends StatelessWidget {
 
   Widget _placeholder() => Container(
         color: _purpleLight,
-        child: const Icon(Icons.image_outlined, color: _purple, size: 32),
+        child: const Icon(
+          Icons.image_outlined,
+          color: _purple,
+          size: 32,
+        ),
       );
 }
 
-// ═══════════════════════════════════════════════════════════════
-// _QuantityButton
-// ═══════════════════════════════════════════════════════════════
 class _QuantityButton extends StatelessWidget {
   const _QuantityButton({
     required this.icon,
@@ -1121,17 +1261,16 @@ class _QuantityButton extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// _RegionSelector
-// ═══════════════════════════════════════════════════════════════
 class _RegionSelector extends StatelessWidget {
   const _RegionSelector({required this.cart});
+
   final CartCounter cart;
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       final String current = cart.region.value;
+
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -1183,9 +1322,6 @@ class _RegionSelector extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// _RegionButton
-// ═══════════════════════════════════════════════════════════════
 class _RegionButton extends StatelessWidget {
   const _RegionButton({
     required this.label,
@@ -1224,17 +1360,16 @@ class _RegionButton extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// _QuoteSummary
-// ═══════════════════════════════════════════════════════════════
 class _QuoteSummary extends StatelessWidget {
   const _QuoteSummary({required this.cart});
+
   final CartCounter cart;
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       final CartQuote? q = cart.quote.value;
+
       return Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -1279,28 +1414,35 @@ class _QuoteSummary extends StatelessWidget {
                     emphasize: true,
                   ),
                 ],
-              );
-      });
+              ),
+      );
     });
   }
 
-  Widget _row(String label, String value, {bool emphasize = false}) {
+  Widget _row(
+    String label,
+    String value, {
+    bool emphasize = false,
+  }) {
     return Row(
       children: <Widget>[
-        Text(
-          label,
-          style: TextStyle(
-            color: emphasize ? _purple : const Color(0xFF374151),
-            fontWeight: emphasize ? FontWeight.w900 : FontWeight.w500,
-            fontSize: emphasize ? 15 : 13,
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: emphasize ? _purple : const Color(0xFF374151),
+              fontWeight:
+                  emphasize ? FontWeight.w900 : FontWeight.w500,
+              fontSize: emphasize ? 15 : 13,
+            ),
           ),
         ),
-        const Spacer(),
         Text(
           value,
           style: TextStyle(
             color: emphasize ? _purple : const Color(0xFF374151),
-            fontWeight: emphasize ? FontWeight.w900 : FontWeight.w600,
+            fontWeight:
+                emphasize ? FontWeight.w900 : FontWeight.w600,
             fontSize: emphasize ? 15 : 13,
           ),
         ),
@@ -1309,30 +1451,35 @@ class _QuoteSummary extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// _CheckoutButton
-// ═══════════════════════════════════════════════════════════════
 class _CheckoutButton extends StatelessWidget {
   const _CheckoutButton({required this.cart});
+
   final CartCounter cart;
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final bool enabled = cart.quote.value != null && cart.items.isNotEmpty;
+      final bool enabled =
+          cart.quote.value != null && cart.items.isNotEmpty;
+
       return SizedBox(
         width: double.infinity,
         child: FilledButton(
-          onPressed: enabled ? () => Get.toNamed('/checkoutScreen') : null,
+          onPressed:
+              enabled ? () => Get.toNamed('/checkoutScreen') : null,
           style: FilledButton.styleFrom(
             backgroundColor: _purple,
             padding: const EdgeInsets.symmetric(vertical: 15),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
           ),
           child: const Text(
             'الانتقال لتأكيد الطلب',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+            ),
           ),
         ),
       );
@@ -1340,9 +1487,6 @@ class _CheckoutButton extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// _ContactBox
-// ═══════════════════════════════════════════════════════════════
 class _ContactBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -1386,9 +1530,6 @@ class _ContactBox extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// _EmptyCart
-// ═══════════════════════════════════════════════════════════════
 class _EmptyCart extends StatelessWidget {
   const _EmptyCart();
 
@@ -1398,7 +1539,11 @@ class _EmptyCart extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          const Icon(Icons.shopping_bag_outlined, size: 64, color: _purple),
+          const Icon(
+            Icons.shopping_bag_outlined,
+            size: 64,
+            color: _purple,
+          ),
           const SizedBox(height: 12),
           const Text('سلتك فارغة. تصفّح SHEIN وأضف ما يعجبك.'),
           const SizedBox(height: 12),
