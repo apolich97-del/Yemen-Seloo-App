@@ -1,3 +1,4 @@
+
 name: Build Android APK
 
 on:
@@ -39,27 +40,6 @@ jobs:
             --project-name yemen_seloo \
             --no-pub
 
-      - name: ⭐ فك تشفير Keystore
-        run: |
-          if [ ! -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/upload-keystore.jks
-            echo "✓ Keystore تم فك تشفيره"
-          else
-            echo "⚠️ تحذير: لم يتم العثور على KEYSTORE_BASE64 في الأسرار"
-          fi
-
-      - name: ⭐ إنشاء ملف key.properties
-        run: |
-          if [ ! -z "${{ secrets.KEYSTORE_PASSWORD }}" ]; then
-            cat > android/key.properties <<EOF
-          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword=${{ secrets.KEY_PASSWORD }}
-          keyAlias=${{ secrets.KEY_ALIAS }}
-          storeFile=upload-keystore.jks
-          EOF
-            echo "✓ key.properties تم إنشاؤه"
-          fi
-
       - name: نسخ google-services.json (احتياطي)
         run: |
           mkdir -p android/app
@@ -94,6 +74,7 @@ jobs:
             "configuration_version": "1"
           }
           JSON_EOF
+          echo "✓ google-services.json جاهز"
 
       - name: ⭐ إنشاء values.xml يدويًا
         run: |
@@ -111,11 +92,14 @@ jobs:
               <string name="ga_trackingId" translatable="false"></string>
           </resources>
           XML_EOF
+          echo "=== محتوى values.xml ==="
+          cat android/app/src/main/res/values/values.xml
 
       - name: تصحيح اسم التطبيق
         run: |
           F=android/app/src/main/AndroidManifest.xml
           sed -i 's|android:label="[^"]*"|android:label="يمن سيلو"|' "$F"
+          grep "android:label" "$F"
 
       - name: تعديل settings.gradle (Kotlin فقط)
         run: |
@@ -130,9 +114,61 @@ jobs:
               content
           )
           p.write_text(content)
+          print(content)
           PYEOF
 
-      - name: ⭐ تعديل app/build.gradle (التوقيع + NDK + minSdk)
+      - name: تعديل app/build.gradle (NDK + minSdk)
+        run: |
+          python3 << 'PYEOF'
+          import re
+          from pathlib import Path
+          p = Path('android/app/build.gradle')
+          lines = p.read_text().split('\n')
+          out = []
+          has_ndk = False
+          for line in lines:
+              s = line.strip()
+              ind = line[:len(line) - len(line.lstrip())]
+              if 'com.google.gms.google-services' in s:
+                  continue
+              if re.match(r'^minSdkVersion\b', s):
+                  out.append(f'{ind}minSdkVersion 23')
+                  continue
+              if re.match(r'^minSdk\s*=', s):
+                  out.append(f'{ind}minSdk = 23')
+                  continue
+              if re.match(r'^ndkVersion\b', s):
+                  out.append(f'{ind}ndkVersion "25.1.8937393"')
+                  has_ndk = True
+                  continue
+              out.append(line)
+              if re.search(r'^android\s*\{', s) and not has_ndk:
+                  out.append(f'{ind}    ndkVersion "25.1.8937393"')
+                  has_ndk = True
+                  continue
+          p.write_text('\n'.join(out))
+          print(p.read_text())
+          PYEOF
+
+      - name: ⭐ توقيع التطبيق بمفتاح ثابت (تحديثات تُثبَّت فوق القديم)
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > android/app/release-keystore.p12
+            ls -la android/app/release-keystore.p12
+            cat > android/key.properties <<'EOF'
+          storePassword=Seloo@2026!Key
+          keyPassword=Seloo@2026!Key
+          keyAlias=yemen-seloo
+          storeFile=release-keystore.p12
+          EOF
+            echo "✓ مخزن التوقيع الثابت جاهز"
+          else
+            echo "⚠️ السر KEYSTORE_BASE64 غير موجود — سيستمر التوقيع العشوائي (لن تُثبَّت التحديثات فوق القديم)"
+          fi
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+
+      - name: ⭐ ربط إعدادات Gradle بمفتاح التوقيع
         run: |
           python3 << 'PYEOF'
           import re
@@ -140,49 +176,58 @@ jobs:
           p = Path('android/app/build.gradle')
           content = p.read_text()
 
-          # إضافة قراءة ملف key.properties قبل android {
-          keystore_loading = """
+          if 'keystoreProperties' in content:
+              print('التوقيع مربوط مسبقاً')
+          else:
+              loader = '''
           def keystoreProperties = new Properties()
           def keystorePropertiesFile = rootProject.file('key.properties')
           if (keystorePropertiesFile.exists()) {
               keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
           }
-          android {
-          """
-          content = content.replace('android {', keystore_loading, 1)
-
-          # إضافة signingConfigs داخل android {
-          signing_configs = """
+          '''
+              signing = '''
               signingConfigs {
                   release {
-                      keyAlias keystoreProperties['keyAlias']
-                      keyPassword keystoreProperties['keyPassword']
-                      storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
-                      storePassword keystoreProperties['storePassword']
+                      if (keystorePropertiesFile.exists()) {
+                          keyAlias keystoreProperties['keyAlias']
+                          keyPassword keystoreProperties['keyPassword']
+                          storeFile file(keystoreProperties['storeFile'])
+                          storePassword keystoreProperties['storePassword']
+                      }
                   }
               }
-              buildTypes {
-          """
-          content = content.replace('buildTypes {', signing_configs, 1)
-
-          # تطبيق التوقيع على إصدار الـ release
-          content = content.replace('signingConfig signingConfigs.debug', 'signingConfig signingConfigs.release')
-
-          # تحديث minSdk و NDK
-          content = re.sub(r'minSdkVersion\s+flutter\.minSdkVersion', 'minSdkVersion 23', content)
-          content = re.sub(r'minSdkVersion\s+\d+', 'minSdkVersion 23', content)
-          content = re.sub(r'minSdk\s+flutter\.minSdkVersion', 'minSdk = 23', content)
-          content = re.sub(r'minSdk\s+\d+', 'minSdk = 23', content)
-          content = re.sub(r'ndkVersion\s+flutter\.ndkVersion', 'ndkVersion "25.1.8937393"', content)
-          content = re.sub(r'ndkVersion\s+"[^"]+"', 'ndkVersion "25.1.8937393"', content)
-
-          p.write_text(content)
-          print(content)
+          '''
+              content = loader + content
+              content = re.sub(r'(android\s*\{)', r'\1\n' + signing, content, count=1)
+              content = re.sub(
+                  r'signingConfig\s*=?\s*signingConfigs\.debug',
+                  'signingConfig signingConfigs.release',
+                  content
+              )
+              p.write_text(content)
+              print('✓ تم ربط توقيع release بالمفتاح الثابت')
+          print(p.read_text())
           PYEOF
 
-      - name: ⭐ تحديث رقم الإصدار تلقائياً
+      - name: التحقق النهائي
         run: |
-          # استبدال سطر الإصدار في pubspec.yaml بالرقم التسلسلي للبناء
+          echo "=== values.xml ==="
+          cat android/app/src/main/res/values/values.xml
+          echo ""
+          echo "=== minSdk + ndkVersion ==="
+          grep -n "minSdk\|ndkVersion" android/app/build.gradle
+          echo ""
+          echo "=== التوقيع ==="
+          if [ -f android/key.properties ]; then
+            echo "✓ key.properties موجود"
+            grep -n "signingConfigs\|signingConfig " android/app/build.gradle | head -5
+          else
+            echo "⚠️ لا يوجد key.properties — بناء غير موقّع بمفتاح ثابت"
+          fi
+
+      - name: ⭐ تحديث رقم الإصدار تلقائياً (versionCode = رقم البناء)
+        run: |
           sed -i "s/^version: .*/version: 1.0.0+${{ github.run_number }}/" pubspec.yaml
           echo "=== الإصدار الجديد ==="
           grep "^version:" pubspec.yaml
@@ -211,4 +256,3 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
