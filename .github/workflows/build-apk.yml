@@ -5,9 +5,6 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: write
-
 jobs:
   build:
     name: Build APK
@@ -169,18 +166,11 @@ jobs:
       - name: Build APK (release)
         run: flutter build apk --release --no-tree-shake-icons
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        if: github.ref == 'refs/heads/main'
+      # ⭐ العودة لطريقة Artifacts
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: "يمن سيلو - إصدار ${{ github.run_number }}"
-          body: |
-            إصدار جديد من تطبيق يمن سيلو
-            - Build #${{ github.run_number }}
-            - Commit: ${{ github.sha }}
-          files: build/app/outputs/flutter-apk/app-release.apk
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: yemen-seloo-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 3
+          if-no-files-found: warn
