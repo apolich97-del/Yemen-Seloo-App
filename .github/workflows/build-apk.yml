@@ -198,7 +198,7 @@ jobs:
                   }
               }
           '''
-              content = loader + content
+              content = content.replace('android {', loader + '\nandroid {', 1)
               content = re.sub(r'(android\s*\{)', r'\1\n' + signing, content, count=1)
               content = re.sub(
                   r'signingConfig\s*=?\s*signingConfigs\.debug',
