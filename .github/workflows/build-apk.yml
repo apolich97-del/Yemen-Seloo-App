@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build APK
@@ -27,6 +30,12 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: ⭐ تحديث رقم الإصدار تلقائياً
+        run: |
+          sed -i "s/^version: .*/version: 1.0.0+${{ github.run_number }}/" pubspec.yaml
+          echo "=== الإصدار الجديد ==="
+          grep "^version:" pubspec.yaml
+
       - name: إعادة إنشاء android/
         run: |
           rm -rf android/
@@ -36,9 +45,22 @@ jobs:
             --project-name yemen_seloo \
             --no-pub
 
-      - name: نسخ google-services.json (احتياطي)
+      - name: ⭐ فك تشفير Keystore (توقيع ثابت)
         run: |
           mkdir -p android/app
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/upload-keystore.jks
+
+      - name: ⭐ إنشاء ملف key.properties
+        run: |
+          cat > android/key.properties <<EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=upload-keystore.jks
+          EOF
+
+      - name: نسخ google-services.json (احتياطي)
+        run: |
           cat > android/app/google-services.json <<'JSON_EOF'
           {
             "project_info": {
@@ -70,7 +92,6 @@ jobs:
             "configuration_version": "1"
           }
           JSON_EOF
-          echo "✓ google-services.json جاهز"
 
       - name: ⭐ إنشاء values.xml يدويًا
         run: |
@@ -88,38 +109,65 @@ jobs:
               <string name="ga_trackingId" translatable="false"></string>
           </resources>
           XML_EOF
-          echo "=== محتوى values.xml ==="
-          cat android/app/src/main/res/values/values.xml
 
       - name: تصحيح اسم التطبيق
         run: |
           F=android/app/src/main/AndroidManifest.xml
           sed -i 's|android:label="[^"]*"|android:label="يمن سيلو"|' "$F"
-          grep "android:label" "$F"
 
-      - name: تعديل settings.gradle (Kotlin فقط)
+      - name: تعديل settings.gradle (Kotlin)
         run: |
-          python3 << 'PYEOF'
+          python3 -c "
           import re
           from pathlib import Path
           p = Path('android/settings.gradle')
           content = p.read_text()
-          content = re.sub(
-              r'id\s+"org\.jetbrains\.kotlin\.android"\s+version\s+"[^"]*"',
-              'id "org.jetbrains.kotlin.android" version "1.9.24"',
-              content
-          )
+          content = re.sub(r'id\s+\"org\.jetbrains\.kotlin\.android\"\s+version\s+\"[^\"]*\"', 'id \"org.jetbrains.kotlin.android\" version \"1.9.24\"', content)
           p.write_text(content)
-          print(content)
-          PYEOF
+          "
 
-      - name: تعديل app/build.gradle (NDK + minSdk)
+      - name: ⭐ تعديل app/build.gradle (التوقيع + NDK + minSdk)
         run: |
           python3 << 'PYEOF'
           import re
           from pathlib import Path
           p = Path('android/app/build.gradle')
-          lines = p.read_text().split('\n')
+          content = p.read_text()
+
+          # 1. إضافة قراءة key.properties
+          if 'keystorePropertiesFile' not in content:
+              header = '''
+          def keystoreProperties = new Properties()
+          def keystorePropertiesFile = rootProject.file('key.properties')
+          if (keystorePropertiesFile.exists()) {
+              keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+          }
+          '''
+              content = header + content
+
+          # 2. إضافة signingConfigs
+          if 'signingConfigs' not in content:
+              content = content.replace('android {', '''android {
+              signingConfigs {
+                  release {
+                      keyAlias = keystoreProperties['keyAlias']
+                      keyPassword = keystoreProperties['keyPassword']
+                      storeFile = keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+                      storePassword = keystoreProperties['storePassword']
+                  }
+              }
+          ''')
+
+          # 3. تطبيق التوقيع على buildTypes release
+          if 'signingConfig signingConfigs.release' not in content:
+              content = content.replace('buildTypes {', '''buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                  }
+              ''')
+
+          # 4. إزالة google-services وإصلاح NDK/minSdk
+          lines = content.split('\n')
           out = []
           has_ndk = False
           for line in lines:
@@ -142,20 +190,9 @@ jobs:
                   out.append(f'{ind}    ndkVersion "25.1.8937393"')
                   has_ndk = True
                   continue
-          p.write_text('\n'.join(out))
-          print(p.read_text())
-          PYEOF
 
-      - name: التحقق النهائي
-        run: |
-          echo "=== values.xml ==="
-          cat android/app/src/main/res/values/values.xml
-          echo ""
-          echo "=== minSdk + ndkVersion ==="
-          grep -n "minSdk\|ndkVersion" android/app/build.gradle
-          echo ""
-          echo "=== google-services ==="
-          grep -n "google-services" android/settings.gradle android/app/build.gradle || echo "✓ لا يوجد"
+          p.write_text('\n'.join(out))
+          PYEOF
 
       - name: Flutter pub get
         run: flutter pub get
@@ -166,11 +203,15 @@ jobs:
       - name: Build APK (release)
         run: flutter build apk --release --no-tree-shake-icons
 
-      # ⭐ العودة لطريقة Artifacts
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
         with:
-          name: yemen-seloo-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 3
-          if-no-files-found: warn
+          tag_name: v1.0.${{ github.run_number }}
+          name: "يمن سيلو - إصدار ${{ github.run_number }}"
+          body: "إصدار جديد من تطبيق يمن سيلو - Build #${{ github.run_number }}"
+          files: build/app/outputs/flutter-apk/app-release.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
