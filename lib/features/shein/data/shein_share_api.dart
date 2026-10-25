@@ -148,7 +148,7 @@ try {
       'تعذر الحصول على السلة من شي إن — أعد المحاولة بعد قليل');
 }
 
-if (data['code'] != '0' \|\| data['info'] == null) {
+if (data['code'] != '0' || data['info'] == null) {
   throw const SheinShareException('السلة غير متاحة أو منتهية الصلاحية');
 }
 
