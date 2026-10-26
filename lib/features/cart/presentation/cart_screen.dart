@@ -78,11 +78,8 @@ class _CartScreenState extends State<CartScreen> {
 
       setState(() => _importing = false);
 
-           if (!result.success) {
+      if (!result.success) {
         _snack(result.message);
-        await Get.toNamed('/shein', arguments: {'shareCartUrl': text});
-        return;
-           }
         // المسار المضمون: فتح الرابط داخل متصفح التطبيق (زر الزحف الأخضر)
         await Get.toNamed('/shein', arguments: {'shareCartUrl': text});
         return;
