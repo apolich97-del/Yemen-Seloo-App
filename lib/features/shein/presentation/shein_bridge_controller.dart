@@ -15,6 +15,10 @@ class SheinBridgeController {
   SheinBridgeController({SelooCartService? cartService}) : _cartService = cartService ?? SelooCartService();
   final SelooCartService _cartService;
   String? _scriptSource;
+
+  /// ⭐ عند فتح المنتج من زر التعديل في سلة يمن سيلو:
+  /// تُمرَّر هنا لتعديل السطر نفسه بدل إضافة سطر جديد.
+  String? editingLineId;
   InAppWebViewController? _webView;
 
   // ⭐ دوال التحكم في الزحف
@@ -56,7 +60,8 @@ class SheinBridgeController {
     }
 
     try {
-      final BridgeResult result = await _cartService.addToCart(draft);
+      final BridgeResult result =
+          await _cartService.addToCart(draft, editingLineId: editingLineId);
       try { await Get.find<CartCounter>().onItemAdded(); } catch (_) {}
       return result.toJson();
     } catch (e) {
