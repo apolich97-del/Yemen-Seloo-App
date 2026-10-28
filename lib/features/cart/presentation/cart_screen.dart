@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/config/seloo_config.dart';
@@ -84,6 +85,11 @@ class _CartScreenState extends State<CartScreen> {
         await Get.toNamed('/shein', arguments: {'shareCartUrl': text});
         return;
       }
+
+      // نحفظ رابط السلة المشترك لتُرفَق به رسالة واتساب لاحقاً
+      try {
+        GetStorage().write('seloo_last_share_url', text);
+      } catch (_) {}
 
       _shareCartController.clear();
       await _cart.refreshQuote();
@@ -381,6 +387,18 @@ class _CartScreenState extends State<CartScreen> {
     }
 
     b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
+
+    // رابط السلة كما وصلت من شي إن (يُفتح كاملاً بدل روابط متفرقة)
+    try {
+      final String? cartLink =
+          GetStorage().read<String>('seloo_last_share_url');
+      if (cartLink != null && cartLink.trim().isNotEmpty) {
+        b.writeln('🛒 رابط السلة كاملة في شي إن:');
+        b.writeln(cartLink.trim());
+        b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
+      }
+    } catch (_) {}
+
     b.writeln('📞 للتواصل: $_primaryPhone');
     b.writeln('📞 البديل: $_backupPhone');
     b.writeln('');
@@ -1196,12 +1214,26 @@ class _ProductImage extends StatelessWidget {
 
   final String url;
 
+  /// يصلح الروابط القديمة المخزّنة بصيغة نسبية (بلا https) فلا تظهر صورتها
+  static String _absolute(String raw) {
+    String u = raw.trim();
+    if (u.isEmpty) return '';
+    if (u.startsWith('//')) u = 'https:$u';
+    if (!u.startsWith('http')) {
+      u = u.startsWith('/')
+          ? 'https://img.ltwebstatic.com$u'
+          : 'https://img.ltwebstatic.com/$u';
+    }
+    return u;
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (url.isEmpty) return _placeholder();
+    final String src = _absolute(url);
+    if (src.isEmpty) return _placeholder();
 
     return CachedNetworkImage(
-      imageUrl: url,
+      imageUrl: src,
       fit: BoxFit.cover,
       placeholder: (_, __) => Container(
         color: _purpleLight,
