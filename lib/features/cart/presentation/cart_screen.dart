@@ -304,9 +304,9 @@ class _CartScreenState extends State<CartScreen> {
       );
 
       if (item.goodsId.isNotEmpty) {
-        b.writeln(
-          '   الرابط: https://m.shein.com/-p-${item.goodsId}.html',
-        );
+        // شي إن تحجب الفتح المباشر لصفحات المنتجات من خارج جلسة المتصفح،
+        // فيُرسَل رمز المنتج نصًّا بدل رابط لا يعمل.
+        b.writeln('   🆔 رمز المنتج: ${item.goodsId}');
       } else if (item.sourceUrl.isNotEmpty) {
         b.writeln('   الرابط: ${item.sourceUrl}');
       }
