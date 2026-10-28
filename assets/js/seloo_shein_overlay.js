@@ -143,11 +143,27 @@
       }
       cands.push(el.getAttribute('data-src') || '');
       cands.push(el.getAttribute('data-original') || '');
+      cands.push(el.getAttribute('data-lazy-src') || '');
+      cands.push(el.getAttribute('data-lazyload') || '');
+      if (el.parentElement) {
+        var sources = el.parentElement.querySelectorAll ? el.parentElement.querySelectorAll('source') : [];
+        for (var si = 0; si < sources.length; si++) {
+          var sset = sources[si].getAttribute('srcset') || '';
+          if (sset) cands.push(sset.split(',')[0].trim().split(' ')[0]);
+        }
+      }
       cands.push(el.currentSrc || '');
       cands.push(el.getAttribute('src') || '');
       for (var i = 0; i < cands.length; i++) {
         var u = cands[i];
-        if (u && u.indexOf('data:') !== 0 && /\.(jpg|jpeg|png|webp)/i.test(u)) return u;
+        if (!u || u.indexOf('data:') === 0) continue;
+      if (!/\.(jpg|jpeg|png|webp)/i.test(u)) continue;
+      // الرابط قد يكون نسبياً (بدون https) — نحوّله لمطلق
+      try {
+        return new URL(u, window.location.href).href;
+      } catch (e) {
+        return u.indexOf('//') === 0 ? 'https:' + u : u;
+      }
       }
       return '';
     }
@@ -157,6 +173,16 @@
     for (var ii = 0; ii < imgs.length; ii++) {
       var cand = goodImg(imgs[ii]);
       if (cand) { imageUrl = cand; break; }
+    }
+    if (!imageUrl) {
+      var bgs = qa('[class*="crop-image"], [class*="main-image"], [class*="gallery"]');
+      for (var bi = 0; bi < bgs.length; bi++) {
+        try {
+          var bg = window.getComputedStyle(bgs[bi]).backgroundImage || '';
+          var mUrl = bg.match(/url\(["']?([^"')]+)["']?\)/);
+          if (mUrl && mUrl[1] && mUrl[1].indexOf('data:') !== 0) { imageUrl = mUrl[1]; break; }
+        } catch (e) {}
+      }
     }
     if (!imageUrl) { var ogi = q('meta[property="og:image"]'); if (ogi) imageUrl = ogi.content || ''; }
     if (!imageUrl) {
@@ -304,7 +330,7 @@
   function findByText(needle) {
     if (!needle || needle.length < 6) return null;
     var probe = needle.slice(0, 14);
-    var els = qa('div, li, article, section, a');
+    var els = qa('a, [class*="card"], [class*="item"], [class*="goods"], li');
     var best = null;
     for (var i = 0; i < els.length; i++) {
       var t = txt(els[i]);
@@ -326,8 +352,11 @@
     return null;
   }
 
+  var injectedFor = '';
   function injectCardButtons(products) {
     if (!products || !products.length) return;
+    if (injectedFor === window.location.href + '|' + products.length) return;
+    injectedFor = window.location.href + '|' + products.length;
     products.forEach(function (p) {
       var host = findByText(p.title) || findByImage(p);
       if (!host) return;
@@ -448,5 +477,5 @@
   } else {
     setTimeout(sync, 800);
   }
-  setInterval(sync, 2500);
+  setInterval(sync, 4000);
 })();
