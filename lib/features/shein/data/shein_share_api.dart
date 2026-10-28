@@ -35,7 +35,18 @@ if (text.isEmpty) {
 throw const SheinShareException('الصق رابط السلة المشتركة أولاً.');
 }
 
-String? groupId = _extractGroupId(text);
+
+    final String? groupId = _extractGroupId(text);
+
+    if (groupId == null) {
+      throw const SheinShareException(
+          'لم أجد معرّف السلة في النص — تأكد من نسخ رابط المشاركة كاملاً');
+    }
+
+    // بناء رابط صفحة الهبوط مباشرة من معرّف السلة.
+    final String landingUrl =
+        'https://m.shein.com/ar/cart/share/landing?group_id=$groupId';
+
 
 final String? shareUrl =
     RegExp(r'https?://[^\s"<>]+').firstMatch(text)?.group(0);
