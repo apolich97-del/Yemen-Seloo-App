@@ -131,10 +131,41 @@
     }
     if (!price) price = 0.01;
 
+    function goodImg(el) {
+      if (!el) return '';
+      var cands = [];
+      var ss = el.getAttribute('srcset') || '';
+      if (ss) {
+        ss.split(',').forEach(function (part) {
+          var u = (part || '').trim().split(' ')[0];
+          if (u) cands.push(u);
+        });
+      }
+      cands.push(el.getAttribute('data-src') || '');
+      cands.push(el.getAttribute('data-original') || '');
+      cands.push(el.currentSrc || '');
+      cands.push(el.getAttribute('src') || '');
+      for (var i = 0; i < cands.length; i++) {
+        var u = cands[i];
+        if (u && u.indexOf('data:') !== 0 && /\.(jpg|jpeg|png|webp)/i.test(u)) return u;
+      }
+      return '';
+    }
+
     var imageUrl = '';
-    var img = q('.crop-image-container img, .product-intro__main-image img, [class*="main-image"] img, [class*="goods-img"] img');
-    if (img) imageUrl = img.getAttribute('src') || img.getAttribute('data-src') || '';
+    var imgs = qa('.crop-image-container img, .product-intro__main-image img, [class*="main-image"] img, [class*="goods-img"] img, [class*="product"] img');
+    for (var ii = 0; ii < imgs.length; ii++) {
+      var cand = goodImg(imgs[ii]);
+      if (cand) { imageUrl = cand; break; }
+    }
     if (!imageUrl) { var ogi = q('meta[property="og:image"]'); if (ogi) imageUrl = ogi.content || ''; }
+    if (!imageUrl) {
+      var anyImg = qa('img');
+      for (var jj = 0; jj < anyImg.length; jj++) {
+        var c2 = goodImg(anyImg[jj]);
+        if (c2 && c2.indexOf('ltwebstatic') !== -1) { imageUrl = c2; break; }
+      }
+    }
     if (imageUrl.indexOf('//') === 0) imageUrl = 'https:' + imageUrl;
 
     var v = readSelectedVariant();
@@ -216,8 +247,9 @@
     var retail = (it.retailPrice || {}).amount;
     var price = parsePrice(sale) || parsePrice(retail) || 0.01;
     var title = String(it.goods_name || it.goodsName || ('منتج SHEIN #' + id)).trim().slice(0, 300);
-    var img = String(it.goods_img || it.goodsImg || '').trim();
+    var img = String(it.goods_img || it.goodsImg || (it.goods_imgs && it.goods_imgs[0]) || '').trim();
     if (img.indexOf('//') === 0) img = 'https:' + img;
+    if (img.indexOf('http') !== 0) img = '';
     var attrs = String(it.goodsAttr || '').split('/');
     return {
       goodsId: id,
