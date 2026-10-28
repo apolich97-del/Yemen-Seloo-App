@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 import 'core/config/seloo_config.dart';
 import 'features/cart/application/cart_counter.dart';
@@ -30,8 +33,52 @@ Future<void> main() async {
   Get.put<MainTabController>(MainTabController(), permanent: true);
   debugPrint('[Seloo] MainTabController registered ✓');
 
-  // 4) افتح التطبيق
+  // 4) استقبال روابط المشاركة من شي إن (مشاركة ← يمن سيلو)
+  _listenForSharedLinks();
+
+  // 5) افتح التطبيق
   runApp(const SelooApp());
+}
+
+// ═══ استقبال رابط السلة المشترك من شي إن عبر "مشاركة" ═══
+StreamSubscription<List<SharedMediaFile>>? _shareSub;
+
+void _listenForSharedLinks() {
+  try {
+    ReceiveSharingIntent.instance.getInitialMedia().then((List<SharedMediaFile> items) {
+      _handleShared(items);
+      ReceiveSharingIntent.instance.reset();
+    }).catchError((Object e) {
+      debugPrint('[Seloo] share initial error: $e');
+    });
+
+    _shareSub = ReceiveSharingIntent.instance.getMediaStream().listen(
+      _handleShared,
+      onError: (Object e) => debugPrint('[Seloo] share stream error: $e'),
+    );
+  } catch (e) {
+    debugPrint('[Seloo] share init failed: $e');
+  }
+}
+
+void _handleShared(List<SharedMediaFile> items) {
+  for (final SharedMediaFile item in items) {
+    final String text = item.path;
+    final RegExpMatch? m = RegExp(r'https?://[^\s]+').firstMatch(text);
+    final String? url = m?.group(0);
+    if (url == null || !url.toLowerCase().contains('shein')) continue;
+
+    debugPrint('[Seloo] shared shein link: $url');
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      try {
+        Get.toNamed('/shein', arguments: <String, dynamic>{'shareCartUrl': url});
+      } catch (e) {
+        debugPrint('[Seloo] share navigate failed: $e');
+      }
+    });
+    break;
+  }
 }
 
 Future<void> _initFirebase() async {
