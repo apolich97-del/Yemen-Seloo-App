@@ -101,6 +101,27 @@ jobs:
           sed -i 's|android:label="[^"]*"|android:label="يمن سيلو"|' "$F"
           grep "android:label" "$F"
 
+      - name: استقبال روابط المشاركة من شي إن (intent-filter)
+        run: |
+          python3 << 'PYEOF'
+          from pathlib import Path
+          p = Path('android/app/src/main/AndroidManifest.xml')
+          s = p.read_text()
+          if 'android.intent.action.SEND' in s:
+              print('موجود مسبقا')
+          else:
+              filt = '''        <intent-filter>
+                      <action android:name="android.intent.action.SEND" />
+                      <category android:name="android.intent.category.DEFAULT" />
+                      <data android:mimeType="text/plain" />
+                  </intent-filter>
+          '''
+              s = s.replace('</activity>', filt + '    </activity>', 1)
+              p.write_text(s)
+              print('تمت إضافة intent-filter للمشاركة')
+          print('SEND' in p.read_text())
+          PYEOF
+
       - name: تعديل settings.gradle (Kotlin فقط)
         run: |
           python3 << 'PYEOF'
