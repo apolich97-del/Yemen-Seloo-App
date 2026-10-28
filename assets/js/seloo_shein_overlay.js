@@ -203,7 +203,8 @@
         var bits = [];
         if (p.size) bits.push('المقاس: ' + p.size);
         if (p.color) bits.push('اللون: ' + p.color);
-        toast('✓ أُضيف إلى سلة سيلو' + (bits.length ? ' — ' + bits.join(' · ') : ''));
+        bits.push(p.imageUrl ? 'صورة ✓' : 'بلا صورة ✗');
+        toast('✓ أُضيف إلى سلة سيلو — ' + bits.join(' · '));
       }
       if (button) { button.disabled = false; button.textContent = '🛒 أضف إلى سلة سيلو'; }
     });
@@ -253,7 +254,7 @@
     var attrs = String(it.goodsAttr || '').split('/');
     return {
       goodsId: id,
-      productUrl: 'https://ar.shein.com/-p-' + id + '.html',
+      productUrl: 'https://m.shein.com/-p-' + id + '.html',
       title: title,
       imageUrl: img,
       sourcePrice: price,
