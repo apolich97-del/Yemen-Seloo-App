@@ -222,7 +222,7 @@ class CartCounter extends GetxService {
     // رابط المنتج بصيغة المتصفح المحمول التي تعمل فعلا (اختُبرت 200 OK).
     // نبنيها من goodsId لأن الروابط القديمة المحفوظة قد تكون بصيغة لا تعمل.
     final String editUrl = item.goodsId.isNotEmpty
-        ? 'https://ar.shein.com/-p-${item.goodsId}.html'
+        ? 'https://m.shein.com/-p-${item.goodsId}.html'
         : item.sourceUrl;
 
     Get.toNamed('/shein', arguments: <String, dynamic>{
