@@ -219,9 +219,15 @@ class CartCounter extends GetxService {
   void startEditing(CartItem item) {
     editingLineId.value = item.lineId;
 
+    // رابط المنتج بصيغة المتصفح المحمول التي تعمل فعلا (اختُبرت 200 OK).
+    // نبنيها من goodsId لأن الروابط القديمة المحفوظة قد تكون بصيغة لا تعمل.
+    final String editUrl = item.goodsId.isNotEmpty
+        ? 'https://ar.shein.com/-p-${item.goodsId}.html'
+        : item.sourceUrl;
+
     Get.toNamed('/shein', arguments: <String, dynamic>{
       'editLineId': item.lineId,
-      'editUrl': item.sourceUrl,
+      'editUrl': editUrl,
     });
   }
 
