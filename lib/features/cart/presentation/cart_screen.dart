@@ -305,7 +305,7 @@ class _CartScreenState extends State<CartScreen> {
 
       if (item.goodsId.isNotEmpty) {
         b.writeln(
-          '   الرابط: https://ar.shein.com/-p-${item.goodsId}.html',
+          '   الرابط: https://m.shein.com/-p-${item.goodsId}.html',
         );
       } else if (item.sourceUrl.isNotEmpty) {
         b.writeln('   الرابط: ${item.sourceUrl}');
