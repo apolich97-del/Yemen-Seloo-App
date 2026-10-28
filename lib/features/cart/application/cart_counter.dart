@@ -219,10 +219,10 @@ class CartCounter extends GetxService {
   void startEditing(CartItem item) {
     editingLineId.value = item.lineId;
 
-    // رابط المنتج بصيغة المتصفح المحمول التي تعمل فعلا (اختُبرت 200 OK).
-    // نبنيها من goodsId لأن الروابط القديمة المحفوظة قد تكون بصيغة لا تعمل.
+    // شي إن تمنع فتح صفحة المنتج مباشرة برابط، لكن صفحة البحث بالرمز
+    // تُفتح بلا خطأ (اختُبرت 200 OK). المستخدم يضغط نتيجة البحث ثم الزر الأرجواني.
     final String editUrl = item.goodsId.isNotEmpty
-        ? 'https://m.shein.com/-p-${item.goodsId}.html'
+        ? 'https://m.shein.com/ar/pdsearch/${item.goodsId}/'
         : item.sourceUrl;
 
     Get.toNamed('/shein', arguments: <String, dynamic>{
