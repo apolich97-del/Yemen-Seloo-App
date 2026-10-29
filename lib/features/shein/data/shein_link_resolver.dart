@@ -23,6 +23,9 @@ class SheinLinkResolver {
 
   static final RegExp _httpPattern = RegExp(r'https?://[^\s]+');
 
+  /// رابط المشاركة داخل التطبيق كما يظهر داخل وسوم الصفحة.
+  static final RegExp _appLinkPattern = RegExp(r'''sheinlink://[^"'\s<]+''');
+
   static const String _userAgent =
       'Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
@@ -85,12 +88,9 @@ class SheinLinkResolver {
       try {
         final HttpClientRequest req = await client.getUrl(Uri.parse(url));
         req.headers.set(HttpHeaders.acceptLanguageHeader, 'ar,en;q=0.8');
-        final HttpClientResponse res =
-            await req.close().timeout(timeout);
-        final String body = await res
-            .transform(utf8.decoder)
-            .join()
-            .timeout(timeout);
+        final HttpClientResponse res = await req.close().timeout(timeout);
+        final String body =
+            await res.transform(utf8.decoder).join().timeout(timeout);
 
         final String? gid = groupIdIn(body);
         if (gid != null) {
@@ -98,13 +98,12 @@ class SheinLinkResolver {
         }
 
         // بعض الصفحات تُرجع رابط المشاركة داخل وسم مخفي
-        final RegExpMatch? deeplink = RegExp(
-          r'sheinlink://[^"\'\s<]+',
-        ).firstMatch(body);
+        final RegExpMatch? deeplink = _appLinkPattern.firstMatch(body);
         if (deeplink != null) {
-          final String? gid2 = groupIdIn(deeplink.group(0)!);
+          final String deepLink = deeplink.group(0)!;
+          final String? gid2 = groupIdIn(deepLink);
           if (gid2 != null) {
-            return landingUrl(gid2, shc: shcIn(deeplink.group(0)!));
+            return landingUrl(gid2, shc: shcIn(deepLink));
           }
         }
       } finally {
