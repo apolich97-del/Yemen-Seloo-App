@@ -47,6 +47,31 @@ class SelooCartService {
 
   // إضافة / تعديل منتج
 
+  /// يرفض روابط صور SHEIN الرمادية/النائبة ويحوّلها إلى مطلق
+  static String _cleanImage(String raw) {
+    final String u = raw.trim();
+    if (u.isEmpty) return '';
+    final bool bad = RegExp(
+      r'placeholder|loading|transparent|noimage|no_image|blank|grey|gray|/icon/',
+      caseSensitive: false,
+    ).hasMatch(u);
+    if (bad) return '';
+    String full = u;
+    if (full.startsWith('//')) full = 'https:$full';
+    if (!full.startsWith('http')) {
+      final int host = full.indexOf('ltwebstatic.com');
+      if (host >= 0) {
+        full = 'https://img.ltwebstatic.com'
+            '${full.substring(host + 'ltwebstatic.com'.length)}';
+      } else {
+        full = full.startsWith('/')
+            ? 'https://img.ltwebstatic.com$full'
+            : 'https://img.ltwebstatic.com/$full';
+      }
+    }
+    return full;
+  }
+
   Future<BridgeResult> addToCart(
     SheinDraft draft, {
     String? editingLineId,
@@ -76,8 +101,8 @@ class SelooCartService {
           title: draft.title.trim().isNotEmpty
               ? draft.title
               : oldItem.title,
-          imageUrl: draft.imageUrl.trim().isNotEmpty
-              ? draft.imageUrl
+          imageUrl: _cleanImage(draft.imageUrl).isNotEmpty
+              ? _cleanImage(draft.imageUrl)
               : oldItem.imageUrl,
 
           sourceUrl: draft.productUrl.trim().isNotEmpty
@@ -104,7 +129,7 @@ class SelooCartService {
           lineId: _generateLineId(),
           goodsId: draft.goodsId,
           title: draft.title,
-          imageUrl: draft.imageUrl,
+          imageUrl: _cleanImage(draft.imageUrl),
           sourceUrl: draft.productUrl,
           sourcePrice: draft.sourcePrice,
           sourceCurrency: draft.sourceCurrency,
