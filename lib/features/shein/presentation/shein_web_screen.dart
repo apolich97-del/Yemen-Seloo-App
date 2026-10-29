@@ -1,9 +1,13 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import '../../../core/config/seloo_config.dart';
 import '../../cart/application/cart_counter.dart';
 import '../../home/presentation/main_tab_controller.dart';
+import '../data/shein_link_resolver.dart';
 import 'shein_bridge_controller.dart';
 
 class SheinWebScreen extends StatefulWidget {
@@ -23,6 +27,7 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
   String? _editingLineId;
   double _progress = 0;
   bool _isLoading = true;
+  bool _resolvingLink = false;
 
   // ⭐ متغيرات التحكم في الزحف
   bool _isCrawling = false;
@@ -30,14 +35,99 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
   int _totalCrawlItems = 0;
   int _addedCount = 0;
 
+  /// يحوّل أي رابط وارد (sheinlink:// أو رابط مشاركة) إلى صفحة سلة صالحة
+  static String? _shareUrlFrom(Object? raw) {
+    final String s = (raw ?? '').toString().trim();
+    if (s.isEmpty) return null;
+
+    if (s.startsWith('http://') || s.startsWith('https://')) return s;
+
+    final String lower = s.toLowerCase();
+    if (lower.startsWith('sheinlink') || s.contains('group_id')) {
+      final RegExpMatch? dataMatch = RegExp(r'data=([^&\s]+)').firstMatch(s);
+      if (dataMatch != null) {
+        try {
+          final String decoded = Uri.decodeComponent(dataMatch.group(1)!);
+          final Object? obj = jsonDecode(decoded);
+          if (obj is Map && obj['group_id'] != null) {
+            final Object? shc = obj['shc'];
+            return 'https://m.shein.com/ar/cart/share/landing'
+                '?group_id=${obj['group_id']}'
+                '${shc != null ? '&shc=$shc' : ''}';
+          }
+        } catch (_) {}
+      }
+
+      final RegExpMatch? gid = RegExp(
+        r'group_?id[^0-9]{0,3}(\d{5,})',
+        caseSensitive: false,
+      ).firstMatch(s);
+      if (gid != null) {
+        return 'https://m.shein.com/ar/cart/share/landing?group_id=${gid.group(1)}';
+      }
+    }
+
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
     final dynamic args = Get.arguments;
     if (args is Map) {
-      _shareCartUrl = args['shareCartUrl'] as String?;
-      _editUrl = args['editUrl'] as String?;
+      _shareCartUrl = _shareUrlFrom(args['shareCartUrl']);
+      _editUrl = _shareUrlFrom(args['editUrl']);
       _editingLineId = args['editLineId'] as String?;
+
+      // أي حقل آخر قد يحمل رابط sheinlink من نظام المشاركة
+      if (_shareCartUrl == null) {
+        for (final Object? v in args.values) {
+          final String raw = (v ?? '').toString();
+          if (raw.isEmpty) continue;
+          if (raw.startsWith('http://') || raw.startsWith('https://')) {
+            continue;
+          }
+          final String? cand = _shareUrlFrom(raw);
+          if (cand != null) {
+            _shareCartUrl = cand;
+            break;
+          }
+        }
+      }
+    }
+
+    if (_shareCartUrl != null && _shareCartUrl!.isNotEmpty) {
+      if (_needsResolution(_shareCartUrl)) {
+        _resolveIncoming(_shareCartUrl!);
+      } else {
+        try {
+          GetStorage().write('seloo_last_share_url', _shareCartUrl);
+        } catch (_) {}
+      }
+    }
+  }
+
+  /// رابط onelink أو أي رابط بلا معرّف سلة يحتاج قراءة قبل الفتح
+  static bool _needsResolution(String? url) {
+    if (url == null || url.isEmpty) return false;
+    if (url.contains('onelink.shein.com')) return true;
+    return SheinLinkResolver.groupIdIn(url) == null &&
+        !url.contains('-p-') &&
+        url.contains('cart');
+  }
+
+  Future<void> _resolveIncoming(String raw) async {
+    _resolvingLink = true;
+    final String? resolved = await SheinLinkResolver.resolve(raw);
+    if (!mounted) return;
+    setState(() {
+      _resolvingLink = false;
+      if (resolved != null) _shareCartUrl = resolved;
+    });
+    if (resolved != null) {
+      try {
+        GetStorage().write('seloo_last_share_url', resolved);
+      } catch (_) {}
     }
   }
 
@@ -90,8 +180,22 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
         children: <Widget>[
           if (_isLoading && _progress < 1)
             LinearProgressIndicator(value: _progress, color: const Color(0xFF7C3AED), minHeight: 3),
-          Expanded(
-            child: InAppWebView(
+          if (_resolvingLink)
+            const Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    CircularProgressIndicator(color: Color(0xFF7C3AED)),
+                    SizedBox(height: 14),
+                    Text('جارٍ قراءة رابط السلة من شي إن…'),
+                  ],
+                ),
+              ),
+            )
+          else
+            Expanded(
+              child: InAppWebView(
               initialUrlRequest: URLRequest(url: WebUri(_initialUrl), headers: <String, String>{'Accept-Language': 'ar,ar-SA;q=0.9,en;q=0.5'}),
               initialSettings: _buildSettings(),
               onWebViewCreated: (controller) async {
@@ -131,6 +235,34 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                 }
               },
               onUpdateVisitedHistory: (controller, url, isReload) => setState(() {}),
+              // أي رابط sheinlink:// أو مخطط غير http يُحوّل لصفحة السلة بدل رسالة الخطأ
+              shouldOverrideUrlLoading: (controller, action) async {
+                final String target =
+                    action.request.url?.toString() ?? '';
+                if (target.isEmpty) return NavigationActionPolicy.ALLOW;
+                final bool webUrl =
+                    target.startsWith('http://') || target.startsWith('https://');
+                if (webUrl) return NavigationActionPolicy.ALLOW;
+
+                if (target.contains('onelink.shein.com')) {
+                  final String? resolved =
+                      await SheinLinkResolver.resolve(target);
+                  if (resolved != null) {
+                    await controller.loadUrl(
+                      urlRequest: URLRequest(url: WebUri(resolved)),
+                    );
+                  }
+                  return NavigationActionPolicy.CANCEL;
+                }
+
+                final String? fixed = _shareUrlFrom(target);
+                if (fixed != null) {
+                  await controller.loadUrl(
+                    urlRequest: URLRequest(url: WebUri(fixed)),
+                  );
+                }
+                return NavigationActionPolicy.CANCEL;
+              },
               onProgressChanged: (c, p) { setState(() => _progress = p / 100); },
             ),
           ),
