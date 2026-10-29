@@ -44,8 +44,7 @@ class CartCounter extends GetxService {
       0, (double sum, CartItem item) => sum + item.lineTotalLocal);
 
   /// ⭐ إجمالي العمولة بالريال السعودي = العمولة × عدد القطع
-  double get commissionTotalSar =>
-      commissionPerPiece.value * items.length;
+  double get commissionTotalSar => commissionPerPiece.value * items.length;
 
   /// ⭐ إجمالي العمولة بالريال اليمني = العمولة الإجمالية × سعر الصرف
   double get commissionTotalYer {
@@ -74,6 +73,8 @@ class CartCounter extends GetxService {
     super.onInit();
     _loadFromStorage();
     _loadLastCommission();
+    // إعادة حساب الإجمالي بعد استرجاع السلة من التخزين
+    refreshQuote();
   }
 
   void _loadFromStorage() {
@@ -141,6 +142,10 @@ class CartCounter extends GetxService {
   /// يحفظ القيمة في GetStorage تلقائياً
   void setCommission(double perPieceSar) {
     if (perPieceSar < 0) perPieceSar = 0;
+    // أي تغيير في المبلغ يُلغي الموافقة السابقة
+    if (perPieceSar != commissionPerPiece.value) {
+      commissionApproved.value = false;
+    }
     commissionPerPiece.value = perPieceSar;
     try {
       _box.write(_kLastCommission, perPieceSar);
@@ -224,6 +229,8 @@ class CartCounter extends GetxService {
     final String editUrl = item.goodsId.isNotEmpty
         ? 'https://m.shein.com/ar/pdsearch/${item.goodsId}/?seloo_edit=1'
         : item.sourceUrl;
+
+    editingProductUrl.value = editUrl;
 
     Get.toNamed('/shein', arguments: <String, dynamic>{
       'editLineId': item.lineId,
