@@ -313,6 +313,7 @@ class _CartScreenState extends State<CartScreen> {
         // شي إن تحجب الفتح المباشر لصفحات المنتجات من خارج جلسة المتصفح،
         // فيُرسَل رمز المنتج نصًّا بدل رابط لا يعمل.
         b.writeln('   🆔 رمز المنتج: ${item.goodsId}');
+        b.writeln('   🔗 https://m.shein.com/ar/pdsearch/${item.goodsId}/');
       } else if (item.sourceUrl.isNotEmpty) {
         b.writeln('   الرابط: ${item.sourceUrl}');
       }
@@ -1216,8 +1217,13 @@ class _ProductImage extends StatelessWidget {
 
   /// يصلح الروابط القديمة المخزّنة بصيغة نسبية (بلا https) فلا تظهر صورتها
   static String _absolute(String raw) {
-    String u = raw.trim();
+    String u = raw.trim().replaceAll(' ', '');
     if (u.isEmpty) return '';
+
+    // لو تكرّر المخطط أو الدومين داخل الرابط نأخذ آخر جزء سليم
+    final int lastScheme = u.lastIndexOf('http');
+    if (lastScheme > 0) u = u.substring(lastScheme);
+
     if (u.startsWith('//')) u = 'https:$u';
     if (!u.startsWith('http')) {
       u = u.startsWith('/')
@@ -1235,6 +1241,14 @@ class _ProductImage extends StatelessWidget {
     return CachedNetworkImage(
       imageUrl: src,
       fit: BoxFit.cover,
+      // شي إن ترفض بعض الصور بلا هوية متصفح/مرجع — نرسلها كما يفعل الويب
+      httpHeaders: const <String, String>{
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 13; SM-G991B) '
+            'AppleWebKit/537.36 (KHTML, like Gecko) '
+            'Chrome/120.0.0.0 Mobile Safari/537.36',
+        'Referer': 'https://m.shein.com/',
+        'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+      },
       placeholder: (_, __) => Container(
         color: _purpleLight,
         child: const Center(
