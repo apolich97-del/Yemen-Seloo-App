@@ -159,14 +159,14 @@
       for (var i = 0; i < cands.length; i++) {
         var u = cands[i];
         if (!u || u.indexOf('data:') === 0) continue;
-      if (!/\.(jpg|jpeg|png|webp)/i.test(u)) continue;
-      if (BAD_IMG.test(u)) continue;
-      // الرابط قد يكون نسبياً (بدون https) — نحوّله لمطلق
-      try {
-        return new URL(u, window.location.href).href;
-      } catch (e) {
-        return u.indexOf('//') === 0 ? 'https:' + u : u;
-      }
+        if (!/\.(jpg|jpeg|png|webp)/i.test(u)) continue;
+        if (BAD_IMG.test(u)) continue;
+        // الرابط قد يكون نسبياً (بدون https) — نحوّله لمطلق
+        try {
+          return new URL(u, window.location.href).href;
+        } catch (e) {
+          return u.indexOf('//') === 0 ? 'https:' + u : u;
+        }
       }
       return '';
     }
@@ -246,6 +246,7 @@
   function addFromPage(button) {
     var p = readCurrentProduct();
     if (!p) { toast('تعذر قراءة بيانات المنتج.'); return; }
+    var wasEdit = EDIT_MODE;
     if (button) { button.disabled = true; button.textContent = 'جارٍ الإضافة...'; }
 
     var ogBackup = (function () { var m = q('meta[property="og:image"]'); return m && m.content ? m.content : ''; })();
@@ -267,11 +268,11 @@
         if (p.size) bits.push('المقاس: ' + p.size);
         if (p.color) bits.push('اللون: ' + p.color);
         bits.push(p.imageUrl ? 'صورة ✓' : 'بلا صورة ✗');
-        if (EDIT_MODE) {
+        if (wasEdit) {
           try { sessionStorage.removeItem('selooEdit'); } catch (e) {}
           EDIT_MODE = false;
         }
-        toast(EDIT_MODE === false && bits.length ? '✓ تم حفظ التعديل — ' + bits.join(' · ') : '✓ أُضيف إلى سلة سيلو — ' + bits.join(' · '));
+        toast((wasEdit ? '✓ تم حفظ التعديل' : '✓ أُضيف إلى سلة سيلو') + ' — ' + bits.join(' · '));
       }
       if (button) { button.disabled = false; button.textContent = EDIT_MODE ? '💾 حفظ التعديل' : '🛒 أضف إلى سلة سيلو'; }
     }).catch(function (e) {
@@ -467,7 +468,6 @@
       }
 
       var total = products.length;
-      var done = 0;
       var added = 0;
       var failed = 0;
 
@@ -483,7 +483,6 @@
         callBridge('addToCart', products[i]).then(function (r) {
           var st = r && r.status ? r.status : 'ok';
           if (st === 'ok' || st === 'success') { added++; } else { failed++; }
-          done++;
           setTimeout(function () { step(i + 1); }, 250);
         });
       }
