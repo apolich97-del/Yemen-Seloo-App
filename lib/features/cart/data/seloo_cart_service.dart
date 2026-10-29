@@ -101,9 +101,10 @@ class SelooCartService {
           title: draft.title.trim().isNotEmpty
               ? draft.title
               : oldItem.title,
-          imageUrl: _cleanImage(draft.imageUrl).isNotEmpty
-              ? _cleanImage(draft.imageUrl)
-              : oldItem.imageUrl,
+          // صورة السطر لا تتغير بالتعديل: نُبقيها ما دامت موجودة
+          imageUrl: oldItem.imageUrl.trim().isNotEmpty
+              ? oldItem.imageUrl
+              : _cleanImage(draft.imageUrl),
 
           sourceUrl: draft.productUrl.trim().isNotEmpty
               ? draft.productUrl
