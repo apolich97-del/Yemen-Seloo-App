@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'shein_link_resolver.dart';
+
 /// استثناء برسالة واضحة تُعرض للمستخدم مباشرة.
 class SheinShareException implements Exception {
   const SheinShareException(this.message);
@@ -42,7 +44,18 @@ class SheinShareApi {
       );
     }
 
-    final String? groupId = _extractGroupId(text);
+    // نحوّل أولاً بمنطق يفهم الترميز المزدوج (%22group_id%22...)
+    String? groupId =
+        SheinLinkResolver.groupIdIn(text) ?? _extractGroupId(text);
+
+    // صيغة "نسخ الرابط" من شي إن تكون رابط onelink قصيراً بلا معرّف،
+    // فنفتحه ونقرأ معرّف السلة من داخله.
+    if (groupId == null) {
+      final String? resolved = await SheinLinkResolver.resolve(text);
+      if (resolved != null) {
+        groupId = _extractGroupId(resolved);
+      }
+    }
 
     if (groupId == null) {
       throw const SheinShareException(
