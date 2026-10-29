@@ -1,4 +1,3 @@
-
 import 'dart:math';
 
 import 'package:get_storage/get_storage.dart';
@@ -109,13 +108,22 @@ class SelooCartService {
           sourceUrl: draft.productUrl.trim().isNotEmpty
               ? draft.productUrl
               : oldItem.sourceUrl,
-          sourcePrice: draft.sourcePrice,
+          sourcePrice: draft.sourcePrice > 0
+              ? draft.sourcePrice
+              : oldItem.sourcePrice,
           sourceCurrency: draft.sourceCurrency,
           exchangeRate: oldItem.exchangeRate,
           quantity: oldItem.quantity,
-          color: draft.color,
-          size: draft.size,
-          options: draft.options,
+          // لا نمحو لوناً أو مقاساً أو خيارات موجودة إذا جاءت المسودة فارغة
+          color: draft.color.trim().isNotEmpty
+              ? draft.color
+              : oldItem.color,
+          size: draft.size.trim().isNotEmpty
+              ? draft.size
+              : oldItem.size,
+          options: draft.options.isNotEmpty
+              ? draft.options
+              : oldItem.options,
           sourceStore: draft.sourceStore,
           deliveryLocal: 0.0,
           sku: draft.sku.trim().isNotEmpty
@@ -182,6 +190,15 @@ class SelooCartService {
         );
       }
 
+      if (quantity < 1 ||
+          quantity > SelooConfig.maxQuantityPerLine) {
+        return BridgeResult.failure(
+          'error',
+          'الكمية يجب أن تكون بين 1 و '
+              '${SelooConfig.maxQuantityPerLine}',
+        );
+      }
+
       currentItems[index] =
           currentItems[index].copyWith(quantity: quantity);
 
@@ -224,6 +241,8 @@ class SelooCartService {
   Future<BridgeResult> clear() async {
     try {
       await _box.remove(_cartKey);
+      // لا نُبقي رابط سلة قديمة تُرفَق برسالة واتساب لاحقاً
+      await _box.remove('seloo_last_share_url');
 
       return const BridgeResult(
         status: 'ok',
