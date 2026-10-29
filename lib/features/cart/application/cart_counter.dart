@@ -222,7 +222,7 @@ class CartCounter extends GetxService {
     // شي إن تمنع فتح صفحة المنتج مباشرة برابط، لكن صفحة البحث بالرمز
     // تُفتح بلا خطأ (اختُبرت 200 OK). المستخدم يضغط نتيجة البحث ثم الزر الأرجواني.
     final String editUrl = item.goodsId.isNotEmpty
-        ? 'https://m.shein.com/ar/pdsearch/${item.goodsId}/'
+        ? 'https://m.shein.com/ar/pdsearch/${item.goodsId}/?seloo_edit=1'
         : item.sourceUrl;
 
     Get.toNamed('/shein', arguments: <String, dynamic>{
