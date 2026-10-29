@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -61,12 +62,51 @@ void _listenForSharedLinks() {
   }
 }
 
+/// يستخرج رابط سلة شي إن من نص المشاركة:
+/// 1) رابط https مباشر.
+/// 2) رابط sheinlink://applink/share_receiver/?data=<JSON> (مشاركة تطبيق شي إن).
+String _extractSheinUrl(String text) {
+  final RegExpMatch? direct = RegExp(r'https?://[^\s]+').firstMatch(text);
+  if (direct != null && direct.group(0)!.toLowerCase().contains('shein')) {
+    return direct.group(0)!;
+  }
+
+  if (!text.toLowerCase().contains('sheinlink') && !text.contains('group_id')) {
+    return '';
+  }
+
+  final RegExpMatch? dataMatch = RegExp(r'data=([^&\s]+)').firstMatch(text);
+  if (dataMatch != null) {
+    try {
+      final String decoded = Uri.decodeComponent(dataMatch.group(1)!);
+      final Object? parsed = jsonDecode(decoded);
+      if (parsed is Map) {
+        final Object? gid = parsed['group_id'] ?? parsed['groupId'];
+        final Object? shc = parsed['shc'];
+        if (gid != null) {
+          final String base =
+              'https://m.shein.com/ar/cart/share/landing?group_id=$gid';
+          return shc != null ? '$base&shc=$shc' : base;
+        }
+      }
+    } catch (e) {
+      debugPrint('[Seloo] sheinlink parse failed: $e');
+    }
+  }
+
+  final RegExpMatch? gidMatch =
+      RegExp(r'group_?id[^0-9]{0,3}(\d{5,})', caseSensitive: false).firstMatch(text);
+  if (gidMatch != null) {
+    return 'https://m.shein.com/ar/cart/share/landing?group_id=${gidMatch.group(1)}';
+  }
+
+  return '';
+}
+
 void _handleShared(List<SharedMediaFile> items) {
   for (final SharedMediaFile item in items) {
-    final String text = item.path;
-    final RegExpMatch? m = RegExp(r'https?://[^\s]+').firstMatch(text);
-    final String? url = m?.group(0);
-    if (url == null || !url.toLowerCase().contains('shein')) continue;
+    final String url = _extractSheinUrl(item.path);
+    if (url.isEmpty) continue;
 
     debugPrint('[Seloo] shared shein link: $url');
     WidgetsBinding.instance.addPostFrameCallback((_) async {
