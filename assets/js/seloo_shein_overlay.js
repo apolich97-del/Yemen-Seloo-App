@@ -131,6 +131,8 @@
     }
     if (!price) price = 0.01;
 
+    var BAD_IMG = /placeholder|loading|transparent|noimage|no_image|blank|grey|gray|default\.(png|jpg)|icon\//i;
+
     function goodImg(el) {
       if (!el) return '';
       var cands = [];
@@ -158,6 +160,7 @@
         var u = cands[i];
         if (!u || u.indexOf('data:') === 0) continue;
       if (!/\.(jpg|jpeg|png|webp)/i.test(u)) continue;
+      if (BAD_IMG.test(u)) continue;
       // الرابط قد يكون نسبياً (بدون https) — نحوّله لمطلق
       try {
         return new URL(u, window.location.href).href;
@@ -174,6 +177,7 @@
       var cand = goodImg(imgs[ii]);
       if (cand) { imageUrl = cand; break; }
     }
+    if (!imageUrl) { var ogi0 = q('meta[property="og:image"]'); if (ogi0 && ogi0.content && !BAD_IMG.test(ogi0.content)) imageUrl = ogi0.content; }
     if (!imageUrl) {
       var bgs = qa('[class*="crop-image"], [class*="main-image"], [class*="gallery"]');
       for (var bi = 0; bi < bgs.length; bi++) {
@@ -214,12 +218,45 @@
     };
   }
 
+  /// يتأكد أن رابط الصورة يعمل فعلاً وليس صورة SHEIN الرمادية الصغيرة
+  function verifyImage(url) {
+    return new Promise(function (resolve) {
+      if (!url) { resolve(''); return; }
+      var im = new Image();
+      var done = false;
+      var t = setTimeout(function () {
+        if (!done) { done = true; resolve(url); }
+      }, 2000);
+      im.onload = function () {
+        if (done) return;
+        done = true; clearTimeout(t);
+        var w = im.naturalWidth || 0;
+        var h = im.naturalHeight || 0;
+        resolve(w >= 150 && h >= 150 ? url : '');
+      };
+      im.onerror = function () {
+        if (done) return;
+        done = true; clearTimeout(t);
+        resolve('');
+      };
+      im.src = url;
+    });
+  }
+
   function addFromPage(button) {
     var p = readCurrentProduct();
     if (!p) { toast('تعذر قراءة بيانات المنتج.'); return; }
     if (button) { button.disabled = true; button.textContent = 'جارٍ الإضافة...'; }
 
-    callBridge('addToCart', p).then(function (r) {
+    var ogBackup = (function () { var m = q('meta[property="og:image"]'); return m && m.content ? m.content : ''; })();
+
+    verifyImage(p.imageUrl).then(function (okUrl) {
+      if (okUrl) { p.imageUrl = okUrl; return; }
+      // الرابط الأول لم يصلح: نجرّب og:image ثم نُرسل بلا صورة (يحتفظ السطر بصورته)
+      return verifyImage(ogBackup).then(function (alt) { p.imageUrl = alt || ''; });
+    }).then(function () {
+      return callBridge('addToCart', p);
+    }).then(function (r) {
       var st = r && r.status ? r.status : 'ok';
       if (st === 'offline') {
         toast('تعذر الاتصال بالتطبيق. حاول مجددًا.');
@@ -230,20 +267,47 @@
         if (p.size) bits.push('المقاس: ' + p.size);
         if (p.color) bits.push('اللون: ' + p.color);
         bits.push(p.imageUrl ? 'صورة ✓' : 'بلا صورة ✗');
-        toast('✓ أُضيف إلى سلة سيلو — ' + bits.join(' · '));
+        if (EDIT_MODE) {
+          try { sessionStorage.removeItem('selooEdit'); } catch (e) {}
+          EDIT_MODE = false;
+        }
+        toast(EDIT_MODE === false && bits.length ? '✓ تم حفظ التعديل — ' + bits.join(' · ') : '✓ أُضيف إلى سلة سيلو — ' + bits.join(' · '));
       }
-      if (button) { button.disabled = false; button.textContent = '🛒 أضف إلى سلة سيلو'; }
+      if (button) { button.disabled = false; button.textContent = EDIT_MODE ? '💾 حفظ التعديل' : '🛒 أضف إلى سلة سيلو'; }
+    }).catch(function (e) {
+      toast('تعذر إكمال العملية. حاول مجددًا.');
+      if (button) { button.disabled = false; button.textContent = EDIT_MODE ? '💾 حفظ التعديل' : '🛒 أضف إلى سلة سيلو'; }
     });
   }
 
   window.__selooAddCurrentProduct = function () { addFromPage(null); return true; };
+
+  // وضع التعديل يبقى محفوظاً طوال الجلسة (صفحة البحث ← صفحة المنتج)
+  var EDIT_MODE = (function () {
+    var flagged = /[?&]seloo_edit=1/.test(window.location.search);
+    try {
+      if (flagged) sessionStorage.setItem('selooEdit', '1');
+      return flagged || sessionStorage.getItem('selooEdit') === '1';
+    } catch (e) {
+      return flagged;
+    }
+  })();
+
+  function scrollToVariants() {
+    try {
+      var t = qa('[class*="product-intro__size"], [class*="size-attr"], [class*="sku"], [class*="goods-sku"]');
+      if (t && t.length && t[0].scrollIntoView) {
+        t[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    } catch (e) {}
+  }
 
   function buildFab() {
     if (document.getElementById('seloo-fab')) return;
     var fab = document.createElement('button');
     fab.id = 'seloo-fab';
     fab.type = 'button';
-    fab.textContent = '🛒 أضف إلى سلة سيلو';
+    fab.textContent = EDIT_MODE ? '💾 حفظ التعديل' : '🛒 أضف إلى سلة سيلو';
     fab.style.cssText = 'position:fixed;bottom:96px;right:14px;z-index:2147483000;background:#7c3aed;color:#fff;border:0;border-radius:50px;padding:13px 18px;font-size:14px;font-weight:700;box-shadow:0 6px 20px rgba(124,58,237,.5)';
     fab.addEventListener('click', function () {
       if (fab.disabled) return;
@@ -458,9 +522,14 @@
   }
 
   function sync() {
+    if (document.visibilityState === 'hidden') return;
     if (isProductPage()) {
       buildFab();
       removeBulkButton();
+      if (EDIT_MODE && !window.__selooScrolled) {
+        window.__selooScrolled = true;
+        setTimeout(scrollToVariants, 900);
+      }
       return;
     }
     removeFab();
