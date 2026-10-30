@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:app_links/app_links.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 import 'core/config/seloo_config.dart';
@@ -37,7 +36,6 @@ Future<void> main() async {
 
   // 4) استقبال روابط المشاركة من شي إن (مشاركة ← يمن سيلو)
   _listenForSharedLinks();
-  _listenForDeepLinks();
 
   // 5) افتح التطبيق
   runApp(const SelooApp());
@@ -103,44 +101,6 @@ String _extractSheinUrl(String text) {
   }
 
   return '';
-}
-
-// ═══ استقبال روابط https الخاصة بشي إن (فتح بواسطة يمن سيلو) ═══
-StreamSubscription<Uri>? _linkSub;
-
-void _listenForDeepLinks() {
-  try {
-    final AppLinks links = AppLinks();
-
-    links.getInitialLink().then((Uri? uri) {
-      if (uri != null) _openLink(uri);
-    }).catchError((Object e) {
-      debugPrint('[Seloo] app_links initial error: $e');
-    });
-
-    _linkSub = links.uriLinkStream.listen(
-      (Uri uri) => _openLink(uri),
-      onError: (Object e) => debugPrint('[Seloo] app_links stream error: $e'),
-    );
-  } catch (e) {
-    debugPrint('[Seloo] app_links init failed: $e');
-  }
-}
-
-void _openLink(Uri uri) {
-  final String raw = uri.toString();
-  if (raw.isEmpty) return;
-  if (!raw.toLowerCase().contains('shein')) return;
-
-  debugPrint('[Seloo] deep link: $raw');
-  WidgetsBinding.instance.addPostFrameCallback((_) async {
-    await Future<void>.delayed(const Duration(milliseconds: 400));
-    try {
-      Get.toNamed('/shein', arguments: <String, dynamic>{'shareCartUrl': raw});
-    } catch (e) {
-      debugPrint('[Seloo] deep link navigate failed: $e');
-    }
-  });
 }
 
 void _handleShared(List<SharedMediaFile> items) {
