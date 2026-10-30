@@ -168,6 +168,16 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
       appBar: AppBar(
         backgroundColor: _isCrawling ? const Color(0xFF10B981) : const Color(0xFF7C3AED),
         title: Text(_isCrawling ? 'جاري الاستيراد ($_currentCrawlIndex/$_totalCrawlItems)' : 'استيراد السلة', style: const TextStyle(fontSize: 16)),
+        actions: <Widget>[
+          IconButton(
+            tooltip: 'تحديث الصفحة',
+            icon: const Icon(Icons.refresh),
+            onPressed: () async {
+              setState(() => _isLoading = true);
+              await _webViewController?.reload();
+            },
+          ),
+        ],
         leading: IconButton(icon: const Icon(Icons.close), onPressed: () {
           if (_isCrawling) {
             setState(() => _isCrawling = false);
@@ -195,7 +205,13 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
             )
           else
             Expanded(
-              child: InAppWebView(
+              child: RefreshIndicator(
+                color: const Color(0xFF7C3AED),
+                onRefresh: () async {
+                  await _webViewController?.reload();
+                  await Future<void>.delayed(const Duration(milliseconds: 600));
+                },
+                child: InAppWebView(
               initialUrlRequest: URLRequest(url: WebUri(_initialUrl), headers: <String, String>{'Accept-Language': 'ar,ar-SA;q=0.9,en;q=0.5'}),
               initialSettings: _buildSettings(),
               onWebViewCreated: (controller) async {
@@ -264,6 +280,7 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                 return NavigationActionPolicy.CANCEL;
               },
               onProgressChanged: (c, p) { setState(() => _progress = p / 100); },
+              ),
             ),
           ),
         ],
