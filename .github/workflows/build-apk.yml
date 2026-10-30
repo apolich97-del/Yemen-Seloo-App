@@ -128,13 +128,103 @@ jobs:
           ''')
               added.append('SEND image/*')
 
+          if 'android.intent.action.VIEW' not in s:
+              hosts = ['m.shein.com', 'shein.com', 'www.shein.com',
+                       'ar.shein.com', 'onelink.shein.com']
+              data_lines = chr(10).join([
+                  '                    <data android:scheme="https" android:host="%s" />' % h
+                  for h in hosts
+              ])
+              filters.append('''        <intent-filter>
+                      <action android:name="android.intent.action.VIEW" />
+                      <category android:name="android.intent.category.DEFAULT" />
+                      <category android:name="android.intent.category.BROWSABLE" />
+          ''' + data_lines + '''
+                  </intent-filter>
+          ''')
+              added.append('VIEW https shein hosts')
+
+          if 'android:scheme="yemenseloo"' not in s:
+              filters.append('''        <intent-filter>
+                      <action android:name="android.intent.action.VIEW" />
+                      <category android:name="android.intent.category.DEFAULT" />
+                      <category android:name="android.intent.category.BROWSABLE" />
+                      <data android:scheme="yemenseloo" />
+                  </intent-filter>
+          ''')
+              added.append('VIEW yemenseloo')
+
           if filters:
               s = s.replace('</activity>', chr(10).join(filters) + '    </activity>', 1)
               p.write_text(s)
 
           final = p.read_text()
           print('added:', added)
-          print('verified:', all(k in final for k in ['text/plain', 'image/*']))
+          print('verified:', all(k in final for k in
+                ['text/plain', 'image/*', 'android.intent.action.VIEW',
+                 'yemenseloo']))
+          PYEOF
+
+      - name: قناة استقبال الروابط (MainActivity)
+        run: |
+          python3 << 'PYEOF'
+          from pathlib import Path
+          import glob
+
+          files = glob.glob('android/app/src/main/kotlin/**/MainActivity.kt', recursive=True)
+          if not files:
+              raise SystemExit('MainActivity.kt غير موجود')
+          path = Path(files[0])
+          old = path.read_text()
+          package = 'com.yemenseloo.yemen_seloo'
+          for line in old.splitlines():
+              if line.strip().startswith('package '):
+                  package = line.strip().split('package ')[1]
+                  break
+
+          code = """package %s
+
+          import android.content.Intent
+          import io.flutter.embedding.android.FlutterActivity
+          import io.flutter.embedding.engine.FlutterEngine
+          import io.flutter.plugin.common.MethodChannel
+
+          class MainActivity : FlutterActivity() {
+              private var channel: MethodChannel? = null
+              private var pendingLink: String? = null
+
+              override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+                  super.configureFlutterEngine(flutterEngine)
+                  channel = MethodChannel(
+                      flutterEngine.dartExecutor.binaryMessenger,
+                      "seloo/deeplink"
+                  )
+                  channel!!.setMethodCallHandler { call, result ->
+                      if (call.method == "getInitialLink") {
+                          result.success(pendingLink ?: intent?.dataString)
+                          pendingLink = null
+                      } else {
+                          result.notImplemented()
+                      }
+                  }
+                  pendingLink = pendingLink ?: intent?.dataString
+              }
+
+              override fun onNewIntent(intent: Intent) {
+                  super.onNewIntent(intent)
+                  val url = intent.dataString
+                  val ch = channel
+                  if (url != null && ch != null) {
+                      ch.invokeMethod("onLink", url)
+                  } else if (url != null) {
+                      pendingLink = url
+                  }
+              }
+          }
+          """ % package
+
+          path.write_text(code.lstrip(), encoding='utf-8')
+          print('MainActivity محدّث:', path)
           PYEOF
 
       - name: تعديل settings.gradle (Kotlin فقط)
