@@ -132,6 +132,8 @@
     if (!price) price = 0.01;
 
     var BAD_IMG = /placeholder|loading|transparent|noimage|no_image|blank|grey|gray|default\.(png|jpg)|icon\//i;
+    // صور منتجات شي إن الحقيقية دائماً تحت مسار imagesN_pi
+    var PRODUCT_IMG = /\/images\d+_pi\//i;
 
     function goodImg(el) {
       if (!el) return '';
@@ -161,6 +163,7 @@
         if (!u || u.indexOf('data:') === 0) continue;
         if (!/\.(jpg|jpeg|png|webp)/i.test(u)) continue;
         if (BAD_IMG.test(u)) continue;
+      if (!PRODUCT_IMG.test(u)) continue; // ليست صورة منتج (شعار/نائب)
         // الرابط قد يكون نسبياً (بدون https) — نحوّله لمطلق
         try {
           return new URL(u, window.location.href).href;
@@ -179,8 +182,12 @@
     }
     // og:image أصدق مصدر لصورة المنتج (لا يتأثر بالصور النائبة أو المصغرات)
     var ogFirst = q('meta[property="og:image"]');
-    if (ogFirst && ogFirst.content && !BAD_IMG.test(ogFirst.content)) {
-      imageUrl = ogFirst.content;
+    if (ogFirst && ogFirst.content) {
+      var ogUrl = ogFirst.content;
+      // og:image قد يكون شعار شي إن النائب — نقبله فقط كصورة منتج
+      if (PRODUCT_IMG.test(ogUrl) && !BAD_IMG.test(ogUrl)) {
+        imageUrl = ogUrl;
+      }
     }
     if (!imageUrl) {
       var bgs = qa('[class*="crop-image"], [class*="main-image"], [class*="gallery"]');
@@ -197,7 +204,7 @@
       var anyImg = qa('img');
       for (var jj = 0; jj < anyImg.length; jj++) {
         var c2 = goodImg(anyImg[jj]);
-        if (c2 && c2.indexOf('ltwebstatic') !== -1) { imageUrl = c2; break; }
+        if (c2 && PRODUCT_IMG.test(c2)) { imageUrl = c2; break; }
       }
     }
     if (imageUrl.indexOf('//') === 0) imageUrl = 'https:' + imageUrl;
