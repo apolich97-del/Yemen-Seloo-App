@@ -1,4 +1,6 @@
 
+import 'dart:convert';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/config/seloo_config.dart';
 import '../../shein/application/shein_cart_importer.dart';
 import '../application/cart_counter.dart';
+import '../data/seloo_cart_link.dart';
 import '../domain/cart_item.dart';
 
 const Color _purple = Color(0xFF7C3AED);
@@ -89,6 +92,10 @@ class _CartScreenState extends State<CartScreen> {
       // نحفظ رابط السلة المشترك لتُرفَق به رسالة واتساب لاحقاً
       try {
         GetStorage().write('seloo_last_share_url', text);
+        // نحفظ أسطر هذه السلة ليُرفَق الرابط فقط إن طابق محتوى السلة الحالي
+        final List<String> ids =
+            _cart.items.map((CartItem e) => e.lineId).toList();
+        GetStorage().write('seloo_share_link_lines', jsonEncode(ids));
       } catch (_) {}
 
       _shareCartController.clear();
@@ -393,9 +400,18 @@ class _CartScreenState extends State<CartScreen> {
     try {
       final String? cartLink =
           GetStorage().read<String>('seloo_last_share_url');
-      if (cartLink != null && cartLink.trim().isNotEmpty) {
+      if (cartLink != null && cartLink.trim().isNotEmpty && _cartMatchesLink()) {
         b.writeln('🛒 رابط السلة كاملة في شي إن:');
         b.writeln(cartLink.trim());
+        b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
+      }
+    } catch (_) {}
+
+    // رابط سلة يمن سيلو الكاملة (كل المنتجات في رابط واحد)
+    try {
+      if (_cart.items.isNotEmpty) {
+        b.writeln('🛒 *سلة كاملة — كل المنتجات في رابط واحد:*');
+        b.writeln(SelooCartLink.webLink(_cart.items));
         b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
       }
     } catch (_) {}
@@ -406,6 +422,22 @@ class _CartScreenState extends State<CartScreen> {
     b.writeln('خدمتكم غايتنا وثقتكم هدفنا');
 
     return b.toString();
+  }
+
+  /// هل السلة الحالية هي نفس السلة المستوردة من الرابط؟ (وإلا فالرابط مضلِّل)
+  bool _cartMatchesLink() {
+    try {
+      final String? raw = GetStorage().read<String>('seloo_share_link_lines');
+      if (raw == null || raw.isEmpty) return false;
+      final Object? parsed = jsonDecode(raw);
+      if (parsed is! List) return false;
+      final Set<String> saved = parsed.map((Object? e) => '$e').toSet();
+      if (saved.isEmpty) return false;
+      // كل سطر في السلة يجب أن يكون من تلك السلة المستوردة
+      return _cart.items.every((CartItem e) => saved.contains(e.lineId));
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> _sendWhatsApp(String message) async {
