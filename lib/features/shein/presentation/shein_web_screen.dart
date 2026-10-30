@@ -186,6 +186,15 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
           }
         }),
       ),
+      floatingActionButton: FloatingActionButton.small(
+        backgroundColor: const Color(0xFF7C3AED),
+        tooltip: 'تحديث الصفحة',
+        onPressed: () async {
+          setState(() => _isLoading = true);
+          await _webViewController?.reload();
+        },
+        child: const Icon(Icons.refresh, color: Colors.white),
+      ),
       body: Column(
         children: <Widget>[
           if (_isLoading && _progress < 1)
