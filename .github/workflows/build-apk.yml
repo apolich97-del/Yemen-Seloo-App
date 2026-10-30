@@ -128,30 +128,13 @@ jobs:
           ''')
               added.append('SEND image/*')
 
-          if 'android.intent.action.VIEW' not in s:
-              hosts = ['m.shein.com', 'shein.com', 'www.shein.com',
-                       'ar.shein.com', 'onelink.shein.com']
-              data_lines = chr(10).join([
-                  '                    <data android:scheme="https" android:host="%s" />' % h
-                  for h in hosts
-              ])
-              filters.append('''        <intent-filter>
-                      <action android:name="android.intent.action.VIEW" />
-                      <category android:name="android.intent.category.DEFAULT" />
-                      <category android:name="android.intent.category.BROWSABLE" />
-          ''' + data_lines + '''
-                  </intent-filter>
-          ''')
-              added.append('VIEW https shein hosts')
-
           if filters:
               s = s.replace('</activity>', chr(10).join(filters) + '    </activity>', 1)
               p.write_text(s)
 
           final = p.read_text()
           print('added:', added)
-          print('verified:', all(k in final for k in
-                ['text/plain', 'image/*', 'android.intent.action.VIEW']))
+          print('verified:', all(k in final for k in ['text/plain', 'image/*']))
           PYEOF
 
       - name: تعديل settings.gradle (Kotlin فقط)
