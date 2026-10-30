@@ -1,3 +1,4 @@
+import '../data/shein_image_resolver.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
@@ -51,9 +52,21 @@ class SheinBridgeController {
   }
 
   Future<Map<String, dynamic>> _handleAddToCart(Map<String, dynamic> payload) async {
+    // صور صفحة شي إن قد تكون نائبة، فنجلب صورة المنتج الحقيقية من og:image
+    final Map<String, dynamic> safePayload =
+        Map<String, dynamic>.from(payload);
+    final String goodsIdRaw = (safePayload['goodsId'] ?? '').toString().trim();
+    if (RegExp(r'^\d+$').hasMatch(goodsIdRaw)) {
+      final String? realImage =
+          await SheinImageResolver.byGoodsId(goodsIdRaw);
+      if (realImage != null && realImage.isNotEmpty) {
+        safePayload['imageUrl'] = realImage;
+      }
+    }
+
     final SheinDraft draft;
     try {
-      draft = SheinDraft.fromBridgePayload(payload);
+      draft = SheinDraft.fromBridgePayload(safePayload);
     } on DraftValidationException catch (error) {
       onCrawlStepFailed?.call();
       return _reply('invalid', 'بيانات المنتج غير مكتملة');
