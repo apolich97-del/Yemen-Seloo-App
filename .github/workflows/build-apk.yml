@@ -101,25 +101,57 @@ jobs:
           sed -i 's|android:label="[^"]*"|android:label="يمن سيلو"|' "$F"
           grep "android:label" "$F"
 
-      - name: استقبال روابط المشاركة من شي إن (intent-filter)
+      - name: استقبال روابط ومشاركات شي إن (intent-filter)
         run: |
           python3 << 'PYEOF'
           from pathlib import Path
           p = Path('android/app/src/main/AndroidManifest.xml')
           s = p.read_text()
-          if 'android.intent.action.SEND' in s:
-              print('موجود مسبقا')
-          else:
-              filt = '''        <intent-filter>
+          filters = []
+          added = []
+
+          if 'android.intent.action.SEND' not in s or 'text/plain' not in s:
+              filters.append('''        <intent-filter>
                       <action android:name="android.intent.action.SEND" />
                       <category android:name="android.intent.category.DEFAULT" />
                       <data android:mimeType="text/plain" />
                   </intent-filter>
-          '''
-              s = s.replace('</activity>', filt + '    </activity>', 1)
+          ''')
+              added.append('SEND text/plain')
+
+          if 'image/*' not in s:
+              filters.append('''        <intent-filter>
+                      <action android:name="android.intent.action.SEND" />
+                      <category android:name="android.intent.category.DEFAULT" />
+                      <data android:mimeType="image/*" />
+                  </intent-filter>
+          ''')
+              added.append('SEND image/*')
+
+          if 'android.intent.action.VIEW' not in s:
+              hosts = ['m.shein.com', 'shein.com', 'www.shein.com',
+                       'ar.shein.com', 'onelink.shein.com']
+              data_lines = chr(10).join([
+                  '                    <data android:scheme="https" android:host="%s" />' % h
+                  for h in hosts
+              ])
+              filters.append('''        <intent-filter>
+                      <action android:name="android.intent.action.VIEW" />
+                      <category android:name="android.intent.category.DEFAULT" />
+                      <category android:name="android.intent.category.BROWSABLE" />
+          ''' + data_lines + '''
+                  </intent-filter>
+          ''')
+              added.append('VIEW https shein hosts')
+
+          if filters:
+              s = s.replace('</activity>', chr(10).join(filters) + '    </activity>', 1)
               p.write_text(s)
-              print('تمت إضافة intent-filter للمشاركة')
-          print('SEND' in p.read_text())
+
+          final = p.read_text()
+          print('added:', added)
+          print('verified:', all(k in final for k in
+                ['text/plain', 'image/*', 'android.intent.action.VIEW']))
           PYEOF
 
       - name: تعديل settings.gradle (Kotlin فقط)
