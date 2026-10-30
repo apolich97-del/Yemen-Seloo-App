@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
@@ -10,6 +11,9 @@ import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 import 'core/config/seloo_config.dart';
 import 'features/cart/application/cart_counter.dart';
+import 'features/cart/data/seloo_cart_link.dart';
+import 'features/cart/data/seloo_cart_service.dart';
+import 'features/shein/domain/shein_draft.dart';
 import 'features/cart/presentation/cart_screen.dart';
 import 'features/checkout/presentation/checkout_screen.dart';
 import 'features/home/presentation/main_shell.dart';
@@ -36,6 +40,7 @@ Future<void> main() async {
 
   // 4) استقبال روابط المشاركة من شي إن (مشاركة ← يمن سيلو)
   _listenForSharedLinks();
+  _listenForDeepLinks();
 
   // 5) افتح التطبيق
   runApp(const SelooApp());
@@ -101,6 +106,46 @@ String _extractSheinUrl(String text) {
   }
 
   return '';
+}
+
+// ═══ روابط شي إن القادمة من أندرويد (فتح بواسطة يمن سيلو) ═══
+const MethodChannel _deeplinkChannel = MethodChannel('seloo/deeplink');
+
+void _listenForDeepLinks() {
+  _deeplinkChannel.setMethodCallHandler((MethodCall call) async {
+    if (call.method == 'onLink') {
+      final Object? arg = call.arguments;
+      if (arg is String && arg.isNotEmpty) _openLink(arg);
+    }
+  });
+
+  _deeplinkChannel.invokeMethod<String>('getInitialLink').then((String? raw) {
+    if (raw != null && raw.isNotEmpty) _openLink(raw);
+  }).catchError((Object e) {
+    debugPrint('[Seloo] initial link error: $e');
+  });
+}
+
+void _openLink(String raw) {
+  if (raw.isEmpty) return;
+
+  // رابط سلة يمن سيلو الكاملة
+  if (raw.startsWith('yemenseloo://')) {
+    _importCartFromLink(raw);
+    return;
+  }
+
+  if (!raw.toLowerCase().contains('shein')) return;
+
+  debugPrint('[Seloo] link: $raw');
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    try {
+      Get.toNamed('/shein', arguments: <String, dynamic>{'shareCartUrl': raw});
+    } catch (e) {
+      debugPrint('[Seloo] link navigate failed: $e');
+    }
+  });
 }
 
 void _handleShared(List<SharedMediaFile> items) {
