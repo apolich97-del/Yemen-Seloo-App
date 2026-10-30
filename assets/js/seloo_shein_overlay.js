@@ -177,7 +177,11 @@
       var cand = goodImg(imgs[ii]);
       if (cand) { imageUrl = cand; break; }
     }
-    if (!imageUrl) { var ogi0 = q('meta[property="og:image"]'); if (ogi0 && ogi0.content && !BAD_IMG.test(ogi0.content)) imageUrl = ogi0.content; }
+    // og:image أصدق مصدر لصورة المنتج (لا يتأثر بالصور النائبة أو المصغرات)
+    var ogFirst = q('meta[property="og:image"]');
+    if (ogFirst && ogFirst.content && !BAD_IMG.test(ogFirst.content)) {
+      imageUrl = ogFirst.content;
+    }
     if (!imageUrl) {
       var bgs = qa('[class*="crop-image"], [class*="main-image"], [class*="gallery"]');
       for (var bi = 0; bi < bgs.length; bi++) {
@@ -218,6 +222,51 @@
     };
   }
 
+
+  /// يكشف صورة SHEIN النائبة (صندوق رمادي بشعار) عبر تحليل البكسلات
+  function looksLikePlaceholder(url) {
+    return new Promise(function (resolve) {
+      var im = new Image();
+      im.crossOrigin = 'anonymous';
+      var settled = false;
+      var t = setTimeout(function () {
+        if (!settled) { settled = true; resolve(false); }
+      }, 1800);
+
+      im.onload = function () {
+        if (settled) return;
+        settled = true; clearTimeout(t);
+        try {
+          var c = document.createElement('canvas');
+          c.width = 40; c.height = 40;
+          var ctx = c.getContext('2d');
+          ctx.drawImage(im, 0, 0, 40, 40);
+          var d = ctx.getImageData(0, 0, 40, 40).data;
+          var sum = 0, sum2 = 0, n = 0, grayLight = 0;
+          for (var i = 0; i < d.length; i += 4) {
+            var r = d[i], g = d[i + 1], b = d[i + 2];
+            var lum = 0.299 * r + 0.587 * g + 0.114 * b;
+            sum += lum; sum2 += lum * lum; n++;
+            if (Math.abs(r - g) < 14 && Math.abs(g - b) < 14 && lum > 195) grayLight++;
+          }
+          var mean = sum / n;
+          var variance = (sum2 / n) - (mean * mean);
+          var grayRatio = grayLight / n;
+          // تباين منخفض جداً أو أغلبها رمادي فاتح = صورة نائبة
+          resolve(variance < 300 || grayRatio > 0.7);
+        } catch (e) {
+          resolve(false); // لا يمكن قراءة البكسلات (CORS) — لا نحكم
+        }
+      };
+      im.onerror = function () {
+        if (settled) return;
+        settled = true; clearTimeout(t);
+        resolve(false);
+      };
+      im.src = url;
+    });
+  }
+
   /// يتأكد أن رابط الصورة يعمل فعلاً وليس صورة SHEIN الرمادية الصغيرة
   function verifyImage(url) {
     return new Promise(function (resolve) {
@@ -232,7 +281,18 @@
         done = true; clearTimeout(t);
         var w = im.naturalWidth || 0;
         var h = im.naturalHeight || 0;
-        resolve(w >= 150 && h >= 150 ? url : '');
+        if (w < 150 || h < 150) { resolve(''); return; }
+        // الصور النائبة (شعار SHEIN الرمادي) ملفات صغيرة جداً — نقيس حجمها
+        fetch(url, { credentials: 'omit' })
+          .then(function (r) { return r.ok ? r.blob() : null; })
+          .then(function (b) {
+            if (!b) { resolve(url); return; }
+            if (b.size < 8000) { resolve(''); return; }
+            looksLikePlaceholder(url).then(function (isBad) {
+              resolve(isBad ? '' : url);
+            });
+          })
+          .catch(function () { resolve(url); });
       };
       im.onerror = function () {
         if (done) return;
