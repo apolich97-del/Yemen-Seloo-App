@@ -1014,6 +1014,31 @@ class _CartLineTile extends StatelessWidget {
   final VoidCallback onRemove;
   final VoidCallback onEdit;
 
+  /// ضغطة طويلة على الصورة تكشف رابطها — للتشخيص فقط
+  void _showImageDebug(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext ctx) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text('رابط صورة المنتج'),
+          content: SingleChildScrollView(
+            child: SelectableText(
+              item.imageUrl.isEmpty ? '(فارغ)' : item.imageUrl,
+              style: const TextStyle(fontSize: 12),
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('إغلاق'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1030,6 +1055,7 @@ class _CartLineTile extends StatelessWidget {
             children: <Widget>[
               GestureDetector(
                 onTap: onEdit,
+                onLongPress: () => _showImageDebug(context),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: SizedBox(
