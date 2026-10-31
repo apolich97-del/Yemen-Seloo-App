@@ -148,6 +148,42 @@ void _openLink(String raw) {
   });
 }
 
+/// يستورد سلة يمن سيلو كاملة من رابط
+Future<void> _importCartFromLink(String raw) async {
+  final List<SheinDraft> drafts = SelooCartLink.draftsFromLink(raw);
+  if (drafts.isEmpty) {
+    Get.snackbar('رابط غير صالح', 'لم أجد منتجات في هذا الرابط',
+        snackPosition: SnackPosition.BOTTOM);
+    return;
+  }
+
+  final SelooCartService service = SelooCartService();
+  int added = 0;
+  for (final SheinDraft draft in drafts) {
+    try {
+      final BridgeResult result = await service.addToCart(draft);
+      if (result.status == 'ok') added++;
+    } catch (e) {
+      debugPrint('[Seloo] cart link item failed: $e');
+    }
+  }
+
+  try {
+    await Get.find<CartCounter>().refreshQuote();
+  } catch (_) {}
+
+  Get.snackbar(
+    added > 0 ? '✓ تم فتح السلة' : 'لم تُضف منتجات',
+    added > 0 ? 'أُضيف $added منتج إلى سلة يمن سيلو' : 'المنتجات موجودة مسبقاً',
+    snackPosition: SnackPosition.BOTTOM,
+    duration: const Duration(seconds: 4),
+  );
+
+  try {
+    Get.toNamed('/cartScreen');
+  } catch (_) {}
+}
+
 void _handleShared(List<SharedMediaFile> items) {
   for (final SharedMediaFile item in items) {
     if (item.type == SharedMediaType.image) {
