@@ -34,7 +34,7 @@ class SheinImageResolver {
   /// يُرجع رابط صورة مطلقاً أو null.
   static Future<String?> byGoodsId(
     String goodsId, {
-    Duration timeout = const Duration(seconds: 12),
+    Duration timeout = const Duration(seconds: 6),
   }) async {
     final String id = goodsId.trim();
     if (id.isEmpty || !RegExp(r'^\d+$').hasMatch(id)) return null;
