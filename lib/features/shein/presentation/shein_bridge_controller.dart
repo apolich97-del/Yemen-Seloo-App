@@ -51,18 +51,25 @@ class SheinBridgeController {
     );
   }
 
+  /// يجلب صورة المنتج الحقيقية بعد الإضافة ويضعها على السطر (بلا تعطيل الواجهة)
+  Future<void> _resolveImageLater(String goodsId) async {
+    try {
+      final String? real = await SheinImageResolver.byGoodsId(goodsId);
+      if (real == null || real.isEmpty) return;
+      final bool patched = await _cartService.patchImage(goodsId, real);
+      if (patched) {
+        try { await Get.find<CartCounter>().refreshQuote(); } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
   Future<Map<String, dynamic>> _handleAddToCart(Map<String, dynamic> payload) async {
     // صور صفحة شي إن قد تكون نائبة، فنجلب صورة المنتج الحقيقية من og:image
     final Map<String, dynamic> safePayload =
         Map<String, dynamic>.from(payload);
     final String goodsIdRaw = (safePayload['goodsId'] ?? '').toString().trim();
-    if (RegExp(r'^\d+$').hasMatch(goodsIdRaw)) {
-      final String? realImage =
-          await SheinImageResolver.byGoodsId(goodsIdRaw);
-      if (realImage != null && realImage.isNotEmpty) {
-        safePayload['imageUrl'] = realImage;
-      }
-    }
+    // لا ننتظر جلب الصورة: نضيف السطر فوراً ثم نُصلح صورته في الخلفية
+    final String imageFromPage = (safePayload['imageUrl'] ?? '').toString();
 
     final SheinDraft draft;
     try {
@@ -76,6 +83,14 @@ class SheinBridgeController {
       final BridgeResult result =
           await _cartService.addToCart(draft, editingLineId: editingLineId);
       try { await Get.find<CartCounter>().onItemAdded(); } catch (_) {}
+
+      // الصورة تصل لاحقاً بلا أن تُبطئ الإضافة
+      if (result.isOk &&
+          imageFromPage.trim().isEmpty &&
+          RegExp(r'^\d+$').hasMatch(goodsIdRaw)) {
+        unawaited(_resolveImageLater(goodsIdRaw));
+      }
+
       return result.toJson();
     } catch (e) {
       onCrawlStepFailed?.call();
