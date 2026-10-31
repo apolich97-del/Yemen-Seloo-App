@@ -103,10 +103,11 @@ class SheinImageResolver {
     try {
       client = HttpClient()
         ..connectionTimeout = timeout
-        ..userAgent = _userAgent
-        ..followRedirects = true;
+        ..userAgent = _userAgent;
 
       final HttpClientRequest req = await client.getUrl(Uri.parse(url));
+      req.followRedirects = true;
+      req.maxRedirects = 5;
       req.headers.set(HttpHeaders.acceptLanguageHeader, 'ar,ar-SA;q=0.9,en;q=0.6');
       req.headers.set(HttpHeaders.refererHeader, 'https://m.shein.com/ar/');
       req.headers.set(HttpHeaders.acceptHeader,
