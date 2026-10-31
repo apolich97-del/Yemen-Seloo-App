@@ -216,6 +216,24 @@ class SelooCartService {
     }
   }
 
+  /// يضع صورة المنتج على آخر سطر لنفس المعرّف إن كانت صورته فارغة.
+  /// يُستدعى في الخلفية بعد إضافة السطر فلا يُبطئ الإضافة.
+  Future<bool> patchImage(String goodsId, String imageUrl) async {
+    if (goodsId.isEmpty || imageUrl.trim().isEmpty) return false;
+    try {
+      final List<CartItem> items = loadItems();
+      final int index = items.lastIndexWhere(
+        (CartItem e) => e.goodsId == goodsId && e.imageUrl.trim().isEmpty,
+      );
+      if (index == -1) return false;
+      items[index] = items[index].copyWith(imageUrl: imageUrl.trim());
+      await _saveItems(items);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<BridgeResult> removeLine(String lineId) async {
     try {
       final List<CartItem> currentItems = loadItems();
