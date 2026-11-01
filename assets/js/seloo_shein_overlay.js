@@ -181,14 +181,8 @@
       if (cand) { imageUrl = cand; break; }
     }
     // og:image Ø£ØµØ¯Ù‚ Ù…ØµØ¯Ø± Ù„ØµÙˆØ±Ø© Ø§Ù„Ù…Ù†ØªØ¬ (Ù„Ø§ ÙŠØªØ£Ø«Ø± Ø¨Ø§Ù„ØµÙˆØ± Ø§Ù„Ù†Ø§Ø¦Ø¨Ø© Ø£Ùˆ Ø§Ù„Ù…ØµØºØ±Ø§Øª)
-    var ogFirst = q('meta[property="og:image"]');
-    if (ogFirst && ogFirst.content) {
-      var ogUrl = ogFirst.content;
-      // og:image Ù‚Ø¯ ÙŠÙƒÙˆÙ† Ø´Ø¹Ø§Ø± Ø´ÙŠ Ø¥Ù† Ø§Ù„Ù†Ø§Ø¦Ø¨ â€” Ù†Ù‚Ø¨Ù„Ù‡ ÙÙ‚Ø· ÙƒØµÙˆØ±Ø© Ù…Ù†ØªØ¬
-      if (PRODUCT_IMG.test(ogUrl) && !BAD_IMG.test(ogUrl)) {
-        imageUrl = ogUrl;
-      }
-    }
+    // Ù„Ø§ Ù†Ø³ØªØ®Ø¯Ù… meta og:image: Ø´ÙŠ Ø¥Ù† ØªØ·Ø¨ÙŠÙ‚ Ø£Ø­Ø§Ø¯ÙŠ Ø§Ù„ØµÙØ­Ø© ÙˆÙ‚Ø¯ ÙŠØ­ØªÙØ¸ Ø¨ÙˆØ³Ù… Ø§Ù„Ù…Ù†ØªØ¬
+    // Ø§Ù„Ø³Ø§Ø¨Ù‚ ÙØªÙÙ†Ø³Ø¨ ØµÙˆØ±Ø© Ù…Ù†ØªØ¬ Ù„Ù…Ù†ØªØ¬ Ø¢Ø®Ø±.
     if (!imageUrl) {
       var bgs = qa('[class*="crop-image"], [class*="main-image"], [class*="gallery"]');
       for (var bi = 0; bi < bgs.length; bi++) {
@@ -231,7 +225,7 @@
 
 
   /// ÙŠØ¬Ù„Ø¨ og:image Ù…Ù† Ù†ÙØ³ Ø§Ù„ØµÙØ­Ø© (Ø¨ÙƒÙˆÙƒÙŠØ² Ø§Ù„Ø¬Ù„Ø³Ø©) â€” Ø£Ø³Ø±Ø¹ ÙˆØ£Ø¯Ù‚ Ù…Ù† Ø£ÙŠ Ø·Ù„Ø¨ Ø®Ø§Ø±Ø¬ÙŠ
-  function fetchOgImage() {
+  function fetchOgImage(goodsId) {
     return new Promise(function (resolve) {
       var done = false;
       var t = setTimeout(function () { if (!done) { done = true; resolve(''); } }, 2500);
@@ -241,6 +235,8 @@
           .then(function (html) {
             if (done) return;
             done = true; clearTimeout(t);
+            // Ø­Ù…Ø§ÙŠØ©: Ø¥Ù† ÙƒØ§Ù†Øª Ø§Ù„ØµÙØ­Ø© Ø§Ù„Ù…Ø¬Ù„ÙˆØ¨Ø© Ù„Ø§ ØªØ®Øµ Ù‡Ø°Ø§ Ø§Ù„Ù…Ù†ØªØ¬ ÙÙ‡ÙŠ Ù‚Ø¯ÙŠÙ…Ø© Ø£Ùˆ ØµÙØ­Ø© ØªØ­Ù‚Ù‚
+            if (goodsId && html.indexOf(goodsId) === -1) { resolve(''); return; }
             var m = html.match(/property=["']og:image["'][^>]*content=["']([^"']+)["']/i) ||
                     html.match(/content=["']([^"']+)["'][^>]*property=["']og:image["']/i);
             var u = m && m[1] ? m[1] : '';
@@ -340,15 +336,13 @@
     var wasEdit = EDIT_MODE;
     if (button) { button.disabled = true; button.textContent = 'Ø¬Ø§Ø±Ù Ø§Ù„Ø¥Ø¶Ø§ÙØ©...'; }
 
-    var ogBackup = (function () { var m = q('meta[property="og:image"]'); return m && m.content ? m.content : ''; })();
-
     verifyImage(p.imageUrl).then(function (okUrl) {
       if (okUrl) { p.imageUrl = okUrl; return null; }
-      // Ù„Ø§ ØµÙˆØ±Ø© ØµØ§Ù„Ø­Ø© ÙÙŠ Ø§Ù„ØµÙØ­Ø©: Ù†Ù‚Ø±Ø£ og:image Ù…Ù† Ù†ÙØ³ Ø§Ù„ØµÙØ­Ø© (Ø¨ÙƒÙˆÙƒÙŠØ² Ø§Ù„Ø¬Ù„Ø³Ø©)
-      return fetchOgImage().then(function (ogUrl) {
-        if (ogUrl) { p.imageUrl = ogUrl; return null; }
-        // Ø£Ø®ÙŠØ±Ø§Ù‹: og Ø§Ù„Ù…ÙˆØ¬ÙˆØ¯ ÙÙŠ Ø§Ù„ØµÙØ­Ø© Ø«Ù… Ù†ÙØ±Ø³Ù„ Ø¨Ù„Ø§ ØµÙˆØ±Ø©
-        return verifyImage(ogBackup).then(function (alt) { p.imageUrl = alt || ''; });
+      // Ù„Ø§ ØµÙˆØ±Ø© ØµØ§Ù„Ø­Ø© ÙÙŠ Ø§Ù„ØµÙØ­Ø©: Ù†Ù‚Ø±Ø£ og:image Ù…Ù† Ù†ÙØ³ Ø§Ù„Ù…Ù†ØªØ¬ (Ø¨ÙƒÙˆÙƒÙŠØ² Ø§Ù„Ø¬Ù„Ø³Ø©)
+      return fetchOgImage(p.goodsId).then(function (ogUrl) {
+        // Ø¥Ù† Ù„Ù… Ù†ØªÙŠÙ‚Ù‘Ù† Ù†ÙØ±Ø³Ù„ Ø¨Ù„Ø§ ØµÙˆØ±Ø©ØŒ ÙˆØ§Ù„ØªØ·Ø¨ÙŠÙ‚ ÙŠØ¬Ù„Ø¨Ù‡Ø§ Ø¨Ù…Ø¹Ø±Ù‘Ù Ø§Ù„Ù…Ù†ØªØ¬ Ù†ÙØ³Ù‡
+        p.imageUrl = ogUrl || '';
+        return null;
       });
     }).then(function () {
       return callBridge('addToCart', p);
