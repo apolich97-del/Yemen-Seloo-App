@@ -1,3 +1,4 @@
+
 import 'dart:convert';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -60,19 +61,19 @@ class _CartScreenState extends State<CartScreen> {
     }
   }
 
-  // Ø§Ø³ØªÙŠØ±Ø§Ø¯ Ø³Ù„Ø© SHEIN Ø§Ù„Ù…Ø´ØªØ±ÙƒØ© Ø¹Ø¨Ø± ÙˆØ§Ø¬Ù‡Ø© Ø§Ù„Ù…Ø³ØªÙˆØ±Ø¯ Ø§Ù„Ø­Ø§Ù„ÙŠØ©.
+  // استيراد سلة SHEIN المشتركة عبر واجهة المستورد الحالية.
   bool _refreshing = false;
 
-  /// Ø¥Ø¹Ø§Ø¯Ø© Ù‚Ø±Ø§Ø¡Ø© Ø§Ù„Ø³Ù„Ø© Ù…Ù† Ø§Ù„ØªØ®Ø²ÙŠÙ† ÙˆØ¥Ø¹Ø§Ø¯Ø© Ø­Ø³Ø§Ø¨ Ø§Ù„Ø£Ø³Ø¹Ø§Ø±
+  /// إعادة قراءة السلة من التخزين وإعادة حساب الأسعار
   Future<void> _refreshCart() async {
     if (_refreshing) return;
     _refreshing = true;
     try {
       await _cart.onItemAdded();
       await _cart.refreshQuote();
-      _snack('ØªÙ… ØªØ­Ø¯ÙŠØ« Ø§Ù„Ø³Ù„Ø©');
+      _snack('تم تحديث السلة');
     } catch (_) {
-      _snack('ØªØ¹Ø°Ù‘Ø± ØªØ­Ø¯ÙŠØ« Ø§Ù„Ø³Ù„Ø©');
+      _snack('تعذّر تحديث السلة');
     } finally {
       _refreshing = false;
     }
@@ -84,7 +85,7 @@ class _CartScreenState extends State<CartScreen> {
     final String text = _shareCartController.text.trim();
 
     if (text.isEmpty) {
-      _snack('Ø§Ù„ØµÙ‚ Ø±Ø§Ø¨Ø· Ø§Ù„Ø³Ù„Ø© Ø§Ù„Ù…Ø´ØªØ±ÙƒØ© Ø£ÙˆÙ„Ø§Ù‹');
+      _snack('الصق رابط السلة المشتركة أولاً');
       return;
     }
 
@@ -99,16 +100,16 @@ class _CartScreenState extends State<CartScreen> {
       setState(() => _importing = false);
 
       if (!result.success) {
-        _snack([result.me](https://result.me)ssage);
-        // Ø§Ù„Ù…Ø³Ø§Ø± Ø§Ù„Ù…Ø¶Ù…ÙˆÙ†: ÙØªØ­ Ø§Ù„Ø±Ø§Ø¨Ø· Ø¯Ø§Ø®Ù„ Ù…ØªØµÙØ­ Ø§Ù„ØªØ·Ø¨ÙŠÙ‚ (Ø²Ø± Ø§Ù„Ø²Ø­Ù Ø§Ù„Ø£Ø®Ø¶Ø±)
+        _snack(result.message);
+        // المسار المضمون: فتح الرابط داخل متصفح التطبيق (زر الزحف الأخضر)
         await Get.toNamed('/shein', arguments: {'shareCartUrl': text});
         return;
       }
 
-      // Ù†Ø­ÙØ¸ Ø±Ø§Ø¨Ø· Ø§Ù„Ø³Ù„Ø© Ø§Ù„Ù…Ø´ØªØ±Ùƒ Ù„ØªÙØ±ÙÙŽÙ‚ Ø¨Ù‡ Ø±Ø³Ø§Ù„Ø© ÙˆØ§ØªØ³Ø§Ø¨ Ù„Ø§Ø­Ù‚Ø§Ù‹
+      // نحفظ رابط السلة المشترك لتُرفَق به رسالة واتساب لاحقاً
       try {
         GetStorage().write('seloo_last_share_url', text);
-        // Ù†Ø­ÙØ¸ Ø£Ø³Ø·Ø± Ù‡Ø°Ù‡ Ø§Ù„Ø³Ù„Ø© Ù„ÙŠÙØ±ÙÙŽÙ‚ Ø§Ù„Ø±Ø§Ø¨Ø· ÙÙ‚Ø· Ø¥Ù† Ø·Ø§Ø¨Ù‚ Ù…Ø­ØªÙˆÙ‰ Ø§Ù„Ø³Ù„Ø© Ø§Ù„Ø­Ø§Ù„ÙŠ
+        // نحفظ أسطر هذه السلة ليُرفَق الرابط فقط إن طابق محتوى السلة الحالي
         final List<String> ids =
             _cart.items.map((CartItem e) => e.lineId).toList();
         GetStorage().write('seloo_share_link_lines', jsonEncode(ids));
@@ -117,20 +118,20 @@ class _CartScreenState extends State<CartScreen> {
       _shareCartController.clear();
       await _cart.refreshQuote();
 
-      _snack([result.me](https://result.me)ssage);
+      _snack(result.message);
     } catch (_) {
       if (!mounted) return;
 
       setState(() => _importing = false);
       _snack(
-        'ÙØ´Ù„ Ø§Ø³ØªÙŠØ±Ø§Ø¯ Ø§Ù„Ø³Ù„Ø©. ØªØ­Ù‚Ù‚ Ù…Ù† Ø§Ù„Ø±Ø§Ø¨Ø· ÙˆØ§Ù„Ø§ØªØµØ§Ù„ Ø«Ù… Ø£Ø¹Ø¯ Ø§Ù„Ù…Ø­Ø§ÙˆÙ„Ø©.',
+        'فشل استيراد السلة. تحقق من الرابط والاتصال ثم أعد المحاولة.',
       );
     }
   }
 
   Future<void> _shareCartToWhatsApp() async {
     if (_cart.items.isEmpty) {
-      _snack('Ø§Ù„Ø³Ù„Ø© ÙØ§Ø±ØºØ©');
+      _snack('السلة فارغة');
       return;
     }
 
@@ -138,7 +139,7 @@ class _CartScreenState extends State<CartScreen> {
     final CartQuote? q = _cart.quote.value;
 
     if (q == null) {
-      _snack('ØªØ¹Ø°Ù‘Ø± Ø­Ø³Ø§Ø¨ Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠØŒ Ø­Ø§ÙˆÙ„ Ù…Ø±Ø© Ø£Ø®Ø±Ù‰.');
+      _snack('تعذّر حساب الإجمالي، حاول مرة أخرى.');
       return;
     }
 
@@ -152,12 +153,12 @@ class _CartScreenState extends State<CartScreen> {
 
   Future<void> _shareCartWithCommission() async {
     if (_cart.items.isEmpty) {
-      _snack('Ø§Ù„Ø³Ù„Ø© ÙØ§Ø±ØºØ©');
+      _snack('السلة فارغة');
       return;
     }
 
     if (!_cart.hasCommission) {
-      _snack('Ø£Ø¯Ø®Ù„ Ù…Ø¨Ù„Øº Ø§Ù„Ø¹Ù…ÙˆÙ„Ø© Ø£ÙˆÙ„Ø§Ù‹');
+      _snack('أدخل مبلغ العمولة أولاً');
       return;
     }
 
@@ -165,7 +166,7 @@ class _CartScreenState extends State<CartScreen> {
     final CartQuote? q = _cart.quote.value;
 
     if (q == null) {
-      _snack('ØªØ¹Ø°Ù‘Ø± Ø­Ø³Ø§Ø¨ Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠ.');
+      _snack('تعذّر حساب الإجمالي.');
       return;
     }
 
@@ -186,42 +187,42 @@ class _CartScreenState extends State<CartScreen> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
-            title: const Text('âš ï¸ ØªØ£ÙƒÙŠØ¯ Ù…Ø´Ø§Ø±ÙƒØ© Ø§Ù„Ø¹Ù…ÙˆÙ„Ø©'),
+            title: const Text('⚠️ تأكيد مشاركة العمولة'),
             content: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   const Text(
-                    'Ø³ÙŠØªÙ… Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„Ø³Ù„Ø© Ù…Ø¹ Ø§Ù„Ø¹Ù…ÙˆÙ„Ø© Ù„Ù„Ø´Ø±ÙƒØ©ØŒ ÙˆØ³ÙŠØ¯ÙØ¹ Ø§Ù„Ø¹Ù…ÙŠÙ„:',
+                    'سيتم إرسال السلة مع العمولة للشركة، وسيدفع العميل:',
                     style: TextStyle(fontSize: 13),
                   ),
                   const SizedBox(height: 12),
                   _summaryRow(
-                    'ðŸ’µ Ù‚ÙŠÙ…Ø© Ø§Ù„Ø³Ù„Ø©',
+                    '💵 قيمة السلة',
                     '${(q.itemsSubtotalLocal / rate).toStringAsFixed(2)} SAR',
                   ),
                   _summaryRow(
-                    'ðŸ› ï¸ Ø±Ø³ÙˆÙ… Ø§Ù„Ø®Ø¯Ù…Ø©',
+                    '🛠️ رسوم الخدمة',
                     '${(q.serviceFeeLocal / rate).toStringAsFixed(2)} SAR',
                   ),
                   _summaryRow(
-                    'ðŸšš Ø§Ù„Ø´Ø­Ù†',
+                    '🚚 الشحن',
                     '${(q.shippingLocal / rate).toStringAsFixed(2)} SAR',
                   ),
                   _summaryRow(
-                    'ðŸŽ Ø§Ù„Ø¹Ù…ÙˆÙ„Ø© (${_cart.commissionPerPiece.value.toStringAsFixed(2)} Ã— ${_cart.items.length})',
+                    '🎁 العمولة (${_cart.commissionPerPiece.value.toStringAsFixed(2)} × ${_cart.items.length})',
                     '${commissionSar.toStringAsFixed(2)} SAR',
                   ),
                   const Divider(height: 20),
                   _summaryRow(
-                    'ðŸ’° Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…Ø·Ù„ÙˆØ¨',
+                    '💰 الإجمالي المطلوب',
                     '${totalSar.toStringAsFixed(2)} SAR',
                     emphasize: true,
                   ),
                   _summaryRow(
-                    'ðŸ‡¾ðŸ‡ª Ø¨Ø§Ù„Ø±ÙŠØ§Ù„ Ø§Ù„ÙŠÙ…Ù†ÙŠ',
-                    '${totalYer.toStringAsFixed(0)} Ø±ÙŠØ§Ù„',
+                    '🇾🇪 بالريال اليمني',
+                    '${totalYer.toStringAsFixed(0)} ريال',
                     emphasize: true,
                   ),
                   const Divider(height: 20),
@@ -236,7 +237,7 @@ class _CartScreenState extends State<CartScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
                         const Text(
-                          'ðŸŽ *Ø§Ù„Ù…Ø³ØªØ­Ù‚ Ù„Ùƒ* (Ø¨Ø¹Ø¯ Ø®ØµÙ… Ù‚ÙŠÙ…Ø© Ø§Ù„Ø³Ù„Ø©):',
+                          '🎁 *المستحق لك* (بعد خصم قيمة السلة):',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: _purple,
@@ -245,7 +246,7 @@ class _CartScreenState extends State<CartScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Ø§Ù„Ø¹Ù…ÙˆÙ„Ø© = ${commissionYer.toStringAsFixed(0)} Ø±ÙŠØ§Ù„ ÙŠÙ…Ù†ÙŠ',
+                          'العمولة = ${commissionYer.toStringAsFixed(0)} ريال يمني',
                           style: const TextStyle(
                             fontWeight: FontWeight.w900,
                             color: _purple,
@@ -253,7 +254,7 @@ class _CartScreenState extends State<CartScreen> {
                           ),
                         ),
                         Text(
-                          '(${commissionSar.toStringAsFixed(2)} SAR Ã— $rate)',
+                          '(${commissionSar.toStringAsFixed(2)} SAR × $rate)',
                           style: const TextStyle(
                             fontSize: 11,
                             color: Color(0xFF6B7280),
@@ -269,7 +270,7 @@ class _CartScreenState extends State<CartScreen> {
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(false),
                 child: const Text(
-                  'Ø¥Ù„ØºØ§Ø¡',
+                  'إلغاء',
                   style: TextStyle(color: Color(0xFF6B7280)),
                 ),
               ),
@@ -278,7 +279,7 @@ class _CartScreenState extends State<CartScreen> {
                 style: FilledButton.styleFrom(
                   backgroundColor: _green,
                 ),
-                child: const Text('Ù…ÙˆØ§ÙÙ‚ âœ“'),
+                child: const Text('موافق ✓'),
               ),
             ],
           ),
@@ -288,7 +289,7 @@ class _CartScreenState extends State<CartScreen> {
 
     if (confirmed != true) return;
 
-    _[cart.app](https://cart.app)roveCommission();
+    _cart.approveCommission();
 
     final String message = _buildWhatsAppMessage(
       q: q,
@@ -304,8 +305,8 @@ class _CartScreenState extends State<CartScreen> {
   }) {
     final StringBuffer b = StringBuffer();
 
-    b.writeln('ðŸ›ï¸ *Ø·Ù„Ø¨ Ø¬Ø¯ÙŠØ¯ Ù…Ù† ÙŠÙ…Ù† Ø³ÙŠÙ„Ùˆ*');
-    b.writeln('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
+    b.writeln('🛍️ *طلب جديد من يمن سيلو*');
+    b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
     b.writeln('');
 
     for (int i = 0; i < _cart.items.length; i++) {
@@ -314,11 +315,11 @@ class _CartScreenState extends State<CartScreen> {
       b.writeln('${i + 1}. ${item.title}');
 
       if (item.color.isNotEmpty) {
-        b.writeln('   Ø§Ù„Ù„ÙˆÙ†: ${item.color}');
+        b.writeln('   اللون: ${item.color}');
       }
 
       if (item.size.isNotEmpty) {
-        b.writeln('   Ø§Ù„Ù…Ù‚Ø§Ø³: ${item.size}');
+        b.writeln('   المقاس: ${item.size}');
       }
 
       if (item.options.isNotEmpty) {
@@ -327,26 +328,26 @@ class _CartScreenState extends State<CartScreen> {
         });
       }
 
-      b.writeln('   Ø§Ù„ÙƒÙ…ÙŠØ©: ${item.quantity}');
+      b.writeln('   الكمية: ${item.quantity}');
       b.writeln(
-        '   Ø§Ù„Ø³Ø¹Ø±: ${item.sourcePrice.toStringAsFixed(2)} SAR',
+        '   السعر: ${item.sourcePrice.toStringAsFixed(2)} SAR',
       );
 
       if (item.goodsId.isNotEmpty) {
-        // Ø´ÙŠ Ø¥Ù† ØªØ­Ø¬Ø¨ Ø§Ù„ÙØªØ­ Ø§Ù„Ù…Ø¨Ø§Ø´Ø± Ù„ØµÙØ­Ø§Øª Ø§Ù„Ù…Ù†ØªØ¬Ø§Øª Ù…Ù† Ø®Ø§Ø±Ø¬ Ø¬Ù„Ø³Ø© Ø§Ù„Ù…ØªØµÙØ­ØŒ
-        // ÙÙŠÙØ±Ø³ÙŽÙ„ Ø±Ù…Ø² Ø§Ù„Ù…Ù†ØªØ¬ Ù†ØµÙ‹Ù‘Ø§ Ø¨Ø¯Ù„ Ø±Ø§Ø¨Ø· Ù„Ø§ ÙŠØ¹Ù…Ù„.
-        b.writeln('   ðŸ†” Ø±Ù…Ø² Ø§Ù„Ù…Ù†ØªØ¬: ${item.goodsId}');
-        b.writeln('   ðŸ”— https://m.shein.com/ar/pdsearch/${item.goodsId}/');
+        // شي إن تحجب الفتح المباشر لصفحات المنتجات من خارج جلسة المتصفح،
+        // فيُرسَل رمز المنتج نصًّا بدل رابط لا يعمل.
+        b.writeln('   🆔 رمز المنتج: ${item.goodsId}');
+        b.writeln('   🔗 https://m.shein.com/ar/pdsearch/${item.goodsId}/');
       } else if (item.sourceUrl.isNotEmpty) {
-        b.writeln('   Ø§Ù„Ø±Ø§Ø¨Ø·: ${item.sourceUrl}');
+        b.writeln('   الرابط: ${item.sourceUrl}');
       }
 
       b.writeln('');
     }
 
-    b.writeln('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
-    b.writeln('ðŸ“¦ Ø¹Ø¯Ø¯ Ø§Ù„Ø£Ø³Ø·Ø±: ${q.linesCount}');
-    b.writeln('ðŸ”¢ Ø¹Ø¯Ø¯ Ø§Ù„Ù‚Ø·Ø¹: ${q.unitsCount}');
+    b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
+    b.writeln('📦 عدد الأسطر: ${q.linesCount}');
+    b.writeln('🔢 عدد القطع: ${q.unitsCount}');
     b.writeln('');
 
     final double rate = q.exchangeRate;
@@ -355,13 +356,13 @@ class _CartScreenState extends State<CartScreen> {
     final double shippingSar = q.shippingLocal / rate;
 
     b.writeln(
-      'ðŸ’µ Ù‚ÙŠÙ…Ø© Ø§Ù„Ø³Ù„Ø©: ${subtotalSar.toStringAsFixed(2)} SAR',
+      '💵 قيمة السلة: ${subtotalSar.toStringAsFixed(2)} SAR',
     );
     b.writeln(
-      'ðŸ› ï¸ Ø±Ø³ÙˆÙ… Ø§Ù„Ø®Ø¯Ù…Ø©: ${serviceFeeSar.toStringAsFixed(2)} SAR',
+      '🛠️ رسوم الخدمة: ${serviceFeeSar.toStringAsFixed(2)} SAR',
     );
     b.writeln(
-      'ðŸšš Ø§Ù„Ø´Ø­Ù†: ${shippingSar.toStringAsFixed(2)} SAR',
+      '🚚 الشحن: ${shippingSar.toStringAsFixed(2)} SAR',
     );
 
     if (includeCommission) {
@@ -374,73 +375,73 @@ class _CartScreenState extends State<CartScreen> {
       final double totalYer = q.grandTotalLocal + commissionYer;
 
       b.writeln(
-        'ðŸŽ Ø¹Ù…ÙˆÙ„Ø© Ø§Ù„Ù…Ù†Ø¯ÙˆØ¨: ${commissionSar.toStringAsFixed(2)} SAR',
+        '🎁 عمولة المندوب: ${commissionSar.toStringAsFixed(2)} SAR',
       );
-      b.writeln('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
+      b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
       b.writeln(
-        'ðŸ’° Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…Ø·Ù„ÙˆØ¨: ${totalSar.toStringAsFixed(2)} SAR',
+        '💰 الإجمالي المطلوب: ${totalSar.toStringAsFixed(2)} SAR',
       );
       b.writeln(
-        'ðŸ‡¾ðŸ‡ª Ø¨Ø§Ù„Ø±ÙŠØ§Ù„ Ø§Ù„ÙŠÙ…Ù†ÙŠ: ${totalYer.toStringAsFixed(0)} Ø±ÙŠØ§Ù„',
+        '🇾🇪 بالريال اليمني: ${totalYer.toStringAsFixed(0)} ريال',
       );
-      b.writeln('ðŸ“Š Ø³Ø¹Ø± Ø§Ù„ØµØ±Ù: ${rate.toStringAsFixed(0)}');
+      b.writeln('📊 سعر الصرف: ${rate.toStringAsFixed(0)}');
 
       final String regionName =
-          _cart.region.value == 'south' ? 'Ø§Ù„Ø¬Ù†ÙˆØ¨' : 'Ø§Ù„Ø´Ù…Ø§Ù„';
+          _cart.region.value == 'south' ? 'الجنوب' : 'الشمال';
 
-      b.writeln('ðŸ“ Ø§Ù„Ù…Ù†Ø·Ù‚Ø©: $regionName');
-      b.writeln('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
-      b.writeln('ðŸŽ *Ø§Ù„Ù…Ø³ØªØ­Ù‚ Ù„Ù„Ù…Ù†Ø¯ÙˆØ¨* (Ø¨Ø¹Ø¯ Ø®ØµÙ… Ù‚ÙŠÙ…Ø© Ø§Ù„Ø³Ù„Ø©):');
+      b.writeln('📍 المنطقة: $regionName');
+      b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
+      b.writeln('🎁 *المستحق للمندوب* (بعد خصم قيمة السلة):');
       b.writeln(
-        '   Ø§Ù„Ø¹Ù…ÙˆÙ„Ø© = *${commissionYer.toStringAsFixed(0)} Ø±ÙŠØ§Ù„ ÙŠÙ…Ù†ÙŠ*',
+        '   العمولة = *${commissionYer.toStringAsFixed(0)} ريال يمني*',
       );
     } else {
-      b.writeln('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
+      b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
       b.writeln(
-        'ðŸ’° Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠ: ${(subtotalSar + serviceFeeSar + shippingSar).toStringAsFixed(2)} SAR',
+        '💰 الإجمالي: ${(subtotalSar + serviceFeeSar + shippingSar).toStringAsFixed(2)} SAR',
       );
       b.writeln(
-        'ðŸ‡¾ðŸ‡ª Ø¨Ø§Ù„Ø±ÙŠØ§Ù„ Ø§Ù„ÙŠÙ…Ù†ÙŠ: ${q.grandTotalLocal.toStringAsFixed(0)} Ø±ÙŠØ§Ù„',
+        '🇾🇪 بالريال اليمني: ${q.grandTotalLocal.toStringAsFixed(0)} ريال',
       );
-      b.writeln('ðŸ“Š Ø³Ø¹Ø± Ø§Ù„ØµØ±Ù: ${rate.toStringAsFixed(0)}');
+      b.writeln('📊 سعر الصرف: ${rate.toStringAsFixed(0)}');
 
       final String regionName =
-          _cart.region.value == 'south' ? 'Ø§Ù„Ø¬Ù†ÙˆØ¨' : 'Ø§Ù„Ø´Ù…Ø§Ù„';
+          _cart.region.value == 'south' ? 'الجنوب' : 'الشمال';
 
-      b.writeln('ðŸ“ Ø§Ù„Ù…Ù†Ø·Ù‚Ø©: $regionName');
+      b.writeln('📍 المنطقة: $regionName');
     }
 
-    b.writeln('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
+    b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
 
-    // Ø±Ø§Ø¨Ø· Ø§Ù„Ø³Ù„Ø© ÙƒÙ…Ø§ ÙˆØµÙ„Øª Ù…Ù† Ø´ÙŠ Ø¥Ù† (ÙŠÙÙØªØ­ ÙƒØ§Ù…Ù„Ø§Ù‹ Ø¨Ø¯Ù„ Ø±ÙˆØ§Ø¨Ø· Ù…ØªÙØ±Ù‚Ø©)
+    // رابط السلة كما وصلت من شي إن (يُفتح كاملاً بدل روابط متفرقة)
     try {
       final String? cartLink =
           GetStorage().read<String>('seloo_last_share_url');
       if (cartLink != null && cartLink.trim().isNotEmpty && _cartMatchesLink()) {
-        b.writeln('ðŸ›’ Ø±Ø§Ø¨Ø· Ø§Ù„Ø³Ù„Ø© ÙƒØ§Ù…Ù„Ø© ÙÙŠ Ø´ÙŠ Ø¥Ù†:');
+        b.writeln('🛒 رابط السلة كاملة في شي إن:');
         b.writeln(cartLink.trim());
-        b.writeln('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
+        b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
       }
     } catch (_) {}
 
-    // Ø±Ø§Ø¨Ø· Ø³Ù„Ø© ÙŠÙ…Ù† Ø³ÙŠÙ„Ùˆ Ø§Ù„ÙƒØ§Ù…Ù„Ø© (ÙƒÙ„ Ø§Ù„Ù…Ù†ØªØ¬Ø§Øª ÙÙŠ Ø±Ø§Ø¨Ø· ÙˆØ§Ø­Ø¯)
+    // رابط سلة يمن سيلو الكاملة (كل المنتجات في رابط واحد)
     try {
       if (_cart.items.isNotEmpty) {
-        b.writeln('ðŸ›’ *Ø³Ù„Ø© ÙƒØ§Ù…Ù„Ø© â€” ÙƒÙ„ Ø§Ù„Ù…Ù†ØªØ¬Ø§Øª ÙÙŠ Ø±Ø§Ø¨Ø· ÙˆØ§Ø­Ø¯:*');
+        b.writeln('🛒 *سلة كاملة — كل المنتجات في رابط واحد:*');
         b.writeln(SelooCartLink.webLink(_cart.items));
-        b.writeln('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
+        b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
       }
     } catch (_) {}
 
-    b.writeln('ðŸ“ž Ù„Ù„ØªÙˆØ§ØµÙ„: $_primaryPhone');
-    b.writeln('ðŸ“ž Ø§Ù„Ø¨Ø¯ÙŠÙ„: $_backupPhone');
+    b.writeln('📞 للتواصل: $_primaryPhone');
+    b.writeln('📞 البديل: $_backupPhone');
     b.writeln('');
-    b.writeln('Ø®Ø¯Ù…ØªÙƒÙ… ØºØ§ÙŠØªÙ†Ø§ ÙˆØ«Ù‚ØªÙƒÙ… Ù‡Ø¯ÙÙ†Ø§');
+    b.writeln('خدمتكم غايتنا وثقتكم هدفنا');
 
     return b.toString();
   }
 
-  /// Ù‡Ù„ Ø§Ù„Ø³Ù„Ø© Ø§Ù„Ø­Ø§Ù„ÙŠØ© Ù‡ÙŠ Ù†ÙØ³ Ø§Ù„Ø³Ù„Ø© Ø§Ù„Ù…Ø³ØªÙˆØ±Ø¯Ø© Ù…Ù† Ø§Ù„Ø±Ø§Ø¨Ø·ØŸ (ÙˆØ¥Ù„Ø§ ÙØ§Ù„Ø±Ø§Ø¨Ø· Ù…Ø¶Ù„ÙÙ‘Ù„)
+  /// هل السلة الحالية هي نفس السلة المستوردة من الرابط؟ (وإلا فالرابط مضلِّل)
   bool _cartMatchesLink() {
     try {
       final String? raw = GetStorage().read<String>('seloo_share_link_lines');
@@ -449,7 +450,7 @@ class _CartScreenState extends State<CartScreen> {
       if (parsed is! List) return false;
       final Set<String> saved = parsed.map((Object? e) => '$e').toSet();
       if (saved.isEmpty) return false;
-      // ÙƒÙ„ Ø³Ø·Ø± ÙÙŠ Ø§Ù„Ø³Ù„Ø© ÙŠØ¬Ø¨ Ø£Ù† ÙŠÙƒÙˆÙ† Ù…Ù† ØªÙ„Ùƒ Ø§Ù„Ø³Ù„Ø© Ø§Ù„Ù…Ø³ØªÙˆØ±Ø¯Ø©
+      // كل سطر في السلة يجب أن يكون من تلك السلة المستوردة
       return _cart.items.every((CartItem e) => saved.contains(e.lineId));
     } catch (_) {
       return false;
@@ -467,15 +468,15 @@ class _CartScreenState extends State<CartScreen> {
         mode: LaunchMode.externalApplication,
       );
 
-      if (!ok) _snack('ØªØ¹Ø°Ù‘Ø± ÙØªØ­ Ø§Ù„ÙˆØ§ØªØ³Ø§Ø¨');
+      if (!ok) _snack('تعذّر فتح الواتساب');
     } catch (e) {
-      _snack('ØªØ¹Ø°Ù‘Ø± ÙØªØ­ Ø§Ù„ÙˆØ§ØªØ³Ø§Ø¨: $e');
+      _snack('تعذّر فتح الواتساب: $e');
     }
   }
 
   Future<void> _openCommissionCalculator() async {
     if (_cart.items.isEmpty) {
-      _snack('Ø§Ù„Ø³Ù„Ø© ÙØ§Ø±ØºØ©');
+      _snack('السلة فارغة');
       return;
     }
 
@@ -515,7 +516,7 @@ class _CartScreenState extends State<CartScreen> {
                         Icon(Icons.calculate, color: _purple, size: 24),
                         SizedBox(width: 8),
                         Text(
-                          'ðŸ§® Ø¢Ù„Ø© Ø­Ø³Ø§Ø¨ Ø¹Ù…ÙˆÙ„Ø© Ø§Ù„Ù…Ù†Ø¯ÙˆØ¨',
+                          '🧮 آلة حساب عمولة المندوب',
                           style: TextStyle(
                             fontWeight: FontWeight.w900,
                             fontSize: 16,
@@ -537,8 +538,8 @@ class _CartScreenState extends State<CartScreen> {
                         ),
                       ],
                       decoration: InputDecoration(
-                        labelText: 'Ù…Ø¨Ù„Øº Ø§Ù„Ø¹Ù…ÙˆÙ„Ø© Ù„ÙƒÙ„ Ù‚Ø·Ø¹Ø©',
-                        hintText: 'Ù…Ø«Ø§Ù„: 5.00',
+                        labelText: 'مبلغ العمولة لكل قطعة',
+                        hintText: 'مثال: 5.00',
                         prefixIcon: const Icon(
                           Icons.attach_money,
                           color: _purple,
@@ -557,8 +558,7 @@ class _CartScreenState extends State<CartScreen> {
                       ),
                       onChanged: (String v) {
                         final double value = double.tryParse(v) ?? 0;
-
-                                                _cart.setCommission(value);
+                        _cart.setCommission(value);
                         setSheetState(() {});
                       },
                     ),
@@ -583,27 +583,27 @@ class _CartScreenState extends State<CartScreen> {
 
                         return Column(
                           children: <Widget>[
-                            _summaryRow('ðŸ“¦ Ø¹Ø¯Ø¯ Ø§Ù„Ù‚Ø·Ø¹', '$count'),
+                            _summaryRow('📦 عدد القطع', '$count'),
                             const SizedBox(height: 6),
                             _summaryRow(
-                              'ðŸŽ Ø§Ù„Ø¹Ù…ÙˆÙ„Ø© Ù„ÙƒÙ„ Ù‚Ø·Ø¹Ø©',
+                              '🎁 العمولة لكل قطعة',
                               '${perPiece.toStringAsFixed(2)} SAR',
                             ),
                             const Divider(height: 16),
                             _summaryRow(
-                              'ðŸ’° Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ø¹Ù…ÙˆÙ„Ø©',
+                              '💰 إجمالي العمولة',
                               '${totalSar.toStringAsFixed(2)} SAR',
                               emphasize: true,
                             ),
                             const SizedBox(height: 6),
                             _summaryRow(
-                              'ðŸ‡¾ðŸ‡ª Ø¨Ø§Ù„Ø±ÙŠØ§Ù„ Ø§Ù„ÙŠÙ…Ù†ÙŠ',
-                              '${totalYer.toStringAsFixed(0)} Ø±ÙŠØ§Ù„',
+                              '🇾🇪 بالريال اليمني',
+                              '${totalYer.toStringAsFixed(0)} ريال',
                               emphasize: true,
                             ),
                             const SizedBox(height: 6),
                             _summaryRow(
-                              'ðŸ“Š Ø³Ø¹Ø± Ø§Ù„ØµØ±Ù',
+                              '📊 سعر الصرف',
                               rate.toStringAsFixed(0),
                             ),
                           ],
@@ -636,7 +636,7 @@ class _CartScreenState extends State<CartScreen> {
                               ),
                               icon: const Icon(Icons.share),
                               label: const Text(
-                                'Ù…Ø´Ø§Ø±ÙƒØ© Ù…Ø¹ Ø§Ù„Ø´Ø±ÙƒØ©',
+                                'مشاركة مع الشركة',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 14,
@@ -664,7 +664,7 @@ class _CartScreenState extends State<CartScreen> {
                               ),
                               icon: const Icon(Icons.share),
                               label: const Text(
-                                'Ù…Ø´Ø§Ø±ÙƒØ© Ø¹Ø§Ø¯ÙŠØ© (Ø¨Ø¯ÙˆÙ† Ø¹Ù…ÙˆÙ„Ø©)',
+                                'مشاركة عادية (بدون عمولة)',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13,
@@ -678,7 +678,7 @@ class _CartScreenState extends State<CartScreen> {
                     const SizedBox(height: 8),
                     TextButton(
                       onPressed: () => Navigator.of(ctx).pop(),
-                      child: const Text('Ø¥ØºÙ„Ø§Ù‚'),
+                      child: const Text('إغلاق'),
                     ),
                   ],
                 ),
@@ -751,7 +751,7 @@ class _CartScreenState extends State<CartScreen> {
                 Icon(Icons.download_outlined, color: _orange, size: 20),
                 SizedBox(width: 8),
                 Text(
-                  'Ø§Ø³ØªÙŠØ±Ø§Ø¯ Ø³Ù„Ø© Ø´ÙŠ Ø§Ù†',
+                  'استيراد سلة شي ان',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
@@ -762,7 +762,7 @@ class _CartScreenState extends State<CartScreen> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Ø§Ù„ØµÙ‚ Ø±Ø§Ø¨Ø· Ø§Ù„Ø³Ù„Ø© Ø§Ù„Ù…Ø´ØªØ±ÙƒØ© Ù…Ù† Ø´ÙŠ Ø¥Ù† (Ø£Ùˆ Ù†Øµ Ø§Ù„Ù…Ø´Ø§Ø±ÙƒØ© Ø§Ù„ÙƒØ§Ù…Ù„):',
+              'الصق رابط السلة المشتركة من شي إن (أو نص المشاركة الكامل):',
               style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 8),
@@ -795,7 +795,7 @@ class _CartScreenState extends State<CartScreen> {
                         ),
                       )
                     : const Text(
-                        'Ø¨Ø¯Ø¡ Ø§Ù„Ø§Ø³ØªÙŠØ±Ø§Ø¯',
+                        'بدء الاستيراد',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
               ),
@@ -833,7 +833,7 @@ class _CartScreenState extends State<CartScreen> {
                     padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                     children: <Widget>[
                       const Text(
-                        'Ø³Ù„Ø© Ø§Ù„ØªØ³ÙˆÙ‚',
+                        'سلة التسوق',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 26,
@@ -843,7 +843,7 @@ class _CartScreenState extends State<CartScreen> {
                       ),
                       const SizedBox(height: 6),
                       const Text(
-                        'Ø§Ø®ØªØ± Ù…Ù†Ø·Ù‚Ø© Ø§Ù„ØªØ³Ø¹ÙŠØ±ØŒ Ø«Ù… Ø´Ø§Ø±Ùƒ Ø³Ù„ØªÙƒ Ø£Ùˆ Ø£ÙƒÙ‘Ø¯ Ø·Ù„Ø¨Ùƒ.',
+                        'اختر منطقة التسعير، ثم شارك سلتك أو أكّد طلبك.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 12.5,
@@ -890,7 +890,7 @@ class _CartScreenState extends State<CartScreen> {
                           ),
                           icon: const Icon(Icons.calculate, size: 20),
                           label: const Text(
-                            'ðŸ§® Ø¢Ù„Ø© Ø­Ø³Ø§Ø¨ Ø¹Ù…ÙˆÙ„Ø© Ø§Ù„Ù…Ù†Ø¯ÙˆØ¨',
+                            '🧮 آلة حساب عمولة المندوب',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
@@ -914,7 +914,7 @@ class _CartScreenState extends State<CartScreen> {
                           ),
                           icon: const Icon(Icons.share),
                           label: const Text(
-                            'Ù…Ø´Ø§Ø±ÙƒØ© Ø§Ù„Ø³Ù„Ø© Ø¹Ø¨Ø± ÙˆØ§ØªØ³Ø§Ø¨',
+                            'مشاركة السلة عبر واتساب',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
@@ -1010,7 +1010,7 @@ class _Header extends StatelessWidget {
           ),
           IconButton(
             onPressed: onRefresh,
-            tooltip: 'ØªØ­Ø¯ÙŠØ« Ø§Ù„Ø³Ù„Ø©',
+            tooltip: 'تحديث السلة',
             icon: const Icon(Icons.refresh, color: _purple, size: 22),
           ),
           const Spacer(),
@@ -1018,7 +1018,7 @@ class _Header extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: const <Widget>[
               Text(
-                'ÙŠÙ…Ù† Ø³ÙŠÙ„Ùˆ',
+                'يمن سيلو',
                 style: TextStyle(
                   fontWeight: FontWeight.w900,
                   fontSize: 15,
@@ -1069,24 +1069,24 @@ class _CartLineTile extends StatelessWidget {
   final VoidCallback onRemove;
   final VoidCallback onEdit;
 
-  /// Ø¶ØºØ·Ø© Ø·ÙˆÙŠÙ„Ø© Ø¹Ù„Ù‰ Ø§Ù„ØµÙˆØ±Ø© ØªÙƒØ´Ù Ø±Ø§Ø¨Ø·Ù‡Ø§ â€” Ù„Ù„ØªØ´Ø®ÙŠØµ ÙÙ‚Ø·
+  /// ضغطة طويلة على الصورة تكشف رابطها — للتشخيص فقط
   void _showImageDebug(BuildContext context) {
     showDialog<void>(
       context: context,
       builder: (BuildContext ctx) => Directionality(
         textDirection: TextDirection.rtl,
         child: AlertDialog(
-          title: const Text('Ø±Ø§Ø¨Ø· ØµÙˆØ±Ø© Ø§Ù„Ù…Ù†ØªØ¬'),
+          title: const Text('رابط صورة المنتج'),
           content: SingleChildScrollView(
             child: SelectableText(
-              item.imageUrl.isEmpty ? '(ÙØ§Ø±Øº)' : item.imageUrl,
+              item.imageUrl.isEmpty ? '(فارغ)' : item.imageUrl,
               style: const TextStyle(fontSize: 12),
             ),
           ),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Ø¥ØºÙ„Ø§Ù‚'),
+              child: const Text('إغلاق'),
             ),
           ],
         ),
@@ -1170,13 +1170,13 @@ class _CartLineTile extends StatelessWidget {
                           children: <Widget>[
                             if (item.color.isNotEmpty)
                               _InfoChip(
-                                label: 'Ø§Ù„Ù„ÙˆÙ†',
+                                label: 'اللون',
                                 value: item.color,
                                 color: _purple,
                               ),
                             if (item.size.isNotEmpty)
                               _InfoChip(
-                                label: 'Ø§Ù„Ù…Ù‚Ø§Ø³',
+                                label: 'المقاس',
                                 value: item.size,
                                 color: _orange,
                               ),
@@ -1236,7 +1236,7 @@ class _CartLineTile extends StatelessWidget {
                   color: _orange,
                   size: 20,
                 ),
-                tooltip: 'ØªØ¹Ø¯ÙŠÙ„',
+                tooltip: 'تعديل',
               ),
             ],
           ),
@@ -1296,12 +1296,12 @@ class _ProductImage extends StatelessWidget {
 
   final String url;
 
-  /// ÙŠØµÙ„Ø­ Ø§Ù„Ø±ÙˆØ§Ø¨Ø· Ø§Ù„Ù‚Ø¯ÙŠÙ…Ø© Ø§Ù„Ù…Ø®Ø²Ù‘Ù†Ø© Ø¨ØµÙŠØºØ© Ù†Ø³Ø¨ÙŠØ© (Ø¨Ù„Ø§ https) ÙÙ„Ø§ ØªØ¸Ù‡Ø± ØµÙˆØ±ØªÙ‡Ø§
+  /// يصلح الروابط القديمة المخزّنة بصيغة نسبية (بلا https) فلا تظهر صورتها
   static String _absolute(String raw) {
     String u = raw.trim().replaceAll(' ', '');
     if (u.isEmpty) return '';
 
-    // Ù„Ùˆ ØªÙƒØ±Ù‘Ø± Ø§Ù„Ù…Ø®Ø·Ø· Ø£Ùˆ Ø§Ù„Ø¯ÙˆÙ…ÙŠÙ† Ø¯Ø§Ø®Ù„ Ø§Ù„Ø±Ø§Ø¨Ø· Ù†Ø£Ø®Ø° Ø¢Ø®Ø± Ø¬Ø²Ø¡ Ø³Ù„ÙŠÙ…
+    // لو تكرّر المخطط أو الدومين داخل الرابط نأخذ آخر جزء سليم
     final int lastScheme = u.lastIndexOf('http');
     if (lastScheme > 0) u = u.substring(lastScheme);
 
@@ -1322,7 +1322,7 @@ class _ProductImage extends StatelessWidget {
     return CachedNetworkImage(
       imageUrl: src,
       fit: BoxFit.cover,
-      // Ø´ÙŠ Ø¥Ù† ØªØ±ÙØ¶ Ø¨Ø¹Ø¶ Ø§Ù„ØµÙˆØ± Ø¨Ù„Ø§ Ù‡ÙˆÙŠØ© Ù…ØªØµÙØ­/Ù…Ø±Ø¬Ø¹ â€” Ù†Ø±Ø³Ù„Ù‡Ø§ ÙƒÙ…Ø§ ÙŠÙØ¹Ù„ Ø§Ù„ÙˆÙŠØ¨
+      // شي إن ترفض بعض الصور بلا هوية متصفح/مرجع — نرسلها كما يفعل الويب
       httpHeaders: const <String, String>{
         'User-Agent': 'Mozilla/5.0 (Linux; Android 13; SM-G991B) '
             'AppleWebKit/537.36 (KHTML, like Gecko) '
@@ -1368,7 +1368,7 @@ class _QuantityButton extends StatelessWidget {
   final bool enabled;
   final VoidCallback onTap;
 
-    @override
+  @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: enabled ? onTap : null,
@@ -1415,7 +1415,7 @@ class _RegionSelector extends StatelessWidget {
                 Icon(Icons.public, color: _purple, size: 18),
                 SizedBox(width: 6),
                 Text(
-                  'Ù…Ù†Ø·Ù‚Ø© Ø§Ù„ØªØ³Ø¹ÙŠØ±',
+                  'منطقة التسعير',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: _purple,
@@ -1429,7 +1429,7 @@ class _RegionSelector extends StatelessWidget {
               children: <Widget>[
                 Expanded(
                   child: _RegionButton(
-                    label: 'Ø§Ù„Ø´Ù…Ø§Ù„ Â· 140',
+                    label: 'الشمال · 140',
                     active: current == 'north',
                     onTap: () => cart.setRegion('north'),
                   ),
@@ -1437,7 +1437,7 @@ class _RegionSelector extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: _RegionButton(
-                    label: 'Ø§Ù„Ø¬Ù†ÙˆØ¨ Â· 413',
+                    label: 'الجنوب · 413',
                     active: current == 'south',
                     onTap: () => cart.setRegion('south'),
                   ),
@@ -1513,33 +1513,33 @@ class _QuoteSummary extends StatelessWidget {
               )
             : Column(
                 children: <Widget>[
-                  _row('ðŸ“¦ Ø¹Ø¯Ø¯ Ø§Ù„Ø£Ø³Ø·Ø±', '${q.linesCount}'),
+                  _row('📦 عدد الأسطر', '${q.linesCount}'),
                   const SizedBox(height: 8),
-                  _row('ðŸ”¢ Ø¹Ø¯Ø¯ Ø§Ù„Ù‚Ø·Ø¹', '${q.unitsCount}'),
+                  _row('🔢 عدد القطع', '${q.unitsCount}'),
                   const Divider(height: 20),
                   _row(
-                    'Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…Ù†ØªØ¬Ø§Øª',
+                    'إجمالي المنتجات',
                     'SAR ${(q.itemsSubtotalLocal / q.exchangeRate).toStringAsFixed(2)}',
                   ),
                   const SizedBox(height: 8),
                   _row(
-                    'Ø±Ø³ÙˆÙ… Ø§Ù„Ø®Ø¯Ù…Ø©',
+                    'رسوم الخدمة',
                     'SAR ${(q.serviceFeeLocal / q.exchangeRate).toStringAsFixed(2)}',
                   ),
                   const SizedBox(height: 8),
                   _row(
-                    'Ø§Ù„Ø´Ø­Ù†',
+                    'الشحن',
                     'SAR ${(q.shippingLocal / q.exchangeRate).toStringAsFixed(2)}',
                   ),
                   const Divider(height: 20),
                   _row(
-                    'Ø³Ø¹Ø± Ø§Ù„ØµØ±Ù',
+                    'سعر الصرف',
                     'YER / SAR ${q.exchangeRate.toStringAsFixed(0)}',
                   ),
                   const SizedBox(height: 8),
                   _row(
-                    'Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø¨Ø§Ù„Ø±ÙŠØ§Ù„ Ø§Ù„ÙŠÙ…Ù†ÙŠ',
-                    '${q.grandTotalLocal.toStringAsFixed(0)} Ø±.ÙŠ',
+                    'الإجمالي بالريال اليمني',
+                    '${q.grandTotalLocal.toStringAsFixed(0)} ر.ي',
                     emphasize: true,
                   ),
                 ],
@@ -1604,7 +1604,7 @@ class _CheckoutButton extends StatelessWidget {
             ),
           ),
           child: const Text(
-            'Ø§Ù„Ø§Ù†ØªÙ‚Ø§Ù„ Ù„ØªØ£ÙƒÙŠØ¯ Ø§Ù„Ø·Ù„Ø¨',
+            'الانتقال لتأكيد الطلب',
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 15,
@@ -1629,7 +1629,7 @@ class _ContactBox extends StatelessWidget {
       child: const Column(
         children: <Widget>[
           Text(
-            'ðŸ“ž Ù„Ù„ØªÙˆØ§ØµÙ„ Ù…Ø¹Ù†Ø§',
+            '📞 للتواصل معنا',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
@@ -1638,7 +1638,7 @@ class _ContactBox extends StatelessWidget {
           ),
           SizedBox(height: 6),
           Text(
-            'Ø§Ù„Ø£Ø³Ø§Ø³ÙŠ: $_primaryPhone',
+            'الأساسي: $_primaryPhone',
             style: TextStyle(
               fontSize: 12.5,
               color: Color(0xFF1F2937),
@@ -1647,7 +1647,7 @@ class _ContactBox extends StatelessWidget {
           ),
           SizedBox(height: 2),
           Text(
-            'Ø§Ù„Ø¨Ø¯ÙŠÙ„: $_backupPhone',
+            'البديل: $_backupPhone',
             style: TextStyle(
               fontSize: 12,
               color: Color(0xFF6B7280),
@@ -1674,12 +1674,12 @@ class _EmptyCart extends StatelessWidget {
             color: _purple,
           ),
           const SizedBox(height: 12),
-          const Text('Ø³Ù„ØªÙƒ ÙØ§Ø±ØºØ©. ØªØµÙÙ‘Ø­ SHEIN ÙˆØ£Ø¶Ù Ù…Ø§ ÙŠØ¹Ø¬Ø¨Ùƒ.'),
+          const Text('سلتك فارغة. تصفّح SHEIN وأضف ما يعجبك.'),
           const SizedBox(height: 12),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: _purple),
             onPressed: () => Get.offNamed('/shein'),
-            child: const Text('ØªØµÙÙ‘Ø­ SHEIN'),
+            child: const Text('تصفّح SHEIN'),
           ),
         ],
       ),
