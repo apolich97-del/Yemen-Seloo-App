@@ -110,7 +110,7 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
   /// رابط onelink أو أي رابط بلا معرّف سلة يحتاج قراءة قبل الفتح
   static bool _needsResolution(String? url) {
     if (url == null || url.isEmpty) return false;
-    if (url.contains('onelink.shein.com')) return true;
+    if (url.contains('[onelink.shein.com](https://onelink.shein.com)')) return true;
     return SheinLinkResolver.groupIdIn(url) == null &&
         !url.contains('-p-') &&
         url.contains('cart');
@@ -186,15 +186,6 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
           }
         }),
       ),
-      floatingActionButton: FloatingActionButton.small(
-        backgroundColor: const Color(0xFF7C3AED),
-        tooltip: 'تحديث الصفحة',
-        onPressed: () async {
-          setState(() => _isLoading = true);
-          await _webViewController?.reload();
-        },
-        child: const Icon(Icons.refresh, color: Colors.white),
-      ),
       body: Column(
         children: <Widget>[
           if (_isLoading && _progress < 1)
@@ -269,7 +260,7 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                     target.startsWith('http://') || target.startsWith('https://');
                 if (webUrl) return NavigationActionPolicy.ALLOW;
 
-                if (target.contains('onelink.shein.com')) {
+                if (target.contains('[onelink.shein.com](https://onelink.shein.com)')) {
                   final String? resolved =
                       await SheinLinkResolver.resolve(target);
                   if (resolved != null) {
