@@ -35,7 +35,7 @@
       box = document.createElement('div');
       box.id = 'seloo-toast';
       box.style.cssText = 'position:fixed;top:16px;left:12px;right:12px;z-index:2147483647;padding:12px;border-radius:10px;background:#fff;color:#333;font-size:14px;text-align:center;box-shadow:0 3px 14px rgba(0,0,0,.2)';
-      [document.documentElement.app](https://document.documentElement.app)endChild(box);
+      document.documentElement.appendChild(box);
     }
     box.textContent = message;
     clearTimeout(toast._t);
@@ -351,7 +351,7 @@
       if (st === 'offline') {
         toast('تعذر الاتصال بالتطبيق. حاول مجددًا.');
       } else if (st === 'invalid' || st === 'error') {
-        toast((r && [r.me](https://r.me)ssage) ? [r.me](https://r.me)ssage : 'فشلت الإضافة.');
+        toast((r && r.message) ? r.message : 'فشلت الإضافة.');
       } else {
         var bits = [];
         if (p.size) bits.push('المقاس: ' + p.size);
@@ -403,7 +403,7 @@
       if (fab.disabled) return;
       addFromPage(fab);
     });
-    [document.body.app](https://document.body.app)endChild(fab);
+    document.body.appendChild(fab);
   }
 
   function removeFab() {
@@ -462,7 +462,7 @@
         },
         body: JSON.stringify({ groupId: gid, localCountry: 'SA', userLocalSizeCountry: '' })
       }).then(function (r) { return r.json(); }).then(function (data) {
-        var info = data && [data.info](https://data.info);
+        var info = data && data.info;
         var list = info && info.normalProducts;
         if (!list || !list.length) return attempt();
         return list.map(mapProduct).filter(Boolean);
@@ -522,7 +522,7 @@
         if (r.width >= 200 && r.height >= 90) break;
         card = card.parentNode;
       }
-      if (!card || ![card.app](https://card.app)endChild) return;
+      if (!card || !card.appendChild) return;
       if (card.querySelector && card.querySelector('[' + CARD_FLAG + '="' + p.goodsId + '"]')) return;
 
       var btn = document.createElement('button');
@@ -535,7 +535,7 @@
         ev.stopPropagation();
         window.location.href = p.productUrl;
       });
-      [card.app](https://card.app)endChild(btn);
+      card.appendChild(btn);
     });
   }
 
@@ -601,7 +601,7 @@
       e.stopPropagation();
       importWholeCart();
     });
-    [document.body.app](https://document.body.app)endChild(b);
+    document.body.appendChild(b);
   }
 
   function removeBulkButton() {
