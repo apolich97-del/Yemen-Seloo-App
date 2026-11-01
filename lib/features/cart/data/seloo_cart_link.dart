@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show gzip;
 
 import '../../shein/domain/shein_draft.dart';
 import '../domain/cart_item.dart';
@@ -14,7 +15,7 @@ class SelooCartLink {
   static const String scheme = 'yemenseloo';
 
   /// صفحة عرض السلة على الويب (استضافة ثابتة — يمكن تغييرها)
-  static const String webBase = 'https://litter.catbox.moe/fcbcya.html';
+  static const String webBase = 'https://seloo-cart.vercel.app/';
 
   static String encodePayload(List<CartItem> items) {
     final List<Map<String, Object?>> list = items
@@ -38,7 +39,10 @@ class SelooCartLink {
       'it': list,
     });
 
-    return base64Url.encode(utf8.encode(json)).replaceAll('=', '');
+    // ضغط gzip ثم base64url — يقلّص الرابط ~75% فيدعم السلال الكبيرة
+    final List<int> packed = gzip.encode(utf8.encode(json));
+    final String body = base64Url.encode(packed).replaceAll('=', '');
+    return 'z$body';
   }
 
   static String webLink(List<CartItem> items) =>
@@ -58,14 +62,21 @@ class SelooCartLink {
     if (payload == null) return <SheinDraft>[];
 
     try {
-      String b64 = Uri.decodeComponent(payload)
-          .replaceAll('-', '+')
-          .replaceAll('_', '/');
+      String data = Uri.decodeComponent(payload);
+      bool compressed = false;
+      if (data.startsWith('z')) {
+        compressed = true;
+        data = data.substring(1);
+      }
+
+      String b64 = data.replaceAll('-', '+').replaceAll('_', '/');
       while (b64.length % 4 != 0) {
         b64 += '=';
       }
 
-      final Object? parsed = jsonDecode(utf8.decode(base64Decode(b64)));
+      final List<int> bytes = base64Decode(b64);
+      final List<int> raw = compressed ? gzip.decode(bytes) : bytes;
+      final Object? parsed = jsonDecode(utf8.decode(raw));
       if (parsed is! Map || parsed['it'] is! List) return <SheinDraft>[];
 
       final List<SheinDraft> drafts = <SheinDraft>[];
