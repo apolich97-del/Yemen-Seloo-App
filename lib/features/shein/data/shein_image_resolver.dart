@@ -49,6 +49,9 @@ class SheinImageResolver {
       final String? html = await _fetch(url, timeout);
       if (html == null || html.isEmpty) continue;
 
+      // حماية: لا نقبل صورة من صفحة لا تخص هذا المنتج (صفحة تحقق أو صفحة قديمة)
+      if (!html.contains(id)) continue;
+
       final String? raw = _extract(html);
       if (raw != null) {
         final String? absolute = _absolute(raw);
@@ -77,10 +80,10 @@ class SheinImageResolver {
     if (u.startsWith('//')) u = 'https:$u';
 
     if (!u.startsWith('http')) {
-      final int host = u.indexOf('ltwebstatic.com');
+      final int host = u.indexOf('[ltwebstatic.com](https://ltwebstatic.com)');
       if (host >= 0) {
         u = 'https://img.ltwebstatic.com'
-            '${u.substring(host + 'ltwebstatic.com'.length)}';
+            '${u.substring(host + '[ltwebstatic.com](https://ltwebstatic.com)'.length)}';
       } else if (u.startsWith('/')) {
         u = 'https://m.shein.com$u';
       } else {
