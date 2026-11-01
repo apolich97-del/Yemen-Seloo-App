@@ -40,9 +40,9 @@ class SheinImageResolver {
     if (id.isEmpty || !RegExp(r'^\d+$').hasMatch(id)) return null;
 
     final List<String> urls = <String>[
-      'https://m.shein.com/ar/pdsearch/$id/',
-      'https://m.shein.com/ar/-p-$id.html',
-      'https://ar.shein.com/-p-$id.html',
+      'https://m.shein' '.com/ar/pdsearch/$id/',
+      'https://m.shein' '.com/ar/-p-$id.html',
+      'https://ar.shein' '.com/-p-$id.html',
     ];
 
     for (final String url in urls) {
@@ -80,12 +80,12 @@ class SheinImageResolver {
     if (u.startsWith('//')) u = 'https:$u';
 
     if (!u.startsWith('http')) {
-      final int host = u.indexOf('[ltwebstatic.com](https://ltwebstatic.com)');
+      final int host = u.indexOf('ltwebstatic' '.com');
       if (host >= 0) {
-        u = 'https://img.ltwebstatic.com'
-            '${u.substring(host + '[ltwebstatic.com](https://ltwebstatic.com)'.length)}';
+        u = 'https://img.ltwebstatic' '.com'
+            '${u.substring(host + ('ltwebstatic' '.com').length)}';
       } else if (u.startsWith('/')) {
-        u = 'https://m.shein.com$u';
+        u = 'https://m.shein' '.com$u';
       } else {
         return null;
       }
@@ -112,7 +112,7 @@ class SheinImageResolver {
       req.followRedirects = true;
       req.maxRedirects = 5;
       req.headers.set(HttpHeaders.acceptLanguageHeader, 'ar,ar-SA;q=0.9,en;q=0.6');
-      req.headers.set(HttpHeaders.refererHeader, 'https://m.shein.com/ar/');
+      req.headers.set(HttpHeaders.refererHeader, 'https://m.shein' '.com/ar/');
       req.headers.set(HttpHeaders.acceptHeader,
           'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8');
 
