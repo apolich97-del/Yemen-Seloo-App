@@ -1,4 +1,3 @@
-
 import 'dart:convert';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -62,6 +61,23 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   // استيراد سلة SHEIN المشتركة عبر واجهة المستورد الحالية.
+  bool _refreshing = false;
+
+  /// إعادة قراءة السلة من التخزين وإعادة حساب الأسعار
+  Future<void> _refreshCart() async {
+    if (_refreshing) return;
+    _refreshing = true;
+    try {
+      await _cart.onItemAdded();
+      await _cart.refreshQuote();
+      _snack('تم تحديث السلة');
+    } catch (_) {
+      _snack('تعذّر تحديث السلة');
+    } finally {
+      _refreshing = false;
+    }
+  }
+
   Future<void> _importSharedCart() async {
     if (_importing) return;
 
@@ -83,7 +99,7 @@ class _CartScreenState extends State<CartScreen> {
       setState(() => _importing = false);
 
       if (!result.success) {
-        _snack(result.message);
+        _snack([result.me](https://result.me)ssage);
         // المسار المضمون: فتح الرابط داخل متصفح التطبيق (زر الزحف الأخضر)
         await Get.toNamed('/shein', arguments: {'shareCartUrl': text});
         return;
@@ -101,7 +117,7 @@ class _CartScreenState extends State<CartScreen> {
       _shareCartController.clear();
       await _cart.refreshQuote();
 
-      _snack(result.message);
+      _snack([result.me](https://result.me)ssage);
     } catch (_) {
       if (!mounted) return;
 
@@ -156,8 +172,8 @@ class _CartScreenState extends State<CartScreen> {
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext ctx) {
-        final double commissionSar = _cart.commissionTotalSar;
-        final double commissionYer = _cart.commissionTotalYer;
+        final double commissionSar = _[cart.com](https://cart.com)missionTotalSar;
+        final double commissionYer = _[cart.com](https://cart.com)missionTotalYer;
         final double rate = q.exchangeRate;
         final double totalSar =
             (q.grandTotalLocal / rate) + commissionSar;
@@ -194,7 +210,7 @@ class _CartScreenState extends State<CartScreen> {
                     '${(q.shippingLocal / rate).toStringAsFixed(2)} SAR',
                   ),
                   _summaryRow(
-                    '🎁 العمولة (${_cart.commissionPerPiece.value.toStringAsFixed(2)} × ${_cart.items.length})',
+                    '🎁 العمولة (${_[cart.com](https://cart.com)missionPerPiece.value.toStringAsFixed(2)} × ${_cart.items.length})',
                     '${commissionSar.toStringAsFixed(2)} SAR',
                   ),
                   const Divider(height: 20),
@@ -272,7 +288,7 @@ class _CartScreenState extends State<CartScreen> {
 
     if (confirmed != true) return;
 
-    _cart.approveCommission();
+    _[cart.app](https://cart.app)roveCommission();
 
     final String message = _buildWhatsAppMessage(
       q: q,
@@ -349,8 +365,8 @@ class _CartScreenState extends State<CartScreen> {
     );
 
     if (includeCommission) {
-      final double commissionSar = _cart.commissionTotalSar;
-      final double commissionYer = _cart.commissionTotalYer;
+      final double commissionSar = _[cart.com](https://cart.com)missionTotalSar;
+      final double commissionYer = _[cart.com](https://cart.com)missionTotalYer;
 
       final double totalSar =
           subtotalSar + serviceFeeSar + shippingSar + commissionSar;
@@ -464,8 +480,8 @@ class _CartScreenState extends State<CartScreen> {
     }
 
     final TextEditingController controller = TextEditingController(
-      text: _cart.commissionPerPiece.value > 0
-          ? _cart.commissionPerPiece.value.toStringAsFixed(2)
+      text: _[cart.com](https://cart.com)missionPerPiece.value > 0
+          ? _[cart.com](https://cart.com)missionPerPiece.value.toStringAsFixed(2)
           : '',
     );
 
@@ -541,7 +557,8 @@ class _CartScreenState extends State<CartScreen> {
                       ),
                       onChanged: (String v) {
                         final double value = double.tryParse(v) ?? 0;
-                        _cart.setCommission(value);
+
+                                                _cart.setCommission(value);
                         setSheetState(() {});
                       },
                     ),
@@ -555,9 +572,9 @@ class _CartScreenState extends State<CartScreen> {
                       ),
                       child: Obx(() {
                         final double perPiece =
-                            _cart.commissionPerPiece.value;
-                        final double totalSar = _cart.commissionTotalSar;
-                        final double totalYer = _cart.commissionTotalYer;
+                            _[cart.com](https://cart.com)missionPerPiece.value;
+                        final double totalSar = _[cart.com](https://cart.com)missionTotalSar;
+                        final double totalYer = _[cart.com](https://cart.com)missionTotalYer;
                         final int count = _cart.items.length;
 
                         final double rate = totalSar > 0
@@ -800,7 +817,7 @@ class _CartScreenState extends State<CartScreen> {
             if (_cart.items.isEmpty) {
               return Column(
                 children: <Widget>[
-                  _Header(count: _cart.items.length),
+                  _Header(count: _cart.items.length, onRefresh: _refreshCart),
                   const SizedBox(height: 8),
                   _buildImportSheinCartButton(),
                   const Expanded(child: _EmptyCart()),
@@ -810,7 +827,7 @@ class _CartScreenState extends State<CartScreen> {
 
             return Column(
               children: <Widget>[
-                _Header(count: _cart.items.length),
+                _Header(count: _cart.items.length, onRefresh: _refreshCart),
                 Expanded(
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
@@ -933,9 +950,10 @@ class _CartScreenState extends State<CartScreen> {
 
 // Header
 class _Header extends StatelessWidget {
-  const _Header({required this.count});
+  const _Header({required this.count, required this.onRefresh});
 
   final int count;
+  final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -989,6 +1007,11 @@ class _Header extends StatelessWidget {
                   ),
                 ),
             ],
+          ),
+          IconButton(
+            onPressed: onRefresh,
+            tooltip: 'تحديث السلة',
+            icon: const Icon(Icons.refresh, color: _purple, size: 22),
           ),
           const Spacer(),
           Column(
@@ -1345,7 +1368,7 @@ class _QuantityButton extends StatelessWidget {
   final bool enabled;
   final VoidCallback onTap;
 
-  @override
+    @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: enabled ? onTap : null,
