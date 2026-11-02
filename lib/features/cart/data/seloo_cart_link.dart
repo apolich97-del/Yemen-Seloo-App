@@ -10,15 +10,26 @@ class SelooCartLink {
   static const String scheme = 'yemenseloo';
   static const String webBase = 'https://seloo-cart.vercel.app/';
 
+  // دالة مساعدة لتنظيف الصور قبل وضعها في الرابط
+  static String _cleanImageForLink(String raw) {
+    if (raw.isEmpty) return '';
+    // استبعاد شعار SHEIN والصور التالفة لتجنب إرسالها
+    if (raw.contains('shein.com/images') || raw.contains('logo') || raw.length < 20) {
+      return ''; 
+    }
+    return raw;
+  }
+
   static String encodePayload(List<CartItem> items) {
     final List<List<Object?>> list = items.map((CartItem e) {
       String title = e.title.trim();
-      if (title.length > 40) title = '${title.substring(0, 38)}..';
+      // ⭐ تقصير اسم المنتج إلى 15 حرفاً لتقليل حجم الرابط
+      if (title.length > 15) title = '${title.substring(0, 13)}..';
       
       return [
         e.goodsId,
         title,
-        e.imageUrl,
+        _cleanImageForLink(e.imageUrl), // تنظيف الصورة
         e.sourcePrice,
         e.color,
         e.size,
