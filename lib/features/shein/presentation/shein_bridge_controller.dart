@@ -1,4 +1,3 @@
-import '../data/shein_image_resolver.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
@@ -6,10 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
+
 import '../../../core/config/seloo_config.dart';
 import '../../cart/application/cart_counter.dart';
 import '../../cart/data/seloo_cart_service.dart';
 import '../../home/presentation/main_tab_controller.dart';
+import '../data/shein_image_resolver.dart';
 import '../domain/shein_draft.dart';
 
 class SheinBridgeController {
@@ -48,10 +49,13 @@ class SheinBridgeController {
     );
   }
 
+  /// تجلب الصورة الحقيقية من خادم SHEIN وتستبدل الصورة الخاطئة (مثل شعار S)
   Future<void> _resolveImageLater(String goodsId) async {
     try {
       final String? real = await SheinImageResolver.byGoodsId(goodsId);
       if (real == null || real.isEmpty) return;
+      
+      // تحديث الصورة في السلة
       final bool patched = await _cartService.patchImage(goodsId, real);
       if (patched) {
         try { await Get.find<CartCounter>().refreshQuote(); } catch (_) {}
@@ -72,10 +76,11 @@ class SheinBridgeController {
     }
 
     try {
+      // 1. إضافة المنتج فوراً للتطبيق (لحل مشكلة التعليق)
       final BridgeResult result = await _cartService.addToCart(draft, editingLineId: editingLineId);
       try { await Get.find<CartCounter>().onItemAdded(); } catch (_) {}
 
-      // ⭐ نطلب دائماً جلب الصورة الصحيحة وتصحيحها في الخلفية
+      // 2. في الخلفية، نطلب جلب الصورة الحقيقية وتصحيحها (لحل مشكلة شعار S)
       if (result.isOk && RegExp(r'^\d+$').hasMatch(goodsIdRaw)) {
         unawaited(_resolveImageLater(goodsIdRaw));
       }
