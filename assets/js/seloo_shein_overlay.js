@@ -10,6 +10,8 @@
   var BRIDGE = 'selooBridge';
   var CARD_FLAG = 'data-seloo-card';
   var cache = { url: '', products: null };
+  // آخر صورة أُرسلت للتطبيق — لكشف صورة المنتج السابق في التطبيق أحادي الصفحة
+  var lastImageUrl = '';
 
   function q(s) { try { return document.querySelector(s); } catch (e) { return null; } }
   function qa(s) { try { return Array.prototype.slice.call(document.querySelectorAll(s)); } catch (e) { return []; } }
@@ -336,12 +338,14 @@
     var wasEdit = EDIT_MODE;
     if (button) { button.disabled = true; button.textContent = 'جارٍ الإضافة...'; }
 
-    verifyImage(p.imageUrl).then(function (okUrl) {
-      if (okUrl) { p.imageUrl = okUrl; return null; }
-      // لا صورة صالحة في الصفحة: نقرأ og:image من نفس المنتج (بكوكيز الجلسة)
-      return fetchOgImage(p.goodsId).then(function (ogUrl) {
-        // إن لم نتيقّن نُرسل بلا صورة، والتطبيق يجلبها بمعرّف المنتج نفسه
-        p.imageUrl = ogUrl || '';
+    // 1) og:image من صفحة هذا المنتج تحديداً (يتحقق أن الصفحة تحمل معرّفه)
+    fetchOgImage(p.goodsId).then(function (ogUrl) {
+      if (ogUrl) { p.imageUrl = ogUrl; return null; }
+      // 2) صورة الصفحة مرفوضة إن كانت هي نفس صورة المنتج السابق (تطبيق أحادي الصفحة)
+      var domImg = p.imageUrl || '';
+      if (!domImg || domImg === lastImageUrl) { p.imageUrl = ''; return null; }
+      return verifyImage(domImg).then(function (okUrl) {
+        p.imageUrl = (okUrl && okUrl !== lastImageUrl) ? okUrl : '';
         return null;
       });
     }).then(function () {
@@ -361,6 +365,7 @@
           try { sessionStorage.removeItem('selooEdit'); } catch (e) {}
           EDIT_MODE = false;
         }
+        if (p.imageUrl) lastImageUrl = p.imageUrl;
         toast((wasEdit ? '✓ تم حفظ التعديل' : '✓ أُضيف إلى سلة سيلو') + ' — ' + bits.join(' · '));
       }
       if (button) { button.disabled = false; button.textContent = EDIT_MODE ? '💾 حفظ التعديل' : '🛒 أضف إلى سلة سيلو'; }
@@ -513,6 +518,7 @@
   function scrapeCartDom() {
     var links = qa('a[href]');
     var seen = {};
+    var usedImgs = {};
     var out = [];
 
     for (var i = 0; i < links.length; i++) {
@@ -545,7 +551,7 @@
       var imgs = card.querySelectorAll ? card.querySelectorAll('img') : [];
       for (var j = 0; j < imgs.length; j++) {
         var cand = imgFrom(imgs[j]);
-        if (cand) { img = cand; break; }
+        if (cand && !usedImgs[cand]) { img = cand; usedImgs[cand] = true; break; }
       }
 
       // المقاس واللون: نبحث عن عنصر صغير نصه "بني / L" بدقة
