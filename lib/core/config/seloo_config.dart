@@ -27,7 +27,7 @@ abstract final class SelooConfig {
   static const String metaCollection = 'meta';
 
   // -------- حدود المنطق --------
-  static const int maxQuantityPerLine = 50;
+  static const int maxQuantityPerLine = 99; // ⭐ تم التعديل إلى 99
   static const int maxLinesPerCart = 40;
   static const int maxPayloadBytes = 20000;
 
@@ -68,9 +68,8 @@ abstract final class SelooPricing {
 /// إعدادات الجانب الخاص بـSHEIN.
 abstract final class SheinWebConfig {
   static const String scheme = 'https';
-  static const String host = 'm.shein.com'; // ⭐ تم التصحيح
+  static const String host = 'm.shein.com';
 
-  // ⭐ النطاقات العربية العامة (sa.shein.com للغة الإنجليزية)
   static const String homeAr = 'https://m.shein.com/ar/';
   static const String categoryAr = 'https://m.shein.com/ar/category/';
 
