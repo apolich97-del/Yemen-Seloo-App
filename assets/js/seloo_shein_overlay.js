@@ -1,8 +1,8 @@
 /**
  * Yemen Seloo — Overlay JS
- * الفكرة: زر "أضف إلى سلة سيلو" فقط.
+ * الفكرة: زر "أضف إلى يمن سيلو" فقط.
  * 1) في صفحة المنتج: زر يضيف المنتج بالمقاس واللون المختارين.
- * 2) في السلة المشتركة: زر صغير على كل منتج يفتح صفحته لاختيار المقاس واللون ثم الإضافة.
+ * 2) في السلة المشتركة: زر أخضر للاستيراد الكامل، وزر أرجواني لكل منتج.
  */
 (function () {
   'use strict';
@@ -60,19 +60,36 @@
 
   // ════════════════ صفحة المنتج ════════════════
   function isProductPage() { return /-p-\d+\.html/i.test(window.location.href); }
-  function isShareOrCartPage() { return /\/cart(\/|\?|$)/i.test(window.location.pathname); }
+  
+  // ⭐ التعرف الذكي على صفحة السلة المشتركة
+  function isShareOrCartPage() { 
+    var url = window.location.href.toLowerCase();
+    if (url.indexOf('/cart') !== -1) return true;
+    if (url.indexOf('share') !== -1) return true;
+    if (url.indexOf('group_id') !== -1) return true;
+    if (url.indexOf('groupid') !== -1) return true;
+    
+    var bodyText = txt(document.body);
+    if (bodyText.indexOf('العناصر التي شاركها') !== -1) return true;
+    if (bodyText.indexOf('شاركها صديقك') !== -1) return true;
+    
+    var allBtns = qa('button, div[role="button"], div[class*="btn"]');
+    for (var i = 0; i < allBtns.length; i++) {
+        var t = txt(allBtns[i]);
+        if (t.indexOf('اضافة الكل') !== -1 || t.indexOf('إضافة الكل') !== -1) {
+            return true;
+        }
+    }
+    return false;
+  }
 
-  // قراءة المقاس واللون المختارين بعدة استراتيجيات
   function readSelectedVariant() {
     var out = { size: '', color: '' };
-
     function pick(el) {
       if (!el) return '';
       var t = (el.getAttribute('title') || el.getAttribute('aria-label') || txt(el) || '').trim();
       return t.length <= 30 ? t : '';
     }
-
-    // 1) عناصر عليها aria-checked / aria-selected
     var chosen = qa('[aria-checked="true"], [aria-selected="true"]');
     chosen.forEach(function (el) {
       var t = pick(el);
@@ -83,28 +100,13 @@
         out.color = t;
       }
     });
-
-    // 2) أصناف مختارة شائعة
-    if (!out.size) {
-      out.size = pick(q('[class*="size"] [class*="active"], [class*="size"] [class*="selected"], [class*="sku"] [class*="active"]'));
-    }
-    if (!out.color) {
-      out.color = pick(q('[class*="color"] [class*="active"], [class*="color"] [class*="selected"]'));
-    }
-
-    // 3) نص شريط الاختيار: "المقاس: M" / "اللون: الأسود"
+    if (!out.size) out.size = pick(q('[class*="size"] [class*="active"], [class*="size"] [class*="selected"], [class*="sku"] [class*="active"]'));
+    if (!out.color) out.color = pick(q('[class*="color"] [class*="active"], [class*="color"] [class*="selected"]'));
     if (!out.size || !out.color) {
       var body = txt(document.body).slice(0, 4000);
-      if (!out.size) {
-        var ms = body.match(/(?:المقاس|مقاس)\s*:?\s*([A-Za-z0-9]{1,6})/);
-        if (ms) out.size = ms[1];
-      }
-      if (!out.color) {
-        var mc = body.match(/(?:اللون|لون)\s*:?\s*([^\s,،|/]{2,20})/);
-        if (mc) out.color = mc[1];
-      }
+      if (!out.size) { var ms = body.match(/(?:المقاس|مقاس)\s*:?\s*([A-Za-z0-9]{1,6})/); if (ms) out.size = ms[1]; }
+      if (!out.color) { var mc = body.match(/(?:اللون|لون)\s*:?\s*([^\s,،|/]{2,20})/); if (mc) out.color = mc[1]; }
     }
-
     return out;
   }
 
@@ -112,7 +114,6 @@
     var m = window.location.href.match(/-p-(\d+)\.html/);
     if (!m) return null;
     var goodsId = m[1];
-
     var title = txt(q('h1'));
     if (!title) { var og = q('meta[property="og:title"]'); if (og) title = (og.content || '').trim(); }
     if (!title) title = (document.title || '').trim();
@@ -125,26 +126,17 @@
       var p = parsePrice(txt(priceEls[i]));
       if (p) { price = p; break; }
     }
-    if (!price) {
-      var pm = q('meta[property="product:price:amount"], meta[property="og:price:amount"]');
-      if (pm) price = parsePrice(pm.content);
-    }
+    if (!price) { var pm = q('meta[property="product:price:amount"], meta[property="og:price:amount"]'); if (pm) price = parsePrice(pm.content); }
     if (!price) price = 0.01;
 
     var BAD_IMG = /placeholder|loading|transparent|noimage|no_image|blank|grey|gray|default\.(png|jpg)|icon\//i;
-    // صور منتجات شي إن الحقيقية دائماً تحت مسار imagesN_pi
     var PRODUCT_IMG = /\/images\d+_pi\//i;
 
     function goodImg(el) {
       if (!el) return '';
       var cands = [];
       var ss = el.getAttribute('srcset') || '';
-      if (ss) {
-        ss.split(',').forEach(function (part) {
-          var u = (part || '').trim().split(' ')[0];
-          if (u) cands.push(u);
-        });
-      }
+      if (ss) { ss.split(',').forEach(function (part) { var u = (part || '').trim().split(' ')[0]; if (u) cands.push(u); }); }
       cands.push(el.getAttribute('data-src') || '');
       cands.push(el.getAttribute('data-original') || '');
       cands.push(el.getAttribute('data-lazy-src') || '');
@@ -163,13 +155,8 @@
         if (!u || u.indexOf('data:') === 0) continue;
         if (!/\.(jpg|jpeg|png|webp)/i.test(u)) continue;
         if (BAD_IMG.test(u)) continue;
-      if (!PRODUCT_IMG.test(u)) continue; // ليست صورة منتج (شعار/نائب)
-        // الرابط قد يكون نسبياً (بدون https) — نحوّله لمطلق
-        try {
-          return new URL(u, window.location.href).href;
-        } catch (e) {
-          return u.indexOf('//') === 0 ? 'https:' + u : u;
-        }
+        if (!PRODUCT_IMG.test(u)) continue;
+        try { return new URL(u, window.location.href).href; } catch (e) { return u.indexOf('//') === 0 ? 'https:' + u : u; }
       }
       return '';
     }
@@ -180,27 +167,7 @@
       var cand = goodImg(imgs[ii]);
       if (cand) { imageUrl = cand; break; }
     }
-    // og:image أصدق مصدر لصورة المنتج (لا يتأثر بالصور النائبة أو المصغرات)
-    // لا نستخدم meta og:image: شي إن تطبيق أحادي الصفحة وقد يحتفظ بوسم المنتج
-    // السابق فتُنسب صورة منتج لمنتج آخر.
-    if (!imageUrl) {
-      var bgs = qa('[class*="crop-image"], [class*="main-image"], [class*="gallery"]');
-      for (var bi = 0; bi < bgs.length; bi++) {
-        try {
-          var bg = window.getComputedStyle(bgs[bi]).backgroundImage || '';
-          var mUrl = bg.match(/url\(["']?([^"')]+)["']?\)/);
-          if (mUrl && mUrl[1] && mUrl[1].indexOf('data:') !== 0) { imageUrl = mUrl[1]; break; }
-        } catch (e) {}
-      }
-    }
     if (!imageUrl) { var ogi = q('meta[property="og:image"]'); if (ogi) imageUrl = ogi.content || ''; }
-    if (!imageUrl) {
-      var anyImg = qa('img');
-      for (var jj = 0; jj < anyImg.length; jj++) {
-        var c2 = goodImg(anyImg[jj]);
-        if (c2 && PRODUCT_IMG.test(c2)) { imageUrl = c2; break; }
-      }
-    }
     if (imageUrl.indexOf('//') === 0) imageUrl = 'https:' + imageUrl;
 
     var v = readSelectedVariant();
@@ -223,8 +190,6 @@
     };
   }
 
-
-  /// يجلب og:image من نفس الصفحة (بكوكيز الجلسة) — أسرع وأدق من أي طلب خارجي
   function fetchOgImage(goodsId) {
     return new Promise(function (resolve) {
       var done = false;
@@ -235,7 +200,6 @@
           .then(function (html) {
             if (done) return;
             done = true; clearTimeout(t);
-            // حماية: إن كانت الصفحة المجلوبة لا تخص هذا المنتج فهي قديمة أو صفحة تحقق
             if (goodsId && html.indexOf(goodsId) === -1) { resolve(''); return; }
             var m = html.match(/property=["']og:image["'][^>]*content=["']([^"']+)["']/i) ||
                     html.match(/content=["']([^"']+)["'][^>]*property=["']og:image["']/i);
@@ -244,88 +208,32 @@
             else resolve('');
           })
           .catch(function () { if (!done) { done = true; clearTimeout(t); resolve(''); } });
-      } catch (e) {
-        if (!done) { done = true; clearTimeout(t); resolve(''); }
-      }
+      } catch (e) { if (!done) { done = true; clearTimeout(t); resolve(''); } }
     });
   }
 
-  /// يكشف صورة SHEIN النائبة (صندوق رمادي بشعار) عبر تحليل البكسلات
-  function looksLikePlaceholder(url) {
-    return new Promise(function (resolve) {
-      var im = new Image();
-      im.crossOrigin = 'anonymous';
-      var settled = false;
-      var t = setTimeout(function () {
-        if (!settled) { settled = true; resolve(false); }
-      }, 1800);
-
-      im.onload = function () {
-        if (settled) return;
-        settled = true; clearTimeout(t);
-        try {
-          var c = document.createElement('canvas');
-          c.width = 40; c.height = 40;
-          var ctx = c.getContext('2d');
-          ctx.drawImage(im, 0, 0, 40, 40);
-          var d = ctx.getImageData(0, 0, 40, 40).data;
-          var sum = 0, sum2 = 0, n = 0, grayLight = 0;
-          for (var i = 0; i < d.length; i += 4) {
-            var r = d[i], g = d[i + 1], b = d[i + 2];
-            var lum = 0.299 * r + 0.587 * g + 0.114 * b;
-            sum += lum; sum2 += lum * lum; n++;
-            if (Math.abs(r - g) < 14 && Math.abs(g - b) < 14 && lum > 195) grayLight++;
-          }
-          var mean = sum / n;
-          var variance = (sum2 / n) - (mean * mean);
-          var grayRatio = grayLight / n;
-          // تباين منخفض جداً أو أغلبها رمادي فاتح = صورة نائبة
-          resolve(variance < 300 || grayRatio > 0.7);
-        } catch (e) {
-          resolve(false); // لا يمكن قراءة البكسلات (CORS) — لا نحكم
-        }
-      };
-      im.onerror = function () {
-        if (settled) return;
-        settled = true; clearTimeout(t);
-        resolve(false);
-      };
-      im.src = url;
-    });
-  }
-
-  /// يتأكد أن رابط الصورة يعمل فعلاً وليس صورة SHEIN الرمادية الصغيرة
   function verifyImage(url) {
     return new Promise(function (resolve) {
       if (!url) { resolve(''); return; }
       var im = new Image();
       var done = false;
-      var t = setTimeout(function () {
-        if (!done) { done = true; resolve(url); }
-      }, 2000);
+      var t = setTimeout(function () { if (!done) { done = true; resolve(url); } }, 2000);
       im.onload = function () {
         if (done) return;
         done = true; clearTimeout(t);
         var w = im.naturalWidth || 0;
         var h = im.naturalHeight || 0;
         if (w < 150 || h < 150) { resolve(''); return; }
-        // الصور النائبة (شعار SHEIN الرمادي) ملفات صغيرة جداً — نقيس حجمها
         fetch(url, { credentials: 'omit' })
           .then(function (r) { return r.ok ? r.blob() : null; })
           .then(function (b) {
             if (!b) { resolve(url); return; }
             if (b.size < 8000) { resolve(''); return; }
-            looksLikePlaceholder(url).then(function (isBad) {
-              resolve(isBad ? '' : url);
-            });
+            resolve(url);
           })
           .catch(function () { resolve(url); });
       };
-      im.onerror = function () {
-        if (done) return;
-        done = true; clearTimeout(t);
-        resolve('');
-      };
+      im.onerror = function () { if (done) return; done = true; clearTimeout(t); resolve(''); };
       im.src = url;
     });
   }
@@ -336,12 +244,10 @@
     var wasEdit = EDIT_MODE;
     if (button) { button.disabled = true; button.textContent = 'جارٍ الإضافة...'; }
 
-    verifyImage(p.imageUrl).then(function (okUrl) {
-      if (okUrl) { p.imageUrl = okUrl; return null; }
-      // لا صورة صالحة في الصفحة: نقرأ og:image من نفس المنتج (بكوكيز الجلسة)
-      return fetchOgImage(p.goodsId).then(function (ogUrl) {
-        // إن لم نتيقّن نُرسل بلا صورة، والتطبيق يجلبها بمعرّف المنتج نفسه
-        p.imageUrl = ogUrl || '';
+    fetchOgImage(p.goodsId).then(function (ogUrl) {
+      if (ogUrl) { p.imageUrl = ogUrl; return null; }
+      return verifyImage(p.imageUrl).then(function (okUrl) {
+        p.imageUrl = okUrl || '';
         return null;
       });
     }).then(function () {
@@ -361,26 +267,23 @@
           try { sessionStorage.removeItem('selooEdit'); } catch (e) {}
           EDIT_MODE = false;
         }
-        toast((wasEdit ? '✓ تم حفظ التعديل' : '✓ أُضيف إلى سلة سيلو') + ' — ' + bits.join(' · '));
+        toast((wasEdit ? '✓ تم حفظ التعديل' : '✓ أُضيف إلى يمن سيلو') + ' — ' + bits.join(' · '));
       }
-      if (button) { button.disabled = false; button.textContent = EDIT_MODE ? '💾 حفظ التعديل' : '🛒 أضف إلى سلة سيلو'; }
+      if (button) { button.disabled = false; button.textContent = EDIT_MODE ? '💾 حفظ التعديل' : '🛒 أضف إلى يمن سيلو'; }
     }).catch(function (e) {
       toast('تعذر إكمال العملية. حاول مجددًا.');
-      if (button) { button.disabled = false; button.textContent = EDIT_MODE ? '💾 حفظ التعديل' : '🛒 أضف إلى سلة سيلو'; }
+      if (button) { button.disabled = false; button.textContent = EDIT_MODE ? '💾 حفظ التعديل' : '🛒 أضف إلى يمن سيلو'; }
     });
   }
 
   window.__selooAddCurrentProduct = function () { addFromPage(null); return true; };
 
-  // وضع التعديل يبقى محفوظاً طوال الجلسة (صفحة البحث ← صفحة المنتج)
   var EDIT_MODE = (function () {
     var flagged = /[?&]seloo_edit=1/.test(window.location.search);
     try {
       if (flagged) sessionStorage.setItem('selooEdit', '1');
       return flagged || sessionStorage.getItem('selooEdit') === '1';
-    } catch (e) {
-      return flagged;
-    }
+    } catch (e) { return flagged; }
   })();
 
   function scrollToVariants() {
@@ -397,7 +300,7 @@
     var fab = document.createElement('button');
     fab.id = 'seloo-fab';
     fab.type = 'button';
-    fab.textContent = EDIT_MODE ? '💾 حفظ التعديل' : '🛒 أضف إلى سلة سيلو';
+    fab.textContent = EDIT_MODE ? '💾 حفظ التعديل' : '🛒 أضف إلى يمن سيلو';
     fab.style.cssText = 'position:fixed;bottom:96px;right:14px;z-index:2147483000;background:#7c3aed;color:#fff;border:0;border-radius:50px;padding:13px 18px;font-size:14px;font-weight:700;box-shadow:0 6px 20px rgba(124,58,237,.5)';
     fab.addEventListener('click', function () {
       if (fab.disabled) return;
@@ -413,10 +316,13 @@
 
   // ════════════════ السلة المشتركة: زر لكل منتج ════════════════
   function readGroupId() {
-    var hay = window.location.href + ' ' + (document.documentElement ? document.documentElement.innerHTML.slice(0, 200000) : '');
-    var m = hay.match(/group_?[Ii]d[^0-9]{0,3}(\d{5,})/);
+    var url = window.location.href;
+    var m = url.match(/group_?[Ii]d[^0-9]{0,3}(\d{5,})/);
     if (m) return m[1];
-    m = hay.match(/\/share\/(\d{5,})/);
+    m = url.match(/\/share\/(\d{5,})/);
+    if (m) return m[1];
+    var html = document.documentElement ? document.documentElement.innerHTML : '';
+    m = html.match(/group_?[Ii]d[^0-9]{0,3}(\d{5,})/);
     return m ? m[1] : null;
   }
 
@@ -455,11 +361,7 @@
       return fetch(url, {
         method: 'POST',
         credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'AppCurrency': 'SAR',
-          'AppLanguage': 'ar'
-        },
+        headers: { 'Content-Type': 'application/json', 'AppCurrency': 'SAR', 'AppLanguage': 'ar' },
         body: JSON.stringify({ groupId: gid, localCountry: 'SA', userLocalSizeCountry: '' })
       }).then(function (r) { return r.json(); }).then(function (data) {
         var info = data && data.info;
@@ -480,7 +382,6 @@
     });
   }
 
-  // إيجاد أصغر عنصر يحتوي نص المنتج
   function findByText(needle) {
     if (!needle || needle.length < 6) return null;
     var probe = needle.slice(0, 14);
@@ -511,11 +412,27 @@
     if (!products || !products.length) return;
     if (injectedFor === window.location.href + '|' + products.length) return;
     injectedFor = window.location.href + '|' + products.length;
+    
     products.forEach(function (p) {
-      var host = findByText(p.title) || findByImage(p);
+      var host = qa('[data-id*="' + p.goodsId + '"], a[href*="' + p.goodsId + '"]')[0];
+      if (!host) host = findByText(p.title) || findByImage(p);
+      
+      if (!host) {
+          var sheinAddBtns = qa('button, div[role="button"]');
+          for (var i = 0; i < sheinAddBtns.length; i++) {
+              var btnTxt = txt(sheinAddBtns[i]);
+              if (btnTxt === 'أضف' || btnTxt === 'إضافة') {
+                  var cardCandidate = sheinAddBtns[i].closest('li, [class*="card"], [class*="item"], [class*="goods"]');
+                  if (cardCandidate && !cardCandidate.querySelector('[' + CARD_FLAG + ']')) {
+                      host = cardCandidate;
+                      break;
+                  }
+              }
+          }
+      }
+
       if (!host) return;
 
-      // نصعد حتى حاوية بصرية معقولة
       var card = host;
       for (var depth = 0; depth < 4 && card && card.parentNode; depth++) {
         var r = card.getBoundingClientRect ? card.getBoundingClientRect() : { width: 0, height: 0 };
@@ -528,7 +445,7 @@
       var btn = document.createElement('button');
       btn.type = 'button';
       btn.setAttribute(CARD_FLAG, p.goodsId);
-      btn.textContent = '🛒 أضف إلى سلة سيلو';
+      btn.textContent = '🛒 أضف إلى يمن سيلو';
       btn.style.cssText = 'display:block;width:100%;margin:8px 0 4px;padding:10px;border:0;border-radius:10px;background:#7c3aed;color:#fff;font-size:13px;font-weight:700;font-family:inherit';
       btn.addEventListener('click', function (ev) {
         ev.preventDefault();
@@ -539,8 +456,7 @@
     });
   }
 
-  // ════════════════ المزامنة ════════════════
-  // ═══ استيراد السلة كاملة (يمر بنفس مسار الإضافة الفردية) ═══
+  // ════════════════ استيراد السلة كاملة ════════════════
   var importing = false;
 
   function importWholeCart() {
@@ -564,8 +480,7 @@
         if (i >= total) {
           importing = false;
           updateBulkLabel(null);
-          toast('✓ اكتمل: أُضيف ' + added + ' من ' + total + ' منتج إلى سلة يمن سيلو'
-            + (failed ? ' — تعذر ' + failed : ''));
+          toast('✓ اكتمل: أُضيف ' + added + ' من ' + total + ' منتج إلى سلة يمن سيلو' + (failed ? ' — تعذر ' + failed : ''));
           return;
         }
         updateBulkLabel('جارٍ الإضافة ' + (i + 1) + '/' + total);
@@ -586,7 +501,7 @@
   function updateBulkLabel(text) {
     var b = document.getElementById('seloo-bulk-btn');
     if (!b) return;
-    b.textContent = text ? '⏳ ' + text : '📥 استيراد السلة كاملة إلى سيلو';
+    b.textContent = text ? '⏳ ' + text : '📥 استيراد السلة كاملة إلى يمن سيلو';
   }
 
   function buildBulkButton() {
@@ -594,8 +509,8 @@
     var b = document.createElement('button');
     b.id = 'seloo-bulk-btn';
     b.type = 'button';
-    b.textContent = '📥 استيراد السلة كاملة إلى سيلو';
-    b.style.cssText = 'position:fixed;bottom:16px;left:12px;right:12px;z-index:2147483000;background:#10b981;color:#fff;border:0;border-radius:12px;min-height:50px;font-size:15px;font-weight:700;box-shadow:0 4px 16px rgba(0,0,0,.25);cursor:pointer';
+    b.textContent = '📥 استيراد السلة كاملة إلى يمن سيلو';
+    b.style.cssText = 'position:fixed;bottom:80px;left:12px;right:12px;z-index:2147483000;background:#10b981;color:#fff;border:0;border-radius:12px;min-height:50px;font-size:15px;font-weight:700;box-shadow:0 4px 16px rgba(0,0,0,.25);cursor:pointer';
     b.addEventListener('click', function (e) {
       e.preventDefault();
       e.stopPropagation();
