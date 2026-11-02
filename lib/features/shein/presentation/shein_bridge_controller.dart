@@ -17,12 +17,9 @@ class SheinBridgeController {
   final SelooCartService _cartService;
   String? _scriptSource;
 
-  /// ⭐ عند فتح المنتج من زر التعديل في سلة يمن سيلو:
-  /// تُمرَّر هنا لتعديل السطر نفسه بدل إضافة سطر جديد.
   String? editingLineId;
   InAppWebViewController? _webView;
 
-  // ⭐ دوال التحكم في الزحف
   Function(int total)? onStartClickCrawl;
   Function()? onCrawlStepFailed;
 
@@ -51,7 +48,6 @@ class SheinBridgeController {
     );
   }
 
-  /// يجلب صورة المنتج الحقيقية بعد الإضافة ويضعها على السطر (بلا تعطيل الواجهة)
   Future<void> _resolveImageLater(String goodsId) async {
     try {
       final String? real = await SheinImageResolver.byGoodsId(goodsId);
@@ -64,12 +60,8 @@ class SheinBridgeController {
   }
 
   Future<Map<String, dynamic>> _handleAddToCart(Map<String, dynamic> payload) async {
-    // صور صفحة شي إن قد تكون نائبة، فنجلب صورة المنتج الحقيقية من og:image
-    final Map<String, dynamic> safePayload =
-        Map<String, dynamic>.from(payload);
+    final Map<String, dynamic> safePayload = Map<String, dynamic>.from(payload);
     final String goodsIdRaw = (safePayload['goodsId'] ?? '').toString().trim();
-    // لا ننتظر جلب الصورة: نضيف السطر فوراً ثم نُصلح صورته في الخلفية
-    final String imageFromPage = (safePayload['imageUrl'] ?? '').toString();
 
     final SheinDraft draft;
     try {
@@ -80,14 +72,11 @@ class SheinBridgeController {
     }
 
     try {
-      final BridgeResult result =
-          await _cartService.addToCart(draft, editingLineId: editingLineId);
+      final BridgeResult result = await _cartService.addToCart(draft, editingLineId: editingLineId);
       try { await Get.find<CartCounter>().onItemAdded(); } catch (_) {}
 
-      // الصورة تصل لاحقاً بلا أن تُبطئ الإضافة
-      if (result.isOk &&
-          imageFromPage.trim().isEmpty &&
-          RegExp(r'^\d+$').hasMatch(goodsIdRaw)) {
+      // ⭐ نطلب دائماً جلب الصورة الصحيحة وتصحيحها في الخلفية
+      if (result.isOk && RegExp(r'^\d+$').hasMatch(goodsIdRaw)) {
         unawaited(_resolveImageLater(goodsIdRaw));
       }
 
