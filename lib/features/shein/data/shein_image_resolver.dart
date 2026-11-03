@@ -5,6 +5,7 @@ import 'dart:io';
 class SheinImageResolver {
   SheinImageResolver._();
 
+  // ذاكرة: معرّف → صورة، وصورة → معرّف. تمنع نسبة صورة منتج لمنتج آخر
   static final Map<String, String> _byId = <String, String>{};
   static final Map<String, String> _owner = <String, String>{};
 
@@ -38,6 +39,7 @@ class SheinImageResolver {
     final String? cached = _byId[id];
     if (cached != null && cached.isNotEmpty) return cached;
 
+    // صفحات المنتج فقط — pdsearch صفحة عامة تُرجع صورة واحدة لكل المنتجات
     final List<String> urls = <String>[
       'https://m.shein.com/ar/-p-$id.html',
       'https://ar.shein.com/-p-$id.html',
@@ -55,7 +57,7 @@ class SheinImageResolver {
         if (absolute == null) continue;
 
         final String? owner = _owner[absolute];
-        if (owner != null && owner != id) continue;
+        if (owner != null && owner != id) continue; // صورة منتج آخر — مرفوضة
 
         _byId[id] = absolute;
         _owner[absolute] = id;
