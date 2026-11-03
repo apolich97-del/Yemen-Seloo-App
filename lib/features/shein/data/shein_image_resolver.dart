@@ -5,8 +5,6 @@ import 'dart:io';
 class SheinImageResolver {
   SheinImageResolver._();
 
-  // ذاكرة: معرّف → صورة، وصورة → معرّف. تمنع نسبة صورة منتج لمنتج آخر
-  // (صفحات SHEIN العامة تُرجع صورة واحدة لعدة معرّفات، وهي سبب تكرار الصور).
   static final Map<String, String> _byId = <String, String>{};
   static final Map<String, String> _owner = <String, String>{};
 
@@ -40,7 +38,6 @@ class SheinImageResolver {
     final String? cached = _byId[id];
     if (cached != null && cached.isNotEmpty) return cached;
 
-    // صفحات المنتج فقط — pdsearch صفحة عامة تُرجع صورة واحدة لكل المنتجات
     final List<String> urls = <String>[
       'https://m.shein.com/ar/-p-$id.html',
       'https://ar.shein.com/-p-$id.html',
@@ -58,7 +55,7 @@ class SheinImageResolver {
         if (absolute == null) continue;
 
         final String? owner = _owner[absolute];
-        if (owner != null && owner != id) continue; // صورة منتج آخر — مرفوضة
+        if (owner != null && owner != id) continue;
 
         _byId[id] = absolute;
         _owner[absolute] = id;
@@ -81,7 +78,6 @@ class SheinImageResolver {
     return null;
   }
 
-  // فلتر لرفض شعار SHEIN
   static bool _isBad(String url) {
     return RegExp(r'logo|shein_logo|\/s\.(png|jpg)|placeholder|loading|transparent|noimage|no_image|blank|/icon/', caseSensitive: false).hasMatch(url);
   }
@@ -106,7 +102,7 @@ class SheinImageResolver {
     if (_isBad(u)) return null;
     if (!_productImg.hasMatch(u)) return null;
 
-    // ⭐ إزالة لاحقة التصغير لجلب الصورة الأصلية الكاملة عالية الدقة
+    // ⭐ إزالة التصغير
     u = u.replaceAll(RegExp(r'_thumbnail_\d+x\d+\.(jpg|jpeg|png|webp)', caseSensitive: false), r'.$1');
     u = u.replaceAll(RegExp(r'_thumbnail\.(jpg|jpeg|png|webp)', caseSensitive: false), r'.$1');
 
