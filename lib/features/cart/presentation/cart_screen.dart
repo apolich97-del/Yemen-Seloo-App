@@ -59,7 +59,7 @@ class _CartScreenState extends State<CartScreen> {
     }
   }
 
-  // ⭐ دالة جديدة: فتح المنتج للتصفح فقط
+  // ⭐ دالة فتح المنتج للتصفح فقط
   void _browseProduct(CartItem item) {
     final String browseUrl = item.goodsId.isNotEmpty
         ? 'https://m.shein.com/ar/pdsearch/${item.goodsId}/'
@@ -801,7 +801,7 @@ class _CartLineTile extends StatelessWidget {
   final ValueChanged<int> onQuantity;
   final VoidCallback onRemove;
   final VoidCallback onEdit;
-  final VoidCallback onBrowse; // ⭐ دالة التصفح
+  final VoidCallback onBrowse;
 
   void _showImageDebug(BuildContext context) {
     showDialog<void>(
@@ -836,7 +836,7 @@ class _CartLineTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               GestureDetector(
-                onTap: onBrowse, // ⭐ الضغط على الصورة للتصفح فقط
+                onTap: onBrowse,
                 onLongPress: () => _showImageDebug(context),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -907,7 +907,7 @@ class _CartLineTile extends StatelessWidget {
               _QuantityButton(icon: Icons.add, enabled: item.quantity < SelooConfig.maxQuantityPerLine, onTap: () => onQuantity(item.quantity + 1)),
               const Spacer(),
               IconButton(
-                onPressed: onEdit, // ⭐ زر التعديل
+                onPressed: onEdit,
                 icon: const Icon(Icons.edit_outlined, color: _orange, size: 20),
                 tooltip: 'تعديل المقاس أو اللون',
               ),
