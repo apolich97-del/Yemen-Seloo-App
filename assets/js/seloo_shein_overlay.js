@@ -1,8 +1,6 @@
 /**
  * Yemen Seloo — Overlay JS
- * الفكرة: زر "أضف إلى يمن سيلو" فقط.
- * 1) في صفحة المنتج: زر يضيف المنتج بالمقاس واللون المختارين.
- * 2) في السلة المشتركة: استخراج قوي (شبكة + DOM + JSON + API).
+ * إصلاحات: قراءة المقاسات والألوان بدقة + روابط آمنة (pdsearch) + إضافة فورية
  */
 (function () {
   'use strict';
@@ -87,7 +85,6 @@
     });
   }
 
-  // ════════════════ صفحة المنتج ════════════════
   function isProductPage() { return /-p-\d+\.html/i.test(window.location.href); }
   
   function isShareOrCartPage() { 
@@ -181,7 +178,8 @@
 
     return {
       goodsId: goodsId,
-      productUrl: window.location.href,
+      // ⭐ نستخدم رابط البحث الآمن
+      productUrl: 'https://m.shein.com/ar/pdsearch/' + goodsId + '/',
       title: title || ('منتج SHEIN #' + goodsId),
       imageUrl: imageUrl,
       sourcePrice: price,
@@ -197,7 +195,6 @@
     };
   }
 
-  // ⭐ دالة الإضافة الفورية (تم إزالة الانتظار)
   function addFromPage(button) {
     var p = readCurrentProduct();
     if (!p) { toast('تعذر قراءة بيانات المنتج.'); return; }
@@ -247,7 +244,7 @@
     if (f && f.parentNode) f.parentNode.removeChild(f);
   }
 
-  // ════════════════ السلة المشتركة: أدوات القراءة ════════════════
+  // ════════════════ السلة المشتركة ════════════════
   var IMG_OK = /\/images\d+_pi\//i;
   var IMG_BAD = /placeholder|loading|transparent|noimage|no_image|blank|grey|gray|default\.(png|jpg)|icon\/|logo|shein_logo|\/s\.(png|jpg)/i;
 
@@ -288,17 +285,24 @@
     return best;
   }
 
+  // ⭐ دالة محدثة لقراءة المقاسات والألوان بدقة
   function readVariantFrom(card) {
     var out = { color: '', size: '' };
-    var SZ = '(XXS|XS|S|M|L|XL|XXL|2XL|3XL|\\d{2,3}\\s?(?:سم|cm))';
     var nodes = card.querySelectorAll ? card.querySelectorAll('span, div, p, a, button') : [];
     for (var i = 0; i < nodes.length; i++) {
       if (nodes[i].children && nodes[i].children.length) continue;
       var t = txt(nodes[i]);
-      if (!t || t.length > 40) continue;
-      var m = t.match(new RegExp('^([^\\s\\/|,،]{2,18})\\s*\\/\\s*' + SZ + '$', 'i'));
-      if (m) { out.color = m[1].trim(); out.size = m[2].trim(); return out; }
+      // نبحث عن سطر يحتوي على "/" وطوله معقول (مثل: "بني / L" أو "أخضر داكن / 2XL")
+      if (t.indexOf('/') !== -1 && t.length < 50) {
+        var parts = t.split('/');
+        if (parts.length >= 2) {
+          out.color = parts[0].trim();
+          out.size = parts[1].trim();
+          return out; // وجدناهم!
+        }
+      }
     }
+    // خطة بديلة: البحث بالكلمات المفتاحية
     var all = txt(card);
     var mc = all.match(/(?:اللون|لون)\s*:?\s*([^\s\/|,،]{2,18})/);
     if (mc) out.color = mc[1];
@@ -307,7 +311,6 @@
     return out;
   }
 
-  // ════════════════ استخراج السلة من الصفحة ════════════════
   function scrapeCartDom() {
     var links = qa('a[href]');
     var seen = {};
@@ -352,7 +355,8 @@
       seen[id] = true;
       out.push({
         goodsId: id,
-        productUrl: 'https://m.shein.com/-p-' + id + '.html',
+        // ⭐ رابط البحث الآمن
+        productUrl: 'https://m.shein.com/ar/pdsearch/' + id + '/',
         title: title.replace(/\s+/g, ' ').slice(0, 300),
         imageUrl: img,
         sourcePrice: price,
@@ -403,7 +407,7 @@
         seen[id] = true;
         out.push({
           goodsId: id,
-          productUrl: 'https://m.shein.com/-p-' + id + '.html',
+          productUrl: 'https://m.shein.com/ar/pdsearch/' + id + '/',
           title: (title || ('منتج SHEIN #' + id)).replace(/\s+/g, ' ').slice(0, 300),
           imageUrl: img,
           sourcePrice: price,
@@ -481,7 +485,7 @@
           var parts = attr.split('/');
           out.push({
             goodsId: sid,
-            productUrl: 'https://m.shein.com/-p-' + sid + '.html',
+            productUrl: 'https://m.shein.com/ar/pdsearch/' + sid + '/',
             title: String(title).replace(/\s+/g, ' ').slice(0, 300),
             imageUrl: normImg(node.goods_img || node.goodsImg || (node.goods_imgs && node.goods_imgs[0]) || node.image || node.main_image),
             sourcePrice: price,
@@ -616,7 +620,6 @@
     });
   }
 
-  // ════════════════ استيراد السلة كاملة ════════════════
   var importing = false;
 
   function importWholeCart() {
