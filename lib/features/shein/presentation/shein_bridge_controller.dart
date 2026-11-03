@@ -9,7 +9,6 @@ import 'package:get/get.dart';
 import '../../../core/config/seloo_config.dart';
 import '../../cart/application/cart_counter.dart';
 import '../../cart/data/seloo_cart_service.dart';
-import '../../home/presentation/main_tab_controller.dart';
 import '../data/shein_image_resolver.dart';
 import '../domain/shein_draft.dart';
 
@@ -17,10 +16,8 @@ class SheinBridgeController {
   SheinBridgeController({SelooCartService? cartService}) : _cartService = cartService ?? SelooCartService();
   final SelooCartService _cartService;
   String? _scriptSource;
-
   String? editingLineId;
   InAppWebViewController? _webView;
-
   Function(int total)? onStartClickCrawl;
   Function()? onCrawlStepFailed;
 
@@ -34,28 +31,19 @@ class SheinBridgeController {
         if (envelope == null) return _reply('invalid', 'شكل الحمولة غير صالح');
 
         switch (envelope.action) {
-          case 'addToCart':
-            return await _handleAddToCart(envelope.payload);
-          case 'startClickCrawl':
-            onStartClickCrawl?.call(envelope.payload['total'] ?? 0);
-            return _reply('ok', 'بدأ الزحف');
-          case 'crawlStepFailed':
-            onCrawlStepFailed?.call();
-            return _reply('ok', 'تخطي');
-          default:
-            return _reply('invalid', 'إجراء غير معروف');
+          case 'addToCart': return await _handleAddToCart(envelope.payload);
+          case 'startClickCrawl': onStartClickCrawl?.call(envelope.payload['total'] ?? 0); return _reply('ok', 'بدأ الزحف');
+          case 'crawlStepFailed': onCrawlStepFailed?.call(); return _reply('ok', 'تخطي');
+          default: return _reply('invalid', 'إجراء غير معروف');
         }
       },
     );
   }
 
-  /// تجلب الصورة الحقيقية من خادم SHEIN وتستبدل الصورة الخاطئة (أو الفارغة)
   Future<void> _resolveImageLater(String goodsId) async {
     try {
       final String? real = await SheinImageResolver.byGoodsId(goodsId);
       if (real == null || real.isEmpty) return;
-      
-      // تحديث الصورة في السلة
       final bool patched = await _cartService.patchImage(goodsId, real);
       if (patched) {
         try { await Get.find<CartCounter>().refreshQuote(); } catch (_) {}
@@ -76,15 +64,12 @@ class SheinBridgeController {
     }
 
     try {
-      // 1. إضافة المنتج فوراً للتطبيق (لحل مشكلة التعليق)
       final BridgeResult result = await _cartService.addToCart(draft, editingLineId: editingLineId);
       try { await Get.find<CartCounter>().onItemAdded(); } catch (_) {}
 
-      // 2. في الخلفية، نطلب جلب الصورة الحقيقية وتصحيحها (لحل مشكلة شعار S أو المربع الفارغ)
       if (result.isOk && RegExp(r'^\d+$').hasMatch(goodsIdRaw)) {
         unawaited(_resolveImageLater(goodsIdRaw));
       }
-
       return result.toJson();
     } catch (e) {
       onCrawlStepFailed?.call();
