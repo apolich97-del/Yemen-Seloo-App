@@ -49,7 +49,7 @@ class SheinBridgeController {
     );
   }
 
-  /// تجلب الصورة الحقيقية من خادم SHEIN وتستبدل الصورة الخاطئة (مثل شعار S)
+  /// تجلب الصورة الحقيقية من خادم SHEIN وتستبدل الصورة الخاطئة (أو الفارغة)
   Future<void> _resolveImageLater(String goodsId) async {
     try {
       final String? real = await SheinImageResolver.byGoodsId(goodsId);
@@ -80,7 +80,7 @@ class SheinBridgeController {
       final BridgeResult result = await _cartService.addToCart(draft, editingLineId: editingLineId);
       try { await Get.find<CartCounter>().onItemAdded(); } catch (_) {}
 
-      // 2. في الخلفية، نطلب جلب الصورة الحقيقية وتصحيحها (لحل مشكلة شعار S)
+      // 2. في الخلفية، نطلب جلب الصورة الحقيقية وتصحيحها (لحل مشكلة شعار S أو المربع الفارغ)
       if (result.isOk && RegExp(r'^\d+$').hasMatch(goodsIdRaw)) {
         unawaited(_resolveImageLater(goodsIdRaw));
       }
