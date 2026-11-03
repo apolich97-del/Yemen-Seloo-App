@@ -64,9 +64,11 @@ class SheinBridgeController {
     }
 
     try {
+      // 1. إضافة فورية
       final BridgeResult result = await _cartService.addToCart(draft, editingLineId: editingLineId);
       try { await Get.find<CartCounter>().onItemAdded(); } catch (_) {}
 
+      // 2. جلب الصورة في الخلفية
       if (result.isOk && RegExp(r'^\d+$').hasMatch(goodsIdRaw)) {
         unawaited(_resolveImageLater(goodsIdRaw));
       }
