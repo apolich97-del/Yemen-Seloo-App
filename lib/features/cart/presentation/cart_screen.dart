@@ -59,6 +59,21 @@ class _CartScreenState extends State<CartScreen> {
     }
   }
 
+  // ⭐ دالة جديدة: فتح المنتج للتصفح فقط
+  void _browseProduct(CartItem item) {
+    final String browseUrl = item.goodsId.isNotEmpty
+        ? 'https://m.shein.com/ar/pdsearch/${item.goodsId}/'
+        : item.sourceUrl;
+    if (browseUrl.isEmpty) {
+      _snack('رابط المنتج غير متوفر');
+      return;
+    }
+    // نمرر الرابط فقط بدون editLineId
+    Get.toNamed('/shein', arguments: <String, dynamic>{
+      'editUrl': browseUrl,
+    });
+  }
+
   /// إعادة قراءة السلة من التخزين وإعادة حساب الأسعار
   Future<void> _refreshCart() async {
     if (_refreshing) return;
@@ -95,15 +110,12 @@ class _CartScreenState extends State<CartScreen> {
 
       if (!result.success) {
         _snack(result.message);
-        // المسار المضمون: فتح الرابط داخل متصفح التطبيق (زر الزحف الأخضر)
         await Get.toNamed('/shein', arguments: {'shareCartUrl': text});
         return;
       }
 
-      // نحفظ رابط السلة المشترك لتُرفَق به رسالة واتساب لاحقاً
       try {
         GetStorage().write('seloo_last_share_url', text);
-        // نحفظ أسطر هذه السلة ليُرفَق الرابط فقط إن طابق محتوى السلة الحالي
         final List<String> ids = _cart.items.map((CartItem e) => e.lineId).toList();
         GetStorage().write('seloo_share_link_lines', jsonEncode(ids));
       } catch (_) {}
@@ -316,7 +328,6 @@ class _CartScreenState extends State<CartScreen> {
 
     b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
 
-    // رابط السلة كما وصلت من شي إن (يُفتح كاملاً بدل روابط متفرقة)
     try {
       final String? cartLink = GetStorage().read<String>('seloo_last_share_url');
       if (cartLink != null && cartLink.trim().isNotEmpty && _cartMatchesLink()) {
@@ -326,7 +337,6 @@ class _CartScreenState extends State<CartScreen> {
       }
     } catch (_) {}
 
-    // رابط سلة يمن سيلو الكاملة
     try {
       if (_cart.items.isNotEmpty) {
         b.writeln('🛒 *سلة كاملة — كل المنتجات في رابط واحد:*');
@@ -654,6 +664,7 @@ class _CartScreenState extends State<CartScreen> {
                             onQuantity: (int v) => _run(() => _cart.updateQuantity(item, v)),
                             onRemove: () => _run(() => _cart.remove(item)),
                             onEdit: () => _cart.startEditing(item),
+                            onBrowse: () => _browseProduct(item), // ⭐ التصفح
                           ),
                         ),
                       ),
@@ -783,12 +794,14 @@ class _CartLineTile extends StatelessWidget {
     required this.onQuantity,
     required this.onRemove,
     required this.onEdit,
+    required this.onBrowse,
   });
 
   final CartItem item;
   final ValueChanged<int> onQuantity;
   final VoidCallback onRemove;
   final VoidCallback onEdit;
+  final VoidCallback onBrowse; // ⭐ دالة التصفح
 
   void _showImageDebug(BuildContext context) {
     showDialog<void>(
@@ -823,7 +836,7 @@ class _CartLineTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               GestureDetector(
-                onTap: onEdit,
+                onTap: onBrowse, // ⭐ الضغط على الصورة للتصفح فقط
                 onLongPress: () => _showImageDebug(context),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -894,9 +907,9 @@ class _CartLineTile extends StatelessWidget {
               _QuantityButton(icon: Icons.add, enabled: item.quantity < SelooConfig.maxQuantityPerLine, onTap: () => onQuantity(item.quantity + 1)),
               const Spacer(),
               IconButton(
-                onPressed: onEdit,
+                onPressed: onEdit, // ⭐ زر التعديل
                 icon: const Icon(Icons.edit_outlined, color: _orange, size: 20),
-                tooltip: 'تعديل',
+                tooltip: 'تعديل المقاس أو اللون',
               ),
             ],
           ),
