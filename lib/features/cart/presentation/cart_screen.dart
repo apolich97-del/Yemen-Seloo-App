@@ -53,13 +53,11 @@ class _CartScreenState extends State<CartScreen> {
   Future<void> _run(Future<String?> Function() action) async {
     final String? error = await action();
     if (!mounted) return;
-
     if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
     }
   }
 
-  // ⭐ دالة فتح المنتج للتصفح فقط
   void _browseProduct(CartItem item) {
     final String browseUrl = item.goodsId.isNotEmpty
         ? 'https://m.shein.com/ar/pdsearch/${item.goodsId}/'
@@ -68,13 +66,9 @@ class _CartScreenState extends State<CartScreen> {
       _snack('رابط المنتج غير متوفر');
       return;
     }
-    // نمرر الرابط فقط بدون editLineId
-    Get.toNamed('/shein', arguments: <String, dynamic>{
-      'editUrl': browseUrl,
-    });
+    Get.toNamed('/shein', arguments: <String, dynamic>{'editUrl': browseUrl});
   }
 
-  /// إعادة قراءة السلة من التخزين وإعادة حساب الأسعار
   Future<void> _refreshCart() async {
     if (_refreshing) return;
     _refreshing = true;
@@ -93,7 +87,6 @@ class _CartScreenState extends State<CartScreen> {
     if (_importing) return;
 
     final String text = _shareCartController.text.trim();
-
     if (text.isEmpty) {
       _snack('الصق رابط السلة المشتركة أولاً');
       return;
@@ -103,7 +96,6 @@ class _CartScreenState extends State<CartScreen> {
 
     try {
       final SheinCartImportResult result = await SheinCartImporter().importSharedCart(text);
-
       if (!mounted) return;
 
       setState(() => _importing = false);
@@ -122,11 +114,9 @@ class _CartScreenState extends State<CartScreen> {
 
       _shareCartController.clear();
       await _cart.refreshQuote();
-
       _snack(result.message);
     } catch (_) {
       if (!mounted) return;
-
       setState(() => _importing = false);
       _snack('فشل استيراد السلة. تحقق من الرابط والاتصال ثم أعد المحاولة.');
     }
@@ -137,20 +127,13 @@ class _CartScreenState extends State<CartScreen> {
       _snack('السلة فارغة');
       return;
     }
-
     await _cart.refreshQuote();
     final CartQuote? q = _cart.quote.value;
-
     if (q == null) {
       _snack('تعذّر حساب الإجمالي، حاول مرة أخرى.');
       return;
     }
-
-    final String message = _buildWhatsAppMessage(
-      q: q,
-      includeCommission: false,
-    );
-
+    final String message = _buildWhatsAppMessage(q: q, includeCommission: false);
     await _sendWhatsApp(message);
   }
 
@@ -159,15 +142,12 @@ class _CartScreenState extends State<CartScreen> {
       _snack('السلة فارغة');
       return;
     }
-
     if (!_cart.hasCommission) {
       _snack('أدخل مبلغ العمولة أولاً');
       return;
     }
-
     await _cart.refreshQuote();
     final CartQuote? q = _cart.quote.value;
-
     if (q == null) {
       _snack('تعذّر حساب الإجمالي.');
       return;
@@ -239,14 +219,8 @@ class _CartScreenState extends State<CartScreen> {
     );
 
     if (confirmed != true) return;
-
     _cart.approveCommission();
-
-    final String message = _buildWhatsAppMessage(
-      q: q,
-      includeCommission: true,
-    );
-
+    final String message = _buildWhatsAppMessage(q: q, includeCommission: true);
     await _sendWhatsApp(message);
   }
 
@@ -255,32 +229,26 @@ class _CartScreenState extends State<CartScreen> {
     required bool includeCommission,
   }) {
     final StringBuffer b = StringBuffer();
-
     b.writeln('🛍️ *طلب جديد من يمن سيلو*');
     b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
     b.writeln('');
 
     for (int i = 0; i < _cart.items.length; i++) {
       final CartItem item = _cart.items[i];
-
       b.writeln('${i + 1}. ${item.title}');
-
       if (item.color.isNotEmpty) b.writeln('   اللون: ${item.color}');
       if (item.size.isNotEmpty) b.writeln('   المقاس: ${item.size}');
       if (item.options.isNotEmpty) {
         item.options.forEach((String k, String v) => b.writeln('   $k: $v'));
       }
-
       b.writeln('   الكمية: ${item.quantity}');
       b.writeln('   السعر: ${item.sourcePrice.toStringAsFixed(2)} SAR');
-
       if (item.goodsId.isNotEmpty) {
         b.writeln('   🆔 رمز المنتج: ${item.goodsId}');
         b.writeln('   🔗 https://m.shein.com/ar/pdsearch/${item.goodsId}/');
       } else if (item.sourceUrl.isNotEmpty) {
         b.writeln('   الرابط: ${item.sourceUrl}');
       }
-
       b.writeln('');
     }
 
@@ -301,7 +269,6 @@ class _CartScreenState extends State<CartScreen> {
     if (includeCommission) {
       final double commissionSar = _cart.commissionTotalSar;
       final double commissionYer = _cart.commissionTotalYer;
-
       final double totalSar = subtotalSar + serviceFeeSar + shippingSar + commissionSar;
       final double totalYer = q.grandTotalLocal + commissionYer;
 
@@ -310,7 +277,6 @@ class _CartScreenState extends State<CartScreen> {
       b.writeln('💰 الإجمالي المطلوب: ${totalSar.toStringAsFixed(2)} SAR');
       b.writeln('🇾🇪 بالريال اليمني: ${totalYer.toStringAsFixed(0)} ريال');
       b.writeln('📊 سعر الصرف: ${rate.toStringAsFixed(0)}');
-
       final String regionName = _cart.region.value == 'south' ? 'الجنوب' : 'الشمال';
       b.writeln('📍 المنطقة: $regionName');
       b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
@@ -321,7 +287,6 @@ class _CartScreenState extends State<CartScreen> {
       b.writeln('💰 الإجمالي: ${(subtotalSar + serviceFeeSar + shippingSar).toStringAsFixed(2)} SAR');
       b.writeln('🇾🇪 بالريال اليمني: ${q.grandTotalLocal.toStringAsFixed(0)} ريال');
       b.writeln('📊 سعر الصرف: ${rate.toStringAsFixed(0)}');
-
       final String regionName = _cart.region.value == 'south' ? 'الجنوب' : 'الشمال';
       b.writeln('📍 المنطقة: $regionName');
     }
@@ -349,7 +314,6 @@ class _CartScreenState extends State<CartScreen> {
     b.writeln('📞 البديل: $_backupPhone');
     b.writeln('');
     b.writeln('خدمتكم غايتنا وثقتكم هدفنا');
-
     return b.toString();
   }
 
@@ -369,7 +333,6 @@ class _CartScreenState extends State<CartScreen> {
 
   Future<void> _sendWhatsApp(String message) async {
     final Uri url = Uri.parse('https://wa.me/$_primaryWhatsApp?text=${Uri.encodeComponent(message)}');
-
     try {
       final bool ok = await launchUrl(url, mode: LaunchMode.externalApplication);
       if (!ok) _snack('تعذّر فتح الواتساب');
@@ -401,12 +364,7 @@ class _CartScreenState extends State<CartScreen> {
           child: StatefulBuilder(
             builder: (BuildContext ctx, StateSetter setSheetState) {
               return Padding(
-                padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-                  top: 20,
-                  left: 20,
-                  right: 20,
-                ),
+                padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom + 20, top: 20, left: 20, right: 20),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -422,42 +380,30 @@ class _CartScreenState extends State<CartScreen> {
                     TextField(
                       controller: controller,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      inputFormatters: <TextInputFormatter>[
-                        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
-                      ],
+                      inputFormatters: <TextInputFormatter>[FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))],
                       decoration: InputDecoration(
                         labelText: 'مبلغ العمولة لكل قطعة',
                         hintText: 'مثال: 5.00',
                         prefixIcon: const Icon(Icons.attach_money, color: _purple),
                         suffixText: 'SAR',
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: _purple, width: 2),
-                        ),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _purple, width: 2)),
                       ),
                       onChanged: (String v) {
-                        final double value = double.tryParse(v) ?? 0;
-                        _cart.setCommission(value);
+                        _cart.setCommission(double.tryParse(v) ?? 0);
                         setSheetState(() {});
                       },
                     ),
                     const SizedBox(height: 16),
                     Container(
                       padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: _purpleLight,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: _border),
-                      ),
+                      decoration: BoxDecoration(color: _purpleLight, borderRadius: BorderRadius.circular(14), border: Border.all(color: _border)),
                       child: Obx(() {
                         final double perPiece = _cart.commissionPerPiece.value;
                         final double totalSar = _cart.commissionTotalSar;
                         final double totalYer = _cart.commissionTotalYer;
                         final int count = _cart.items.length;
-
                         final double rate = totalSar > 0 ? totalYer / totalSar : _cart.quote.value?.exchangeRate ?? 140;
-
                         return Column(
                           children: <Widget>[
                             _summaryRow('📦 عدد القطع', '$count'),
@@ -476,23 +422,13 @@ class _CartScreenState extends State<CartScreen> {
                     const SizedBox(height: 16),
                     Obx(() {
                       final bool hasCom = _cart.hasCommission;
-
                       return Column(
                         children: <Widget>[
                           SizedBox(
                             width: double.infinity,
                             child: FilledButton.icon(
-                              onPressed: hasCom
-                                  ? () async {
-                                      Navigator.of(ctx).pop();
-                                      await _shareCartWithCommission();
-                                    }
-                                  : null,
-                              style: FilledButton.styleFrom(
-                                backgroundColor: _green,
-                                padding: const EdgeInsets.symmetric(vertical: 13),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
+                              onPressed: hasCom ? () async { Navigator.of(ctx).pop(); await _shareCartWithCommission(); } : null,
+                              style: FilledButton.styleFrom(backgroundColor: _green, padding: const EdgeInsets.symmetric(vertical: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                               icon: const Icon(Icons.share),
                               label: const Text('مشاركة مع الشركة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                             ),
@@ -501,16 +437,8 @@ class _CartScreenState extends State<CartScreen> {
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton.icon(
-                              onPressed: () async {
-                                Navigator.of(ctx).pop();
-                                await _shareCartToWhatsApp();
-                              },
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: _purple,
-                                side: const BorderSide(color: _purple),
-                                padding: const EdgeInsets.symmetric(vertical: 13),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
+                              onPressed: () async { Navigator.of(ctx).pop(); await _shareCartToWhatsApp(); },
+                              style: OutlinedButton.styleFrom(foregroundColor: _purple, side: const BorderSide(color: _purple), padding: const EdgeInsets.symmetric(vertical: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                               icon: const Icon(Icons.share),
                               label: const Text('مشاركة عادية (بدون عمولة)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                             ),
@@ -519,10 +447,7 @@ class _CartScreenState extends State<CartScreen> {
                       );
                     }),
                     const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      child: const Text('إغلاق'),
-                    ),
+                    TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('إغلاق')),
                   ],
                 ),
               );
@@ -531,31 +456,14 @@ class _CartScreenState extends State<CartScreen> {
         );
       },
     );
-
     controller.dispose();
   }
 
   Widget _summaryRow(String label, String value, {bool emphasize = false}) {
     return Row(
       children: <Widget>[
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              color: emphasize ? _purple : const Color(0xFF374151),
-              fontWeight: emphasize ? FontWeight.w900 : FontWeight.w500,
-              fontSize: emphasize ? 14 : 13,
-            ),
-          ),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            color: emphasize ? _purple : const Color(0xFF374151),
-            fontWeight: emphasize ? FontWeight.w900 : FontWeight.w600,
-            fontSize: emphasize ? 14 : 13,
-          ),
-        ),
+        Expanded(child: Text(label, style: TextStyle(color: emphasize ? _purple : const Color(0xFF374151), fontWeight: emphasize ? FontWeight.w900 : FontWeight.w500, fontSize: emphasize ? 14 : 13))),
+        Text(value, style: TextStyle(color: emphasize ? _purple : const Color(0xFF374151), fontWeight: emphasize ? FontWeight.w900 : FontWeight.w600, fontSize: emphasize ? 14 : 13)),
       ],
     );
   }
@@ -570,11 +478,7 @@ class _CartScreenState extends State<CartScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: _purpleLight,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _orange.withOpacity(0.5), width: 1.5),
-        ),
+        decoration: BoxDecoration(color: _purpleLight, borderRadius: BorderRadius.circular(16), border: Border.all(color: _orange.withOpacity(0.5), width: 1.5)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
@@ -591,13 +495,7 @@ class _CartScreenState extends State<CartScreen> {
             TextField(
               controller: _shareCartController,
               style: const TextStyle(fontSize: 12),
-              decoration: const InputDecoration(
-                hintText: 'https://m.shein.com/ar/cart/share/landing?...',
-                isDense: true,
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(hintText: 'https://m.shein.com/ar/cart/share/landing?...', isDense: true, filled: true, fillColor: Colors.white, border: OutlineInputBorder()),
             ),
             const SizedBox(height: 8),
             SizedBox(
@@ -605,9 +503,7 @@ class _CartScreenState extends State<CartScreen> {
               child: FilledButton(
                 onPressed: _importing ? null : _importSharedCart,
                 style: FilledButton.styleFrom(backgroundColor: _orange),
-                child: _importing
-                    ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('بدء الاستيراد', style: TextStyle(fontWeight: FontWeight.bold)),
+                child: _importing ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('بدء الاستيراد', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
           ],
@@ -642,17 +538,9 @@ class _CartScreenState extends State<CartScreen> {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                     children: <Widget>[
-                      const Text(
-                        'سلة التسوق',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Color(0xFF1F2937)),
-                      ),
+                      const Text('سلة التسوق', textAlign: TextAlign.center, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Color(0xFF1F2937))),
                       const SizedBox(height: 6),
-                      const Text(
-                        'اختر منطقة التسعير، ثم شارك سلتك أو أكّد طلبك.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 12.5, color: Color(0xFF6B7280), height: 1.5),
-                      ),
+                      const Text('اختر منطقة التسعير، ثم شارك سلتك أو أكّد طلبك.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: Color(0xFF6B7280), height: 1.5)),
                       const SizedBox(height: 14),
                       _buildImportSheinCartButton(),
                       const SizedBox(height: 10),
@@ -661,15 +549,16 @@ class _CartScreenState extends State<CartScreen> {
                           padding: const EdgeInsets.only(bottom: 10),
                           child: _CartLineTile(
                             item: item,
+                            cart: _cart, // ⭐ تمرير كارت للحصول على السعر
                             onQuantity: (int v) => _run(() => _cart.updateQuantity(item, v)),
                             onRemove: () => _run(() => _cart.remove(item)),
                             onEdit: () => _cart.startEditing(item),
-                            onBrowse: () => _browseProduct(item), // ⭐ التصفح
+                            onBrowse: () => _browseProduct(item),
                           ),
                         ),
                       ),
                       const SizedBox(height: 6),
-                      _RegionSelector(cart: _cart),
+                      _RegionSelector(cart: _cart), // ⭐ استدعاء المحدد
                       const SizedBox(height: 10),
                       _QuoteSummary(cart: _cart),
                       const SizedBox(height: 12),
@@ -677,12 +566,7 @@ class _CartScreenState extends State<CartScreen> {
                         width: double.infinity,
                         child: OutlinedButton.icon(
                           onPressed: _openCommissionCalculator,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: _purple,
-                            side: const BorderSide(color: _purple, width: 1.5),
-                            padding: const EdgeInsets.symmetric(vertical: 13),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
+                          style: OutlinedButton.styleFrom(foregroundColor: _purple, side: const BorderSide(color: _purple, width: 1.5), padding: const EdgeInsets.symmetric(vertical: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                           icon: const Icon(Icons.calculate, size: 20),
                           label: const Text('🧮 آلة حساب عمولة المندوب', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                         ),
@@ -692,11 +576,7 @@ class _CartScreenState extends State<CartScreen> {
                         width: double.infinity,
                         child: FilledButton.icon(
                           onPressed: _shareCartToWhatsApp,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: _green,
-                            padding: const EdgeInsets.symmetric(vertical: 13),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
+                          style: FilledButton.styleFrom(backgroundColor: _green, padding: const EdgeInsets.symmetric(vertical: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                           icon: const Icon(Icons.share),
                           label: const Text('مشاركة السلة عبر واتساب', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                         ),
@@ -704,11 +584,7 @@ class _CartScreenState extends State<CartScreen> {
                       const SizedBox(height: 10),
                       _CheckoutButton(cart: _cart),
                       const SizedBox(height: 8),
-                      Text(
-                        SelooConfig.priceDisclaimer,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF), height: 1.5),
-                      ),
+                      Text(SelooConfig.priceDisclaimer, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF), height: 1.5)),
                       const SizedBox(height: 10),
                       _ContactBox(),
                     ],
@@ -723,10 +599,8 @@ class _CartScreenState extends State<CartScreen> {
   }
 }
 
-// Header
 class _Header extends StatelessWidget {
   const _Header({required this.count, required this.onRefresh});
-
   final int count;
   final VoidCallback onRefresh;
 
@@ -734,63 +608,33 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: Color(0xFFF3F4F6))),
-      ),
+      decoration: const BoxDecoration(color: Colors.white, border: Border(bottom: BorderSide(color: Color(0xFFF3F4F6)))),
       child: Row(
         children: <Widget>[
           Stack(
             clipBehavior: Clip.none,
             children: <Widget>[
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(color: _purpleLight, borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.shopping_cart_outlined, color: _purple, size: 22),
-              ),
+              Container(width: 40, height: 40, decoration: BoxDecoration(color: _purpleLight, borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.shopping_cart_outlined, color: _purple, size: 22)),
               if (count > 0)
-                Positioned(
-                  top: -6,
-                  right: -6,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(color: const Color(0xFFEF4444), borderRadius: BorderRadius.circular(10)),
-                    child: Text('$count', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                  ),
-                ),
+                Positioned(top: -6, right: -6, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: const Color(0xFFEF4444), borderRadius: BorderRadius.circular(10)), child: Text('$count', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)))),
             ],
           ),
-          IconButton(
-            onPressed: onRefresh,
-            tooltip: 'تحديث السلة',
-            icon: const Icon(Icons.refresh, color: _purple, size: 22),
-          ),
+          IconButton(onPressed: onRefresh, tooltip: 'تحديث السلة', icon: const Icon(Icons.refresh, color: _purple, size: 22)),
           const Spacer(),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: const <Widget>[
-              Text('يمن سيلو', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: _purple)),
-              Text('YEMEN SELOO', style: TextStyle(fontSize: 8, letterSpacing: 2, color: _purple)),
-            ],
-          ),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: const <Widget>[Text('يمن سيلو', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: _purple)), Text('YEMEN SELOO', style: TextStyle(fontSize: 8, letterSpacing: 2, color: _purple))]),
           const SizedBox(width: 8),
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(color: _purpleLight, borderRadius: BorderRadius.circular(8)),
-            child: const Icon(Icons.storefront, color: _purple, size: 20),
-          ),
+          Container(width: 34, height: 34, decoration: BoxDecoration(color: _purpleLight, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.storefront, color: _purple, size: 20)),
         ],
       ),
     );
   }
 }
 
-// Cart line
+// ⭐ تم إضافة `cart` لقراءة سعر الصرف
 class _CartLineTile extends StatelessWidget {
   const _CartLineTile({
     required this.item,
+    required this.cart,
     required this.onQuantity,
     required this.onRemove,
     required this.onEdit,
@@ -798,38 +642,21 @@ class _CartLineTile extends StatelessWidget {
   });
 
   final CartItem item;
+  final CartCounter cart;
   final ValueChanged<int> onQuantity;
   final VoidCallback onRemove;
   final VoidCallback onEdit;
   final VoidCallback onBrowse;
 
-  void _showImageDebug(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (BuildContext ctx) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: AlertDialog(
-          title: const Text('رابط صورة المنتج'),
-          content: SingleChildScrollView(
-            child: SelectableText(item.imageUrl.isEmpty ? '(فارغ)' : item.imageUrl, style: const TextStyle(fontSize: 12)),
-          ),
-          actions: <Widget>[
-            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('إغلاق')),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    // ⭐ حساب السعر المحلي بناءً على المنطقة
+    final double rate = cart.region.value == 'south' ? 413.0 : 140.0;
+    final double localPrice = item.sourcePrice * rate;
+
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _border, width: 1.2),
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: _border, width: 1.2)),
       child: Column(
         children: <Widget>[
           Row(
@@ -837,11 +664,7 @@ class _CartLineTile extends StatelessWidget {
             children: <Widget>[
               GestureDetector(
                 onTap: onBrowse,
-                onLongPress: () => _showImageDebug(context),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: SizedBox(width: 76, height: 76, child: _ProductImage(url: item.imageUrl)),
-                ),
+                child: ClipRRect(borderRadius: BorderRadius.circular(12), child: SizedBox(width: 76, height: 76, child: _ProductImage(url: item.imageUrl))),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -850,46 +673,26 @@ class _CartLineTile extends StatelessWidget {
                   children: <Widget>[
                     Row(
                       children: <Widget>[
-                        IconButton(
-                          onPressed: onRemove,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          icon: const Icon(Icons.delete_outline, color: Color(0xFFEF4444), size: 20),
-                        ),
+                        IconButton(onPressed: onRemove, padding: EdgeInsets.zero, constraints: const BoxConstraints(), icon: const Icon(Icons.delete_outline, color: Color(0xFFEF4444), size: 20)),
                         const Spacer(),
+                        // ⭐ عرض السعر المحلي
                         Text(
-                          'SAR ${item.sourcePrice.toStringAsFixed(2)}',
+                          '${localPrice.toStringAsFixed(0)} ر.ي',
                           style: const TextStyle(color: _purple, fontWeight: FontWeight.bold, fontSize: 14),
                         ),
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      item.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: Color(0xFF1F2937), height: 1.4),
-                    ),
+                    Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: Color(0xFF1F2937), height: 1.4)),
                     if (item.color.isNotEmpty || item.size.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 5),
                         child: Wrap(
-                          spacing: 6,
-                          runSpacing: 4,
+                          spacing: 6, runSpacing: 4,
                           children: <Widget>[
                             if (item.color.isNotEmpty) _InfoChip(label: 'اللون', value: item.color, color: _purple),
                             if (item.size.isNotEmpty) _InfoChip(label: 'المقاس', value: item.size, color: _orange),
                           ],
-                        ),
-                      ),
-                    if (item.options.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Wrap(
-                          spacing: 6,
-                          runSpacing: 4,
-                          children: item.options.entries.map((MapEntry<String, String> e) => _InfoChip(label: e.key, value: e.value, color: const Color(0xFF10B981))).toList(),
                         ),
                       ),
                   ],
@@ -906,11 +709,7 @@ class _CartLineTile extends StatelessWidget {
               const SizedBox(width: 12),
               _QuantityButton(icon: Icons.add, enabled: item.quantity < SelooConfig.maxQuantityPerLine, onTap: () => onQuantity(item.quantity + 1)),
               const Spacer(),
-              IconButton(
-                onPressed: onEdit,
-                icon: const Icon(Icons.edit_outlined, color: _orange, size: 20),
-                tooltip: 'تعديل المقاس أو اللون',
-              ),
+              IconButton(onPressed: onEdit, icon: const Icon(Icons.edit_outlined, color: _orange, size: 20), tooltip: 'تعديل المقاس أو اللون'),
             ],
           ),
         ],
@@ -921,7 +720,6 @@ class _CartLineTile extends StatelessWidget {
 
 class _InfoChip extends StatelessWidget {
   const _InfoChip({required this.label, required this.value, required this.color});
-
   final String label;
   final String value;
   final Color color;
@@ -930,11 +728,7 @@ class _InfoChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.10),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
+      decoration: BoxDecoration(color: color.withOpacity(0.10), borderRadius: BorderRadius.circular(20), border: Border.all(color: color.withOpacity(0.3))),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
@@ -948,20 +742,15 @@ class _InfoChip extends StatelessWidget {
 
 class _ProductImage extends StatelessWidget {
   const _ProductImage({required this.url});
-
   final String url;
 
   static String _absolute(String raw) {
     String u = raw.trim().replaceAll(' ', '');
     if (u.isEmpty) return '';
-
     final int lastScheme = u.lastIndexOf('http');
     if (lastScheme > 0) u = u.substring(lastScheme);
-
     if (u.startsWith('//')) u = 'https:$u';
-    if (!u.startsWith('http')) {
-      u = u.startsWith('/') ? 'https://img.ltwebstatic.com$u' : 'https://img.ltwebstatic.com/$u';
-    }
+    if (!u.startsWith('http')) u = u.startsWith('/') ? 'https://img.ltwebstatic.com$u' : 'https://img.ltwebstatic.com/$u';
     return u;
   }
 
@@ -969,7 +758,6 @@ class _ProductImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final String src = _absolute(url);
     if (src.isEmpty) return _placeholder();
-
     return CachedNetworkImage(
       imageUrl: src,
       fit: BoxFit.cover,
@@ -978,23 +766,16 @@ class _ProductImage extends StatelessWidget {
         'Referer': 'https://m.shein.com/',
         'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
       },
-      placeholder: (_, __) => Container(
-        color: _purpleLight,
-        child: const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: _purple))),
-      ),
+      placeholder: (_, __) => Container(color: _purpleLight, child: const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: _purple)))),
       errorWidget: (_, __, ___) => _placeholder(),
     );
   }
 
-  Widget _placeholder() => Container(
-        color: _purpleLight,
-        child: const Icon(Icons.image_outlined, color: _purple, size: 32),
-      );
+  Widget _placeholder() => Container(color: _purpleLight, child: const Icon(Icons.image_outlined, color: _purple, size: 32));
 }
 
 class _QuantityButton extends StatelessWidget {
   const _QuantityButton({required this.icon, required this.enabled, required this.onTap});
-
   final IconData icon;
   final bool enabled;
   final VoidCallback onTap;
@@ -1005,119 +786,43 @@ class _QuantityButton extends StatelessWidget {
       onTap: enabled ? onTap : null,
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: enabled ? _purpleLight : const Color(0xFFF3F4F6),
-          shape: BoxShape.circle,
-        ),
+        width: 32, height: 32,
+        decoration: BoxDecoration(color: enabled ? _purpleLight : const Color(0xFFF3F4F6), shape: BoxShape.circle),
         child: Icon(icon, size: 18, color: enabled ? _purple : const Color(0xFFD1D5DB)),
       ),
     );
   }
 }
 
+// ⭐ إرجاع أزرار الشمال والجنوب
 class _RegionSelector extends StatelessWidget {
   const _RegionSelector({required this.cart});
-
   final CartCounter cart;
-
-  void _showCurrencyDialog(BuildContext context) {
-    Get.dialog(
-      Directionality(
-        textDirection: TextDirection.rtl,
-        child: AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
-            children: <Widget>[
-              Icon(Icons.currency_exchange, color: _purple),
-              SizedBox(width: 8),
-              Text('تغيير العملة / التسعير'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              ListTile(
-                leading: const Icon(Icons.public, color: Colors.green),
-                title: const Text('الريال اليمني (شمال)'),
-                subtitle: const Text('سعر الصرف: 140'),
-                trailing: Obx(() => cart.region.value == 'north'
-                    ? const Icon(Icons.check_circle, color: _purple)
-                    : const SizedBox()),
-                onTap: () {
-                  cart.setRegion('north');
-                  Get.back();
-                },
-              ),
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.public, color: Colors.orange),
-                title: const Text('الريال اليمني (جنوب)'),
-                subtitle: const Text('سعر الصرف: 413'),
-                trailing: Obx(() => cart.region.value == 'south'
-                    ? const Icon(Icons.check_circle, color: _purple)
-                    : const SizedBox()),
-                onTap: () {
-                  cart.setRegion('south');
-                  Get.back();
-                },
-              ),
-            ],
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Get.back(),
-              child: const Text('إغلاق', style: TextStyle(color: Colors.grey)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       final String current = cart.region.value;
-      final String regionName = current == 'south' ? 'الجنوب (413)' : 'الشمال (140)';
-
       return Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: _purpleLight,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _border),
-        ),
-        child: Row(
+        decoration: BoxDecoration(color: _purpleLight, borderRadius: BorderRadius.circular(16), border: Border.all(color: _border)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            const Icon(Icons.public, color: _purple, size: 18),
-            const SizedBox(width: 6),
-            const Text(
-              'منطقة التسعير',
-              style: TextStyle(fontWeight: FontWeight.bold, color: _purple, fontSize: 13),
+            const Row(
+              children: <Widget>[
+                Icon(Icons.public, color: _purple, size: 18),
+                SizedBox(width: 6),
+                Text('منطقة التسعير', style: TextStyle(fontWeight: FontWeight.bold, color: _purple, fontSize: 13)),
+              ],
             ),
-            const Spacer(),
-            InkWell(
-              onTap: () => _showCurrencyDialog(context),
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: _purple,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: <Widget>[
-                    Text(
-                      regionName,
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(Icons.arrow_drop_down, color: Colors.white, size: 18),
-                  ],
-                ),
-              ),
+            const SizedBox(height: 10),
+            Row(
+              children: <Widget>[
+                Expanded(child: _RegionButton(label: 'الشمال · 140', active: current == 'north', onTap: () => cart.setRegion('north'))),
+                const SizedBox(width: 8),
+                Expanded(child: _RegionButton(label: 'الجنوب · 413', active: current == 'south', onTap: () => cart.setRegion('south'))),
+              ],
             ),
           ],
         ),
@@ -1126,42 +831,55 @@ class _RegionSelector extends StatelessWidget {
   }
 }
 
+class _RegionButton extends StatelessWidget {
+  const _RegionButton({required this.label, required this.active, required this.onTap});
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(color: active ? _purple : Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: active ? _purple : _border)),
+        child: Text(label, textAlign: TextAlign.center, style: TextStyle(color: active ? Colors.white : _purple, fontWeight: FontWeight.bold, fontSize: 13)),
+      ),
+    );
+  }
+}
+
 class _QuoteSummary extends StatelessWidget {
   const _QuoteSummary({required this.cart});
-
   final CartCounter cart;
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       final CartQuote? q = cart.quote.value;
-
       return Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: _purpleLight,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _border),
+        decoration: BoxDecoration(color: _purpleLight, borderRadius: BorderRadius.circular(16), border: Border.all(color: _border)),
+        child: q == null ? const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: LinearProgressIndicator(color: _purple)) : Column(
+          children: <Widget>[
+            _row('📦 عدد الأسطر', '${q.linesCount}'),
+            const SizedBox(height: 8),
+            _row('🔢 عدد القطع', '${q.unitsCount}'),
+            const Divider(height: 20),
+            _row('إجمالي المنتجات', 'SAR ${(q.itemsSubtotalLocal / q.exchangeRate).toStringAsFixed(2)}'),
+            const SizedBox(height: 8),
+            _row('رسوم الخدمة', 'SAR ${(q.serviceFeeLocal / q.exchangeRate).toStringAsFixed(2)}'),
+            const SizedBox(height: 8),
+            _row('الشحن', 'SAR ${(q.shippingLocal / q.exchangeRate).toStringAsFixed(2)}'),
+            const Divider(height: 20),
+            _row('سعر الصرف', 'YER / SAR ${q.exchangeRate.toStringAsFixed(0)}'),
+            const SizedBox(height: 8),
+            _row('الإجمالي بالريال اليمني', '${q.grandTotalLocal.toStringAsFixed(0)} ر.ي', emphasize: true),
+          ],
         ),
-        child: q == null
-            ? const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: LinearProgressIndicator(color: _purple))
-            : Column(
-                children: <Widget>[
-                  _row('📦 عدد الأسطر', '${q.linesCount}'),
-                  const SizedBox(height: 8),
-                  _row('🔢 عدد القطع', '${q.unitsCount}'),
-                  const Divider(height: 20),
-                  _row('إجمالي المنتجات', 'SAR ${(q.itemsSubtotalLocal / q.exchangeRate).toStringAsFixed(2)}'),
-                  const SizedBox(height: 8),
-                  _row('رسوم الخدمة', 'SAR ${(q.serviceFeeLocal / q.exchangeRate).toStringAsFixed(2)}'),
-                  const SizedBox(height: 8),
-                  _row('الشحن', 'SAR ${(q.shippingLocal / q.exchangeRate).toStringAsFixed(2)}'),
-                  const Divider(height: 20),
-                  _row('سعر الصرف', 'YER / SAR ${q.exchangeRate.toStringAsFixed(0)}'),
-                  const SizedBox(height: 8),
-                  _row('الإجمالي بالريال اليمني', '${q.grandTotalLocal.toStringAsFixed(0)} ر.ي', emphasize: true),
-                ],
-              ),
       );
     });
   }
@@ -1169,16 +887,8 @@ class _QuoteSummary extends StatelessWidget {
   Widget _row(String label, String value, {bool emphasize = false}) {
     return Row(
       children: <Widget>[
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(color: emphasize ? _purple : const Color(0xFF374151), fontWeight: emphasize ? FontWeight.w900 : FontWeight.w500, fontSize: emphasize ? 15 : 13),
-          ),
-        ),
-        Text(
-          value,
-          style: TextStyle(color: emphasize ? _purple : const Color(0xFF374151), fontWeight: emphasize ? FontWeight.w900 : FontWeight.w600, fontSize: emphasize ? 15 : 13),
-        ),
+        Expanded(child: Text(label, style: TextStyle(color: emphasize ? _purple : const Color(0xFF374151), fontWeight: emphasize ? FontWeight.w900 : FontWeight.w500, fontSize: emphasize ? 15 : 13))),
+        Text(value, style: TextStyle(color: emphasize ? _purple : const Color(0xFF374151), fontWeight: emphasize ? FontWeight.w900 : FontWeight.w600, fontSize: emphasize ? 15 : 13)),
       ],
     );
   }
@@ -1186,23 +896,17 @@ class _QuoteSummary extends StatelessWidget {
 
 class _CheckoutButton extends StatelessWidget {
   const _CheckoutButton({required this.cart});
-
   final CartCounter cart;
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       final bool enabled = cart.quote.value != null && cart.items.isNotEmpty;
-
       return SizedBox(
         width: double.infinity,
         child: FilledButton(
           onPressed: enabled ? () => Get.toNamed('/checkoutScreen') : null,
-          style: FilledButton.styleFrom(
-            backgroundColor: _purple,
-            padding: const EdgeInsets.symmetric(vertical: 15),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          ),
+          style: FilledButton.styleFrom(backgroundColor: _purple, padding: const EdgeInsets.symmetric(vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
           child: const Text('الانتقال لتأكيد الطلب', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
         ),
       );
@@ -1215,11 +919,7 @@ class _ContactBox extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: _purpleLight,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _border),
-      ),
+      decoration: BoxDecoration(color: _purpleLight, borderRadius: BorderRadius.circular(12), border: Border.all(color: _border)),
       child: const Column(
         children: <Widget>[
           Text('📞 للتواصل معنا', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _purple)),
@@ -1246,11 +946,7 @@ class _EmptyCart extends StatelessWidget {
           const SizedBox(height: 12),
           const Text('سلتك فارغة. تصفّح SHEIN وأضف ما يعجبك.'),
           const SizedBox(height: 12),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _purple),
-            onPressed: () => Get.offNamed('/shein'),
-            child: const Text('تصفّح SHEIN'),
-          ),
+          FilledButton(style: FilledButton.styleFrom(backgroundColor: _purple), onPressed: () => Get.offNamed('/shein'), child: const Text('تصفّح SHEIN')),
         ],
       ),
     );
