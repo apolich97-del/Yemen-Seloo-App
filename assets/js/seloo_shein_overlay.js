@@ -72,7 +72,20 @@
 
   // ════════════════ صفحة المنتج ════════════════
   function isProductPage() { return /-p-\d+\.html/i.test(window.location.href); }
-  function isShareOrCartPage() { return /\/cart(\/|\?|$)/i.test(window.location.pathname); }
+  
+  // ⭐ دالة التعرف الذكي على صفحة السلة المشتركة
+  function isShareOrCartPage() { 
+    var url = window.location.href.toLowerCase();
+    if (url.indexOf('/cart') !== -1 || url.indexOf('share') !== -1 || url.indexOf('group_id') !== -1) return true;
+    var bodyText = txt(document.body);
+    if (bodyText.indexOf('العناصر التي شاركها') !== -1 || bodyText.indexOf('شاركها صديقك') !== -1) return true;
+    
+    // فحص إضافي: هل توجد عناصر منتجات في الصفحة؟ (يجعل الزر لا يختفي أبداً)
+    var links = qa('a[href*="-p-"]');
+    if (links.length > 0) return true;
+    
+    return false;
+  }
 
   // قراءة المقاس واللون المختارين بعدة استراتيجيات
   function readSelectedVariant() {
