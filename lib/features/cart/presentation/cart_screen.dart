@@ -326,7 +326,7 @@ class _CartScreenState extends State<CartScreen> {
       }
     } catch (_) {}
 
-    // رابط سلة يمن سيلو الكاملة (سنرسل رابط الويب الذي سيقوم بفتح التطبيق تلقائياً)
+    // رابط سلة يمن سيلو الكاملة
     try {
       if (_cart.items.isNotEmpty) {
         b.writeln('🛒 *سلة كاملة — كل المنتجات في رابط واحد:*');
@@ -343,7 +343,6 @@ class _CartScreenState extends State<CartScreen> {
     return b.toString();
   }
 
-  /// هل السلة الحالية هي نفس السلة المستوردة من الرابط؟ (وإلا فالرابط مضلِّل)
   bool _cartMatchesLink() {
     try {
       final String? raw = GetStorage().read<String>('seloo_share_link_lines');
@@ -352,7 +351,6 @@ class _CartScreenState extends State<CartScreen> {
       if (parsed is! List) return false;
       final Set<String> saved = parsed.map((Object? e) => '$e').toSet();
       if (saved.isEmpty) return false;
-      // كل سطر في السلة يجب أن يكون من تلك السلة المستوردة
       return _cart.items.every((CartItem e) => saved.contains(e.lineId));
     } catch (_) {
       return false;
@@ -1011,10 +1009,65 @@ class _RegionSelector extends StatelessWidget {
 
   final CartCounter cart;
 
+  void _showCurrencyDialog(BuildContext context) {
+    Get.dialog(
+      Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: <Widget>[
+              Icon(Icons.currency_exchange, color: _purple),
+              SizedBox(width: 8),
+              Text('تغيير العملة / التسعير'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.public, color: Colors.green),
+                title: const Text('الريال اليمني (شمال)'),
+                subtitle: const Text('سعر الصرف: 140'),
+                trailing: Obx(() => cart.region.value == 'north'
+                    ? const Icon(Icons.check_circle, color: _purple)
+                    : const SizedBox()),
+                onTap: () {
+                  cart.setRegion('north');
+                  Get.back();
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.public, color: Colors.orange),
+                title: const Text('الريال اليمني (جنوب)'),
+                subtitle: const Text('سعر الصرف: 413'),
+                trailing: Obx(() => cart.region.value == 'south'
+                    ? const Icon(Icons.check_circle, color: _purple)
+                    : const SizedBox()),
+                onTap: () {
+                  cart.setRegion('south');
+                  Get.back();
+                },
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Get.back(),
+              child: const Text('إغلاق', style: TextStyle(color: Colors.grey)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       final String current = cart.region.value;
+      final String regionName = current == 'south' ? 'الجنوب (413)' : 'الشمال (140)';
 
       return Container(
         padding: const EdgeInsets.all(12),
@@ -1023,58 +1076,40 @@ class _RegionSelector extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: _border),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: <Widget>[
-            const Row(
-              children: <Widget>[
-                Icon(Icons.public, color: _purple, size: 18),
-                SizedBox(width: 6),
-                Text('منطقة التسعير', style: TextStyle(fontWeight: FontWeight.bold, color: _purple, fontSize: 13)),
-              ],
+            const Icon(Icons.public, color: _purple, size: 18),
+            const SizedBox(width: 6),
+            const Text(
+              'منطقة التسعير',
+              style: TextStyle(fontWeight: FontWeight.bold, color: _purple, fontSize: 13),
             ),
-            const SizedBox(height: 10),
-            Row(
-              children: <Widget>[
-                Expanded(child: _RegionButton(label: 'الشمال · 140', active: current == 'north', onTap: () => cart.setRegion('north'))),
-                const SizedBox(width: 8),
-                Expanded(child: _RegionButton(label: 'الجنوب · 413', active: current == 'south', onTap: () => cart.setRegion('south'))),
-              ],
+            const Spacer(),
+            InkWell(
+              onTap: () => _showCurrencyDialog(context),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _purple,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: <Widget>[
+                    Text(
+                      regionName,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.arrow_drop_down, color: Colors.white, size: 18),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
       );
     });
-  }
-}
-
-class _RegionButton extends StatelessWidget {
-  const _RegionButton({required this.label, required this.active, required this.onTap});
-
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: active ? _purple : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: active ? _purple : _border),
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(color: active ? Colors.white : _purple, fontWeight: FontWeight.bold, fontSize: 13),
-        ),
-      ),
-    );
   }
 }
 
