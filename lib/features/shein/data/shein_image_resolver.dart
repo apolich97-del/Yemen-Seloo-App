@@ -2,16 +2,18 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-/// يجلب صورة المنتج الحقيقية من صفحة شي إن عبر `og:image`.
-/// يقوم بتحويل روابط الصور المصغرة إلى روابط الصور الأصلية عالية الدقة.
 class SheinImageResolver {
   SheinImageResolver._();
+
+  // ذاكرة: معرّف → صورة، وصورة → معرّف. تمنع نسبة صورة منتج لمنتج آخر
+  // (صفحات SHEIN العامة تُرجع صورة واحدة لعدة معرّفات، وهي سبب تكرار الصور).
+  static final Map<String, String> _byId = <String, String>{};
+  static final Map<String, String> _owner = <String, String>{};
 
   static const String _userAgent =
       'Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
 
-  // ترتيب الصفات قد يختلف، لذا نجرّب الحالتين
   static final RegExp _ogPropertyFirst = RegExp(
     r'''property=["']og:image["'][^>]*content=["']([^"']+)''',
     caseSensitive: false,
@@ -22,14 +24,12 @@ class SheinImageResolver {
     caseSensitive: false,
   );
 
-  /// صور منتجات شي إن الحقيقية تحت مسار /imagesN_pi/
   static final RegExp _productImg = RegExp(r'/images\d+_pi/', caseSensitive: false);
 
   static final RegExp _goodsImg = RegExp(
     r'"(?:goods_img|goods_image|main_image)"\s*:\s*"([^"]+)"',
   );
 
-  /// يُرجع رابط صورة مطلقاً أو null.
   static Future<String?> byGoodsId(
     String goodsId, {
     Duration timeout = const Duration(seconds: 6),
@@ -37,26 +37,34 @@ class SheinImageResolver {
     final String id = goodsId.trim();
     if (id.isEmpty || !RegExp(r'^\d+$').hasMatch(id)) return null;
 
+    final String? cached = _byId[id];
+    if (cached != null && cached.isNotEmpty) return cached;
+
+    // صفحات المنتج فقط — pdsearch صفحة عامة تُرجع صورة واحدة لكل المنتجات
     final List<String> urls = <String>[
-      'https://m.shein.com/ar/pdsearch/$id/',
       'https://m.shein.com/ar/-p-$id.html',
       'https://ar.shein.com/-p-$id.html',
+      'https://m.shein.com/-p-$id.html',
     ];
 
     for (final String url in urls) {
       final String? html = await _fetch(url, timeout);
       if (html == null || html.isEmpty) continue;
-
-      // حماية: لا نقبل صورة من صفحة لا تخص هذا المنتج (صفحة تحقق أو صفحة قديمة)
       if (!html.contains(id)) continue;
 
       final String? raw = _extract(html);
       if (raw != null) {
         final String? absolute = _absolute(raw);
-        if (absolute != null) return absolute;
+        if (absolute == null) continue;
+
+        final String? owner = _owner[absolute];
+        if (owner != null && owner != id) continue; // صورة منتج آخر — مرفوضة
+
+        _byId[id] = absolute;
+        _owner[absolute] = id;
+        return absolute;
       }
     }
-
     return null;
   }
 
@@ -73,12 +81,9 @@ class SheinImageResolver {
     return null;
   }
 
-  /// فلتر لرفض شعار SHEIN والصور التالفة
+  // فلتر لرفض شعار SHEIN
   static bool _isBad(String url) {
-    return RegExp(
-      r'logo|shein_logo|\/s\.(png|jpg)|placeholder|loading|transparent|noimage|no_image|blank|/icon/',
-      caseSensitive: false,
-    ).hasMatch(url);
+    return RegExp(r'logo|shein_logo|\/s\.(png|jpg)|placeholder|loading|transparent|noimage|no_image|blank|/icon/', caseSensitive: false).hasMatch(url);
   }
 
   static String? _absolute(String raw) {
@@ -101,7 +106,7 @@ class SheinImageResolver {
     if (_isBad(u)) return null;
     if (!_productImg.hasMatch(u)) return null;
 
-    // ⭐ إزالة لاحقة التصغير لجلب الصورة الأصلية الكاملة
+    // ⭐ إزالة لاحقة التصغير لجلب الصورة الأصلية الكاملة عالية الدقة
     u = u.replaceAll(RegExp(r'_thumbnail_\d+x\d+\.(jpg|jpeg|png|webp)', caseSensitive: false), r'.$1');
     u = u.replaceAll(RegExp(r'_thumbnail\.(jpg|jpeg|png|webp)', caseSensitive: false), r'.$1');
 
