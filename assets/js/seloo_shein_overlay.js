@@ -514,6 +514,97 @@
     return out;
   }
 
+
+  // ════════════════ قراءة بيانات السلة من JSON المضمّن في الصفحة ════════════════
+  function pickStr(src, keys) {
+    for (var i = 0; i < keys.length; i++) {
+      var m = src.match(new RegExp('"' + keys[i] + '"\\s*:\\s*"([^"]{2,300})"'));
+      if (m) {
+        var v = m[1].replace(/\\u002F/g, '/').replace(/\\\//g, '/').trim();
+        if (v) return v;
+      }
+    }
+    return '';
+  }
+
+  function pickPrice(src) {
+    var m = src.match(/"salePrice"\s*:\s*\{[^}]*?"amount"\s*:\s*"?([\d.]+)/);
+    if (m) { var a = parseFloat(m[1]); if (a > 0) return a; }
+    m = src.match(/"price"\s*:\s*\{[^}]*?"amount"\s*:\s*"?([\d.]+)/);
+    if (m) { var b = parseFloat(m[1]); if (b > 0) return b; }
+    m = src.match(/"retailPrice"\s*:\s*\{[^}]*?"amount"\s*:\s*"?([\d.]+)/);
+    if (m) { var c = parseFloat(m[1]); if (c > 0) return c; }
+    return 0;
+  }
+
+  function absImage(u) {
+    if (!u) return '';
+    var x = u.trim();
+    if (x.indexOf('//') === 0) x = 'https:' + x;
+    if (IMG_BAD.test(x)) return '';
+    if (x.indexOf('http') !== 0) {
+      var h = x.indexOf('ltwebstatic.com');
+      if (h >= 0) x = 'https://img.ltwebstatic.com' + x.substring(h + 15);
+      else if (x.charAt(0) === '/') x = 'https://img.ltwebstatic.com' + x;
+      else return '';
+    }
+    return IMG_OK.test(x) ? x : '';
+  }
+
+  /// يستخرج المنتجات من بيانات الصفحة المضمّنة (لا يعتمد على شكل البطاقات)
+  function scrapeCartJson() {
+    var scripts = qa('script');
+    var out = [];
+    var seen = {};
+    for (var i = 0; i < scripts.length; i++) {
+      var src = scripts[i].textContent || '';
+      if (src.length < 40) continue;
+      if (src.indexOf('goods_id') === -1 && src.indexOf('goodsId') === -1) continue;
+
+      var re = /"(?:goods_id|goodsId)"\s*:\s*"?(\d{6,})"?/g;
+      var m;
+      while ((m = re.exec(src))) {
+        var id = m[1];
+        if (seen[id]) continue;
+        // نافذة للأمام فقط، تنتهي عند بداية المنتج التالي — تمنع قراءة بيانات منتج آخر
+        var after = m.index + 8;
+        var nextIdx = src.indexOf('"goods_id"', after);
+        if (nextIdx === -1) nextIdx = src.indexOf('"goodsId"', after);
+        var end = Math.min(src.length, m.index + 2500);
+        if (nextIdx !== -1 && nextIdx < end) end = nextIdx;
+        var win = src.slice(m.index, end);
+
+        var title = pickStr(win, ['goods_name', 'goodsName', 'product_name', 'title']);
+        var img = absImage(pickStr(win, ['goods_img', 'goodsImg', 'goods_image', 'main_image', 'product_img']));
+        var price = pickPrice(win);
+        if (!price) price = parsePrice(pickStr(win, ['price', 'salePrice']));
+        var attrRaw = pickStr(win, ['goodsAttr', 'goods_attr', 'attr_value']);
+        if (!title && !img) continue;
+        if (!price || price <= 0) continue;
+
+        var parts = attrRaw.split('/');
+        seen[id] = true;
+        out.push({
+          goodsId: id,
+          productUrl: 'https://m.shein.com/-p-' + id + '.html',
+          title: (title || ('منتج SHEIN #' + id)).replace(/\s+/g, ' ').slice(0, 300),
+          imageUrl: img,
+          sourcePrice: price,
+          sourceCurrency: 'SAR',
+          quantity: 1,
+          color: (parts[0] || '').trim(),
+          size: (parts[1] || '').trim(),
+          options: {},
+          sourceStore: 'SHEIN',
+          sku: '',
+          variantId: '',
+          source: 'webview-cart'
+        });
+      }
+    }
+    return out;
+  }
+
   /// يقرأ منتجات السلة المعروضة على الشاشة (تعمل بلا معرّف سلة مشتركة)
   function scrapeCartDom() {
     var links = qa('a[href]');
@@ -607,15 +698,132 @@
     return attempt();
   }
 
+  // ════════════════ التقاط بيانات الشبكة (استجابة سلة SHEIN نفسها) ════════════════
+  function numOf(v) {
+    if (v === null || v === undefined) return 0;
+    if (typeof v === 'number') return isFinite(v) ? v : 0;
+    if (typeof v === 'string') {
+      var n = parseFloat(v.replace(/[^\d.]/g, ''));
+      return isFinite(n) ? n : 0;
+    }
+    if (typeof v === 'object') {
+      var ks = ['amount', 'value', 'price', 'usdAmount', 'rawAmount'];
+      for (var i = 0; i < ks.length; i++) {
+        var n2 = numOf(v[ks[i]]);
+        if (n2 > 0) return n2;
+      }
+    }
+    return 0;
+  }
+
+  function deepPrice(node) {
+    var ks = ['salePrice', 'sale_price', 'price', 'skuPrice', 'sku_price', 'retailPrice', 'retail_price', 'nowPrice'];
+    for (var i = 0; i < ks.length; i++) {
+      if (node[ks[i]] !== undefined) {
+        var n = numOf(node[ks[i]]);
+        if (n > 0) return n;
+      }
+    }
+    return 0;
+  }
+
+  function normImg(u) {
+    var s = String(u || '').trim();
+    if (!s) return '';
+    if (s.indexOf('//') === 0) s = 'https:' + s;
+    if (s.indexOf('http') !== 0) return '';
+    if (!/\.(jpg|jpeg|png|webp)/i.test(s)) return '';
+    if (/placeholder|loading|transparent|noimage|no_image|blank|grey|gray|icon\//i.test(s)) return '';
+    return s;
+  }
+
+  /// يقرأ ما التقطه الخطّاف من استجابات الشبكة (بيانات سلة SHEIN الحقيقية)
+  function scrapeCapturedJson() {
+    var out = [];
+    var seen = {};
+    var store = window.__selooApi || [];
+
+    function walk(node, depth) {
+      if (!node || depth > 14 || out.length > 120) return;
+      if (Array.isArray(node)) {
+        for (var i = 0; i < node.length; i++) walk(node[i], depth + 1);
+        return;
+      }
+      if (typeof node !== 'object') return;
+
+      var id = node.goods_id || node.goodsId || node.goods_sn || node.productId;
+      var sid = id === null || id === undefined ? '' : String(id);
+      if (/^\d{5,}$/.test(sid) && !seen[sid]) {
+        var title = node.goods_name || node.goodsName || node.title || '';
+        var price = deepPrice(node);
+        if (title && price > 0) {
+          seen[sid] = true;
+          var attr = String(node.goodsAttr || node.goods_attr || '');
+          var parts = attr.split('/');
+          out.push({
+            goodsId: sid,
+            productUrl: 'https://m.shein.com/-p-' + sid + '.html',
+            title: String(title).replace(/\s+/g, ' ').slice(0, 300),
+            imageUrl: normImg(node.goods_img || node.goodsImg || (node.goods_imgs && node.goods_imgs[0]) || node.image || node.main_image),
+            sourcePrice: price,
+            sourceCurrency: 'SAR',
+            quantity: 1,
+            color: (parts[0] || '').trim(),
+            size: (parts[1] || '').trim(),
+            options: {},
+            sourceStore: 'SHEIN',
+            sku: '',
+            variantId: '',
+            source: 'webview-cart'
+          });
+        }
+      }
+
+      for (var k in node) {
+        if (Object.prototype.hasOwnProperty.call(node, k)) walk(node[k], depth + 1);
+      }
+    }
+
+    for (var s = 0; s < store.length; s++) {
+      var json;
+      try { json = JSON.parse(store[s]); } catch (e) { continue; }
+      walk(json, 0);
+    }
+    return out;
+  }
+
   function ensureProductList() {
     if (cache.products && cache.url === window.location.href) return Promise.resolve(cache.products);
 
-    // 1) السلة المعروضة على الشاشة (الشخصية أو المشتركة) — الأدق والأسرع
+    // 1) بيانات الشبكة (أدق مصدر: استجابة سلة SHEIN نفسها)
+    var netList = scrapeCapturedJson();
+    // 2) السلة المعروضة على الشاشة
     var domList = scrapeCartDom();
-    if (domList && domList.length) {
-      cache.products = domList;
+    // 3) بيانات الصفحة المضمّنة — تكمّل ما فات البطاقات
+    var jsonList = netList.length ? [] : scrapeCartJson();
+
+    var merged = [];
+    var byId = {};
+    var i;
+    for (i = 0; i < netList.length; i++) { byId[netList[i].goodsId] = netList[i]; merged.push(netList[i]); }
+    for (i = 0; i < domList.length; i++) {
+      if (byId[domList[i].goodsId]) continue;
+      byId[domList[i].goodsId] = domList[i]; merged.push(domList[i]);
+    }
+    for (i = 0; i < jsonList.length; i++) {
+      var it = jsonList[i];
+      if (byId[it.goodsId]) {
+        // نكمّل الناقص في بطاقة DOM من بيانات الصفحة
+        if (!byId[it.goodsId].imageUrl && it.imageUrl) byId[it.goodsId].imageUrl = it.imageUrl;
+        continue;
+      }
+      byId[it.goodsId] = it;
+      merged.push(it);
+    }
+    if (merged.length) {
+      cache.products = merged;
       cache.url = window.location.href;
-      return Promise.resolve(domList);
+      return Promise.resolve(merged);
     }
 
     // 2) واجهة السلة المشتركة (تحتاج معرّف مجموعة)
@@ -698,7 +906,9 @@
       if (!products || !products.length) {
         importing = false;
         updateBulkLabel(null);
-        toast('لم أجد منتجات في السلة — افتحها وانتظر تحميلها.');
+        toast('لم أجد منتجات — شبكة:' + scrapeCapturedJson().length +
+          ' · بطاقات:' + scrapeCartDom().length +
+          ' · مضمّن:' + scrapeCartJson().length);
         return;
       }
 
