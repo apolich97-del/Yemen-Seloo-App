@@ -102,8 +102,8 @@ class SheinImageResolver {
     if (!_productImg.hasMatch(u)) return null;
 
     // ⭐ إزالة لاحقة التصغير لجلب الصورة الأصلية الكاملة
-    u = u.replaceAll(RegExp(r'_thumbnail_\d+x\d+\.(jpg|jpeg|png|webp)', caseSensitive: false), '.$1');
-    u = u.replaceAll(RegExp(r'_thumbnail\.(jpg|jpeg|png|webp)', caseSensitive: false), '.$1');
+    u = u.replaceAll(RegExp(r'_thumbnail_\d+x\d+\.(jpg|jpeg|png|webp)', caseSensitive: false), r'.$1');
+    u = u.replaceAll(RegExp(r'_thumbnail\.(jpg|jpeg|png|webp)', caseSensitive: false), r'.$1');
 
     return u;
   }
