@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -69,6 +70,52 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
 
     return null;
   }
+
+
+  /// خطّاف يُحقن قبل تحميل الصفحة: يسجّل استجابات السلة من SHEIN نفسها،
+  /// لأن بيانات السلة لا تكون دائماً في الصفحة ولا في بطاقات ثابتة.
+  static const String _apiHook = r"""
+(function () {
+  if (window.__selooHooked) return;
+  window.__selooHooked = true;
+  window.__selooApi = [];
+  function keep(u, t) {
+    try {
+      if (!t || typeof t !== 'string') return;
+      if (t.length > 500000) return;
+      if (!/cart|order|bff-api/i.test(String(u))) return;
+      window.__selooApi.push(t);
+      if (window.__selooApi.length > 6) window.__selooApi.shift();
+    } catch (e) {}
+  }
+  var of = window.fetch;
+  if (of) {
+    window.fetch = function () {
+      var a = arguments[0];
+      var u = (a && a.url) ? a.url : String(a || '');
+      return of.apply(this, arguments).then(function (r) {
+        try {
+          if (r && r.clone) { r.clone().text().then(function (t) { keep(u, t); }).catch(function () {}); }
+        } catch (e) {}
+        return r;
+      });
+    };
+  }
+  var oo = XMLHttpRequest.prototype.open;
+  var os = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.open = function (m, u) {
+    this.__selooUrl = u;
+    return oo.apply(this, arguments);
+  };
+  XMLHttpRequest.prototype.send = function () {
+    var x = this;
+    try {
+      x.addEventListener('load', function () { keep(x.__selooUrl || '', x.responseText); });
+    } catch (e) {}
+    return os.apply(this, arguments);
+  };
+})();
+""";
 
   @override
   void initState() {
@@ -214,6 +261,12 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                 child: InAppWebView(
               initialUrlRequest: URLRequest(url: WebUri(_initialUrl), headers: <String, String>{'Accept-Language': 'ar,ar-SA;q=0.9,en;q=0.5'}),
               initialSettings: _buildSettings(),
+              initialUserScripts: UnmodifiableListView<UserScript>(<UserScript>[
+                UserScript(
+                  source: _apiHook,
+                  injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+                ),
+              ]),
               onWebViewCreated: (controller) async {
                 _webViewController = controller;
                 _bridgeController.editingLineId = _editingLineId;
