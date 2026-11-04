@@ -356,6 +356,11 @@
     if (domImg && domImg === lastImageUrl) domImg = '';
     p.imageUrl = domImg;
 
+    // رابط الصفحة الحقيقي أدق من أي صيغة مُركّبة
+    try {
+      if (isProductPage()) p.productUrl = window.location.href.split('#')[0];
+    } catch (e) {}
+
     var finished = false;
     function finish(message) {
       if (finished) return;
@@ -866,6 +871,40 @@
     return out;
   }
 
+  /// يعيد طلب واجهات الشبكة التي استدعتها الصفحة (بكوكيز الجلسة) لالتقاط بيانات السلة
+  function refetchCartApis() {
+    var urls = [];
+    try {
+      var res = performance.getEntriesByType('resource') || [];
+      for (var i = 0; i < res.length; i++) {
+        var u = res[i].name || '';
+        if (!u) continue;
+        if (!/bff-api|\/cart|order|cartlist|goods/i.test(u)) continue;
+        if (urls.indexOf(u) !== -1) continue;
+        urls.push(u);
+      }
+    } catch (e) {}
+    if (!urls.length) return Promise.resolve([]);
+    urls = urls.slice(-6);
+    var tasks = urls.map(function (u) {
+      return fetch(u, { credentials: 'include' })
+        .then(function (r) { return r.text(); })
+        .then(function (t) {
+          if (!t) return '';
+          if (t.indexOf('goods_id') === -1 && t.indexOf('goodsId') === -1) return '';
+          return t;
+        })
+        .catch(function () { return ''; });
+    });
+    return Promise.all(tasks).then(function (texts) {
+      var keep = texts.filter(function (t) { return !!t; });
+      if (keep.length) {
+        window.__selooApi = (window.__selooApi || []).concat(keep).slice(-10);
+      }
+      return keep;
+    });
+  }
+
   function ensureProductList() {
     if (cache.products && cache.url === window.location.href) return Promise.resolve(cache.products);
 
@@ -900,12 +939,24 @@
       return Promise.resolve(merged);
     }
 
-    // 2) واجهة السلة المشتركة (تحتاج معرّف مجموعة)
-    return fetchPageCart().then(function (list) {
-      cache.products = list;
-      cache.url = window.location.href;
-      return list;
+    // 4) إعادة طلب واجهات السلة من الشبكة ثم إعادة القراءة
+    return refetchCartApis().then(function (kept) {
+      if (!kept.length) return [];
+      var again = scrapeCapturedJson();
+      if (again.length) {
+        cache.products = again;
+        cache.url = window.location.href;
+      }
+      return again;
+    }).then(function (list) {
+      if (list && list.length) return list;
+      return fetchPageCart().then(function (fallback) {
+        cache.products = fallback;
+        cache.url = window.location.href;
+        return fallback;
+      });
     });
+
   }
 
   // إيجاد أصغر عنصر يحتوي نص المنتج
