@@ -49,6 +49,19 @@ class _MainShellState extends State<MainShell> {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               ListTile(
+                leading: const Icon(Icons.payments_outlined, color: Colors.blue),
+                title: const Text('سعودي'),
+                subtitle: const Text('الأسعار بالريال السعودي (SAR)'),
+                trailing: Obx(() => _cart.region.value == 'saudi'
+                    ? const Icon(Icons.check_circle, color: _purple)
+                    : const SizedBox()),
+                onTap: () {
+                  _cart.setRegion('saudi');
+                  Get.back();
+                },
+              ),
+              const Divider(),
+              ListTile(
                 leading: const Icon(Icons.public, color: Colors.green),
                 title: const Text('الريال اليمني (شمال)'),
                 subtitle: const Text('سعر الصرف: 140'),
