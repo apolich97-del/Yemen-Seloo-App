@@ -2,7 +2,7 @@ import 'dart:math';
 
 import 'package:get_storage/get_storage.dart';
 
-import '../../../../core/config/seloo_config.dart';
+import '../../../core/config/seloo_config.dart';
 import '../../shein/domain/shein_draft.dart';
 import '../domain/cart_item.dart';
 
