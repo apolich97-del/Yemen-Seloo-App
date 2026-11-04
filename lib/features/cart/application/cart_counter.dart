@@ -17,9 +17,6 @@ class CartCounter extends GetxService {
   // ثوابت مفاتيح التخزين
   static const String _kLastCommission = 'seloo_last_commission';
 
-  /// نفس مفتاح التخزين المستخدم في SelooCartService
-  static const String _cartStorageKey = 'seloo_cart_items';
-
   final RxList<CartItem> items = <CartItem>[].obs;
   final Rx<CartQuote?> quote = Rx<CartQuote?>(null);
   final RxBool busy = false.obs;
@@ -148,10 +145,26 @@ class CartCounter extends GetxService {
     }
     if (!changed) return;
     items.assignAll(updated);
-    // نحفظ مباشرة في نفس مفتاح السلة: لا نعتمد على دالة جديدة في الخدمة
     try {
-      await _box.write(_cartStorageKey, updated.map((CartItem e) => e.toMap()).toList());
+      await _service.saveItems(updated);
     } catch (_) {}
+  }
+
+  /// تحديث صورة سطر جاهز (بعد جلب الصورة الصحيحة من شي إن)
+  Future<bool> patchImage(String goodsId, String imageUrl) async {
+    if (goodsId.isEmpty || imageUrl.trim().isEmpty) return false;
+    try {
+      final bool ok = await _service.patchImage(goodsId, imageUrl.trim());
+      if (!ok) return false;
+      final int index =
+          items.lastIndexWhere((CartItem e) => e.goodsId == goodsId);
+      if (index != -1) {
+        items[index] = items[index].copyWith(imageUrl: imageUrl.trim());
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   void setRegion(String newRegion) {
