@@ -17,6 +17,9 @@ class CartCounter extends GetxService {
   // ثوابت مفاتيح التخزين
   static const String _kLastCommission = 'seloo_last_commission';
 
+  /// نفس مفتاح التخزين المستخدم في SelooCartService
+  static const String _cartStorageKey = 'seloo_cart_items';
+
   final RxList<CartItem> items = <CartItem>[].obs;
   final Rx<CartQuote?> quote = Rx<CartQuote?>(null);
   final RxBool busy = false.obs;
@@ -145,8 +148,9 @@ class CartCounter extends GetxService {
     }
     if (!changed) return;
     items.assignAll(updated);
+    // نحفظ مباشرة في نفس مفتاح السلة: لا نعتمد على دالة جديدة في الخدمة
     try {
-      await _service.saveItems(updated);
+      await _box.write(_cartStorageKey, updated.map((CartItem e) => e.toMap()).toList());
     } catch (_) {}
   }
 
