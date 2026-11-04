@@ -79,6 +79,33 @@ class _CartScreenState extends State<CartScreen> {
     }
   }
 
+  /// حذف كل أسطر السلة بعد تأكيد — للحالات التي تُضاف فيها أسطر خاطئة
+  Future<void> _clearCart() async {
+    if (_cart.items.isEmpty) return;
+    final bool? ok = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text('حذف كل السلة؟'),
+          content: Text('سيتم حذف ${_cart.items.length} سطراً من السلة.'),
+          actions: <Widget>[
+            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('إلغاء')),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
+              child: const Text('حذف الكل'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) return;
+    final String? error = await _cart.clear();
+    if (!mounted) return;
+    _snack(error ?? 'تم حذف كل الأسطر');
+  }
+
   Future<void> _importSharedCart() async {
     if (_importing) return;
 
@@ -382,7 +409,9 @@ class _CartScreenState extends State<CartScreen> {
         '💰 الإجمالي المطلوب: ${totalSar.toStringAsFixed(2)} SAR',
       );
       b.writeln(
-        '🇾🇪 بالريال اليمني: ${totalYer.toStringAsFixed(0)} ريال',
+        rate <= 1.0
+            ? '💰 الإجمالي: ${totalSar.toStringAsFixed(2)} SAR'
+            : '🇾🇪 بالريال اليمني: ${totalYer.toStringAsFixed(0)} ريال',
       );
       b.writeln('📊 سعر الصرف: ${rate.toStringAsFixed(0)}');
 
@@ -401,7 +430,9 @@ class _CartScreenState extends State<CartScreen> {
         '💰 الإجمالي: ${(subtotalSar + serviceFeeSar + shippingSar).toStringAsFixed(2)} SAR',
       );
       b.writeln(
-        '🇾🇪 بالريال اليمني: ${q.grandTotalLocal.toStringAsFixed(0)} ريال',
+        rate <= 1.0
+            ? '💰 الإجمالي: ${q.grandTotalLocal.toStringAsFixed(2)} SAR'
+            : '🇾🇪 بالريال اليمني: ${q.grandTotalLocal.toStringAsFixed(0)} ريال',
       );
       b.writeln('📊 سعر الصرف: ${rate.toStringAsFixed(0)}');
 
@@ -829,7 +860,7 @@ class _CartScreenState extends State<CartScreen> {
             if (_cart.items.isEmpty) {
               return Column(
                 children: <Widget>[
-                  _Header(count: _cart.items.length, onRefresh: _refreshCart),
+                  _Header(count: _cart.items.length, onRefresh: _refreshCart, onClear: _clearCart),
                   const SizedBox(height: 8),
                   _buildImportSheinCartButton(),
                   const Expanded(child: _EmptyCart()),
@@ -839,7 +870,7 @@ class _CartScreenState extends State<CartScreen> {
 
             return Column(
               children: <Widget>[
-                _Header(count: _cart.items.length, onRefresh: _refreshCart),
+                _Header(count: _cart.items.length, onRefresh: _refreshCart, onClear: _clearCart),
                 Expanded(
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
@@ -963,10 +994,11 @@ class _CartScreenState extends State<CartScreen> {
 
 // Header
 class _Header extends StatelessWidget {
-  const _Header({required this.count, required this.onRefresh});
+  const _Header({required this.count, required this.onRefresh, this.onClear});
 
   final int count;
   final VoidCallback onRefresh;
+  final VoidCallback? onClear;
 
   @override
   Widget build(BuildContext context) {
@@ -1021,6 +1053,16 @@ class _Header extends StatelessWidget {
                 ),
             ],
           ),
+          if (onClear != null && count > 0)
+            IconButton(
+              onPressed: onClear,
+              tooltip: 'حذف كل السلة',
+              icon: const Icon(
+                Icons.delete_sweep_outlined,
+                color: Color(0xFFEF4444),
+                size: 22,
+              ),
+            ),
           IconButton(
             onPressed: onRefresh,
             tooltip: 'تحديث السلة',
@@ -1083,6 +1125,14 @@ class _CartLineTile extends StatelessWidget {
   final VoidCallback onRemove;
   final VoidCallback onEdit;
   final VoidCallback onBrowse;
+
+  /// سعر المنتج بعملة المنطقة المختارة — يتغير تلقائياً مع تغيير المنطقة
+  String _localPrice(CartItem item) {
+    if (item.exchangeRate <= 1.0) {
+      return 'SAR ${item.sourcePrice.toStringAsFixed(2)}';
+    }
+    return '${item.unitPriceLocal.toStringAsFixed(0)} ر.ي';
+  }
 
   /// ضغطة طويلة على الصورة تكشف رابطها — للتشخيص فقط
   void _showImageDebug(BuildContext context) {
@@ -1153,13 +1203,25 @@ class _CartLineTile extends StatelessWidget {
                           ),
                         ),
                         const Spacer(),
-                        Text(
-                          'SAR ${item.sourcePrice.toStringAsFixed(2)}',
-                          style: const TextStyle(
-                            color: _purple,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: <Widget>[
+                            Text(
+                              _localPrice(item),
+                              style: const TextStyle(
+                                color: _purple,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            Text(
+                              'SAR ${item.sourcePrice.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                color: Color(0xFF9CA3AF),
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -1444,15 +1506,23 @@ class _RegionSelector extends StatelessWidget {
               children: <Widget>[
                 Expanded(
                   child: _RegionButton(
-                    label: 'الشمال · 140',
+                    label: 'سعودي · SAR',
+                    active: current == 'saudi',
+                    onTap: () => cart.setRegion('saudi'),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: _RegionButton(
+                    label: 'شمال · 140',
                     active: current == 'north',
                     onTap: () => cart.setRegion('north'),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Expanded(
                   child: _RegionButton(
-                    label: 'الجنوب · 413',
+                    label: 'جنوب · 413',
                     active: current == 'south',
                     onTap: () => cart.setRegion('south'),
                   ),
@@ -1548,13 +1618,19 @@ class _QuoteSummary extends StatelessWidget {
                   ),
                   const Divider(height: 20),
                   _row(
-                    'سعر الصرف',
-                    'YER / SAR ${q.exchangeRate.toStringAsFixed(0)}',
+                    'العملة',
+                    q.exchangeRate <= 1.0
+                        ? 'ريال سعودي SAR'
+                        : '${q.exchangeRate.toStringAsFixed(0)} ر.ي لكل SAR',
                   ),
                   const SizedBox(height: 8),
                   _row(
-                    'الإجمالي بالريال اليمني',
-                    '${q.grandTotalLocal.toStringAsFixed(0)} ر.ي',
+                    q.exchangeRate <= 1.0
+                        ? 'الإجمالي (سعودي)'
+                        : 'الإجمالي بالريال اليمني',
+                    q.exchangeRate <= 1.0
+                        ? 'SAR ${q.grandTotalLocal.toStringAsFixed(2)}'
+                        : '${q.grandTotalLocal.toStringAsFixed(0)} ر.ي',
                     emphasize: true,
                   ),
                 ],
