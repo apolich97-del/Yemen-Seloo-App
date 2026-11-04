@@ -19,6 +19,9 @@ class SelooCartService {
     return rawList.whereType<Map>().map((Map e) => CartItem.fromMap(Map<String, dynamic>.from(e))).toList();
   }
 
+  /// حفظ الأسطر من خارج الخدمة (تغيير المنطقة مثلاً)
+  Future<void> saveItems(List<CartItem> items) => _saveItems(items);
+
   Future<void> _saveItems(List<CartItem> items) async {
     await _box.write(_cartKey, items.map((CartItem e) => e.toMap()).toList());
   }
