@@ -100,6 +100,8 @@ class CartCounter extends GetxService {
     try {
       final List<CartItem> loaded = _service.loadItems();
       items.assignAll(loaded);
+      // الأسطر الجديدة تُحفظ بسعر صرف ثابت، فنوحّدها على المنطقة الحالية
+      await applyRegionRate();
       if (items.isNotEmpty) {
         await refreshQuote();
       } else {
@@ -128,9 +130,30 @@ class CartCounter extends GetxService {
   }
 
   // ⭐ تغيير المنطقة وإعادة حساب الإجمالي
+  /// يوحّد سعر الصرف على كل أسطر السلة حسب المنطقة المختارة
+  Future<void> applyRegionRate() async {
+    final double rate = _exchangeRate;
+    bool changed = false;
+    final List<CartItem> updated = <CartItem>[];
+    for (final CartItem e in items) {
+      if (e.exchangeRate == rate) {
+        updated.add(e);
+      } else {
+        updated.add(e.copyWith(exchangeRate: rate));
+        changed = true;
+      }
+    }
+    if (!changed) return;
+    items.assignAll(updated);
+    try {
+      await _service.saveItems(updated);
+    } catch (_) {}
+  }
+
   void setRegion(String newRegion) {
     if (region.value == newRegion) return;
     region.value = newRegion;
+    applyRegionRate();
     refreshQuote();
   }
 
