@@ -616,6 +616,8 @@
         if (!price || price <= 0) continue;
 
         var parts = attrRaw.split('/');
+        var qm = win.match(/"(?:goods_num|goodsNum|cart_num|cartNum|num|quantity|qty)"\s*:\s*"?(\d{1,2})"?/);
+        var qty = qm ? Math.min(50, Math.max(1, parseInt(qm[1], 10))) : 1;
         seen[id] = true;
         out.push({
           goodsId: id,
@@ -624,7 +626,7 @@
           imageUrl: img,
           sourcePrice: price,
           sourceCurrency: 'SAR',
-          quantity: 1,
+          quantity: qty,
           color: (parts[0] || '').trim(),
           size: (parts[1] || '').trim(),
           options: {},
@@ -698,7 +700,7 @@
         imageUrl: img,
         sourcePrice: price,
         sourceCurrency: 'SAR',
-        quantity: 1,
+        quantity: qtyFromText(text),
         color: color,
         size: size,
         options: {},
@@ -768,6 +770,29 @@
     return 0;
   }
 
+  /// كمية السطر داخل السلة (1..50). بعض الحقول تُسمّى goods_num أو num
+  function pickQty(node) {
+    var ks = ['goods_num', 'goodsNum', 'cart_num', 'cartNum', 'num', 'quantity', 'qty', 'skuQty', 'sku_qty', 'buyNum', 'buy_num', 'count'];
+    for (var i = 0; i < ks.length; i++) {
+      if (node[ks[i]] !== undefined) {
+        var n = numOf(node[ks[i]]);
+        if (n >= 1) return Math.min(50, Math.max(1, Math.round(n)));
+      }
+    }
+    return 1;
+  }
+
+  /// كمية من نص البطاقة: نمط "‎- 2 +"
+  function qtyFromText(t) {
+    if (!t) return 1;
+    var m = String(t).match(/[-−]\s*(\d{1,2})\s*\+/);
+    if (m) {
+      var n = parseInt(m[1], 10);
+      if (n >= 1) return Math.min(50, n);
+    }
+    return 1;
+  }
+
   function normImg(u) {
     var s = String(u || '').trim();
     if (!s) return '';
@@ -816,7 +841,7 @@
             imageUrl: normImg(node.goods_img || node.goodsImg || (node.goods_imgs && node.goods_imgs[0]) || node.image || node.main_image),
             sourcePrice: price,
             sourceCurrency: 'SAR',
-            quantity: 1,
+            quantity: pickQty(node),
             color: (parts[0] || '').trim(),
             size: (parts[1] || '').trim(),
             options: {},
