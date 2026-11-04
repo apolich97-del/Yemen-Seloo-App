@@ -40,6 +40,32 @@ class _CartScreenState extends State<CartScreen> {
 
   bool _importing = false;
 
+  /// الأسطر المحددة للمشاركة أو الحذف
+  final Set<String> _selected = <String>{};
+
+  bool _isSelected(CartItem item) => _selected.contains(item.lineId);
+
+  void _toggleSelect(CartItem item) {
+    setState(() {
+      if (!_selected.add(item.lineId)) _selected.remove(item.lineId);
+    });
+  }
+
+  void _toggleSelectAll() {
+    setState(() {
+      if (_selected.length == _cart.items.length) {
+        _selected.clear();
+      } else {
+        _selected
+          ..clear()
+          ..addAll(_cart.items.map((CartItem e) => e.lineId));
+      }
+    });
+  }
+
+  List<CartItem> get _selectedItems =>
+      _cart.items.where((CartItem e) => _selected.contains(e.lineId)).toList();
+
   @override
   void initState() {
     super.initState();
@@ -1179,7 +1205,13 @@ class _CartScreenState extends State<CartScreen> {
 
 // Header
 class _Header extends StatelessWidget {
-  const _Header({required this.count, required this.onRefresh, this.onClear});
+  const _Header({
+    required this.count,
+    required this.onRefresh,
+    this.onClear,
+    this.onSelectAll,
+    this.allSelected = false,
+  });
 
   final int count;
   final VoidCallback onRefresh;
