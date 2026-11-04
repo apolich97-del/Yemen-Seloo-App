@@ -346,42 +346,51 @@
     var p = readCurrentProduct();
     if (!p) { toast('تعذر قراءة بيانات المنتج.'); return; }
     var wasEdit = EDIT_MODE;
+    var label = EDIT_MODE ? '💾 حفظ التعديل' : '🛒 أضف إلى سلة سيلو';
+
     if (button) { button.disabled = true; button.textContent = 'جارٍ الإضافة...'; }
 
-    // 1) og:image من صفحة هذا المنتج تحديداً (يتحقق أن الصفحة تحمل معرّفه)
-    fetchOgImage(p.goodsId).then(function (ogUrl) {
-      if (ogUrl) { p.imageUrl = ogUrl; return null; }
-      // 2) صورة الصفحة مرفوضة إن كانت هي نفس صورة المنتج السابق (تطبيق أحادي الصفحة)
-      var domImg = p.imageUrl || '';
-      if (!domImg || domImg === lastImageUrl) { p.imageUrl = ''; return null; }
-      return verifyImage(domImg).then(function (okUrl) {
-        p.imageUrl = (okUrl && okUrl !== lastImageUrl) ? okUrl : '';
-        return null;
-      });
-    }).then(function () {
-      return callBridge('addToCart', p);
-    }).then(function (r) {
+    // صورة الصفحة تُرسل فوراً؛ والتطبيق يستبدلها بالصورة الكبيرة الصحيحة
+    // عبر معرّف المنتج. لا ننتظر أي طلب شبكة هنا حتى لا يتعلّق الزر.
+    var domImg = p.imageUrl || '';
+    if (domImg && domImg === lastImageUrl) domImg = '';
+    p.imageUrl = domImg;
+
+    var finished = false;
+    function finish(message) {
+      if (finished) return;
+      finished = true;
+      toast(message);
+      if (button) { button.disabled = false; button.textContent = label; }
+    }
+
+    // شبكة أمان: لا يبقى الزر معطلاً أكثر من 12 ثانية
+    var guard = setTimeout(function () { finish('انتهت المحاولة. أعد الضغط.'); }, 12000);
+
+    callBridge('addToCart', p).then(function (r) {
+      clearTimeout(guard);
       var st = r && r.status ? r.status : 'ok';
       if (st === 'offline') {
-        toast('تعذر الاتصال بالتطبيق. حاول مجددًا.');
-      } else if (st === 'invalid' || st === 'error') {
-        toast((r && r.message) ? r.message : 'فشلت الإضافة.');
-      } else {
-        var bits = [];
-        if (p.size) bits.push('المقاس: ' + p.size);
-        if (p.color) bits.push('اللون: ' + p.color);
-        bits.push(p.imageUrl ? 'صورة ✓' : 'بلا صورة ✗');
-        if (wasEdit) {
-          try { sessionStorage.removeItem('selooEdit'); } catch (e) {}
-          EDIT_MODE = false;
-        }
-        if (p.imageUrl) lastImageUrl = p.imageUrl;
-        toast((wasEdit ? '✓ تم حفظ التعديل' : '✓ أُضيف إلى سلة سيلو') + ' — ' + bits.join(' · '));
+        finish('تعذر الاتصال بالتطبيق. حاول مجددًا.');
+        return;
       }
-      if (button) { button.disabled = false; button.textContent = EDIT_MODE ? '💾 حفظ التعديل' : '🛒 أضف إلى سلة سيلو'; }
-    }).catch(function (e) {
-      toast('تعذر إكمال العملية. حاول مجددًا.');
-      if (button) { button.disabled = false; button.textContent = EDIT_MODE ? '💾 حفظ التعديل' : '🛒 أضف إلى سلة سيلو'; }
+      if (st === 'invalid' || st === 'error') {
+        finish((r && r.message) ? r.message : 'فشلت الإضافة.');
+        return;
+      }
+      var bits = [];
+      if (p.size) bits.push('المقاس: ' + p.size);
+      if (p.color) bits.push('اللون: ' + p.color);
+      if (wasEdit) {
+        try { sessionStorage.removeItem('selooEdit'); } catch (e) {}
+        EDIT_MODE = false;
+        label = '🛒 أضف إلى سلة سيلو';
+      }
+      if (p.imageUrl) lastImageUrl = p.imageUrl;
+      finish((wasEdit ? '✓ تم حفظ التعديل' : '✓ أُضيف إلى سلة سيلو') + (bits.length ? ' — ' + bits.join(' · ') : ''));
+    }).catch(function () {
+      clearTimeout(guard);
+      finish('تعذر إكمال العملية. حاول مجددًا.');
     });
   }
 
@@ -567,9 +576,23 @@
     var out = [];
     var seen = {};
     for (var i = 0; i < scripts.length; i++) {
-      var src = scripts[i].textContent || '';
-      if (src.length < 40) continue;
-      if (src.indexOf('goods_id') === -1 && src.indexOf('goodsId') === -1) continue;
+      var raw = scripts[i].textContent || '';
+      if (raw.length < 40) continue;
+      if (raw.indexOf('goods_id') === -1 && raw.indexOf('goodsId') === -1) continue;
+
+      // لا نقرأ إلا ما بعد قسم سلة حقيقي — يمنع منتجات المقترحات
+      var marks = ['cartList', 'cart_list', 'normalProducts', 'normal_products', 'goodsList', 'goods_list'];
+      var startAt = -1;
+      for (var mi = 0; mi < marks.length; mi++) {
+        var pos = raw.indexOf(marks[mi]);
+        if (pos !== -1 && (startAt === -1 || pos < startAt)) startAt = pos;
+      }
+      if (startAt === -1) continue;
+      var src = raw.slice(startAt);
+
+      // نقطع عند أول قسم مقترحات/مشابهة، فلا تدخل منتجاتها في السلة
+      var cut = src.search(/"(?:recommend|similar|guess|likeYou|history|browse|recent|suggest)[A-Za-z_]*"\s*:/i);
+      if (cut > 0) src = src.slice(0, cut);
 
       var re = /"(?:goods_id|goodsId)"\s*:\s*"?(\d{6,})"?/g;
       var m;
@@ -639,6 +662,14 @@
       if (!title || title.length < 8) continue;
 
       // السعر: نفضّل عنصر السعر ثم أي رقم بجانب رمز عملة
+      // علامة أن البطاقة سطر سلة فعلي وليست منتجاً مقترحاً
+      var cartMark = card.querySelector(
+        '[class*="delete"],[class*="Delete"],[class*="remove"],[class*="Remove"],' +
+        '[class*="trash"],[class*="checkbox"],[class*="check-box"],[class*="stepper"],' +
+        '[class*="quantity"],[class*="counter"],[aria-label*="حذف"],[aria-label*="delete"]'
+      );
+      if (!cartMark) continue;
+
       var price = null;
       var pEl = card.querySelector('[class*="price"], [class*="Price"]');
       if (pEl) price = parsePrice(txt(pEl));
@@ -748,22 +779,30 @@
   }
 
   /// يقرأ ما التقطه الخطّاف من استجابات الشبكة (بيانات سلة SHEIN الحقيقية)
+  // مفاتيح أقسام ليست سلة: منتجات مقترحة أو مشابهة أو شوهدت حديثاً
+  var NOT_CART = /recommend|similar|guess|like|interest|history|browse|recent|suggest|ranking|feed|discover/i;
+  // مفاتيح السلة الفعلية
+  var IS_CART = /cart|goodslist|goods_list|productlist|product_list|normalproducts|normal_products|sku|orderitem/i;
+
   function scrapeCapturedJson() {
     var out = [];
     var seen = {};
     var store = window.__selooApi || [];
 
-    function walk(node, depth) {
+    function walk(node, depth, path) {
       if (!node || depth > 14 || out.length > 120) return;
+      var pth = path || '';
       if (Array.isArray(node)) {
-        for (var i = 0; i < node.length; i++) walk(node[i], depth + 1);
+        for (var i = 0; i < node.length; i++) walk(node[i], depth + 1, pth);
         return;
       }
       if (typeof node !== 'object') return;
 
       var id = node.goods_id || node.goodsId || node.goods_sn || node.productId;
       var sid = id === null || id === undefined ? '' : String(id);
-      if (/^\d{5,}$/.test(sid) && !seen[sid]) {
+      // نأخذ فقط ما يقع تحت قسم سلة حقيقي، ونتجاهل المقترحات وما شابهها
+      var inCart = IS_CART.test(pth) && !NOT_CART.test(pth);
+      if (/^\d{5,}$/.test(sid) && !seen[sid] && inCart) {
         var title = node.goods_name || node.goodsName || node.title || '';
         var price = deepPrice(node);
         if (title && price > 0) {
@@ -790,14 +829,14 @@
       }
 
       for (var k in node) {
-        if (Object.prototype.hasOwnProperty.call(node, k)) walk(node[k], depth + 1);
+        if (Object.prototype.hasOwnProperty.call(node, k)) walk(node[k], depth + 1, pth + '/' + k);
       }
     }
 
     for (var s = 0; s < store.length; s++) {
       var json;
       try { json = JSON.parse(store[s]); } catch (e) { continue; }
-      walk(json, 0);
+      walk(json, 0, '');
     }
     return out;
   }
@@ -887,7 +926,8 @@
         card = card.parentNode;
       }
       if (!card || !card.appendChild) return;
-      if (card.querySelector && card.querySelector('[' + CARD_FLAG + '="' + p.goodsId + '"]')) return;
+      // زر واحد فقط لكل بطاقة، مهما تكررت المنتجات المطابقة
+      if (card.querySelector && card.querySelector('[' + CARD_FLAG + ']')) return;
 
       var btn = document.createElement('button');
       btn.type = 'button';
