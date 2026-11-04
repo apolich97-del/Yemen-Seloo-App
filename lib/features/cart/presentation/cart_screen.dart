@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/config/seloo_config.dart';
 import '../../shein/application/shein_cart_importer.dart';
+import '../../shein/data/shein_image_resolver.dart';
 import '../application/cart_counter.dart';
 import '../data/seloo_cart_link.dart';
 import '../domain/cart_item.dart';
@@ -68,15 +69,36 @@ class _CartScreenState extends State<CartScreen> {
   Future<void> _refreshCart() async {
     if (_refreshing) return;
     _refreshing = true;
+    _snack('جارٍ التحديث…');
     try {
       await _cart.onItemAdded();
       await _cart.refreshQuote();
+      await _resyncImages();
       _snack('تم تحديث السلة');
     } catch (_) {
       _snack('تعذّر تحديث السلة');
     } finally {
       _refreshing = false;
     }
+  }
+
+  /// يعيد جلب الصور الصحيحة لكل سطر (يحلّ محل زر التحديث في صفحة شي إن)
+  Future<void> _resyncImages() async {
+    final List<CartItem> lines = _cart.items
+        .where((CartItem e) => e.goodsId.trim().isNotEmpty)
+        .toList();
+    if (lines.isEmpty) return;
+    int fixed = 0;
+    for (final CartItem item in lines) {
+      try {
+        final String? real = await SheinImageResolver.byGoodsId(item.goodsId);
+        if (real == null || real.isEmpty) continue;
+        if (real == item.imageUrl) continue;
+        final bool ok = await _cart.patchImage(item.goodsId, real);
+        if (ok) fixed++;
+      } catch (_) {}
+    }
+    if (fixed > 0 && mounted) _snack('تم تصحيح $fixed صورة');
   }
 
   /// حذف كل أسطر السلة بعد تأكيد — للحالات التي تُضاف فيها أسطر خاطئة
@@ -154,6 +176,85 @@ class _CartScreenState extends State<CartScreen> {
         'فشل استيراد السلة. تحقق من الرابط والاتصال ثم أعد المحاولة.',
       );
     }
+  }
+
+  Future<void> _deleteSelected() async {
+    final List<CartItem> lines = _selectedItems;
+    if (lines.isEmpty) return;
+    final bool? ok = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text('حذف المحدد؟'),
+          content: Text('سيتم حذف ${lines.length} سطراً من السلة.'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444),
+              ),
+              child: const Text('حذف'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) return;
+
+    for (final CartItem item in lines) {
+      await _cart.remove(item);
+    }
+    setState(() => _selected.clear());
+    await _cart.refreshQuote();
+    _snack('تم حذف ${lines.length} سطراً');
+  }
+
+  Future<void> _shareSelected() async {
+    final List<CartItem> lines = _selectedItems;
+    if (lines.isEmpty) return;
+
+    final StringBuffer b = StringBuffer();
+    b.writeln('🛍️ *طلب من يمن سيلو*');
+    b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
+    double localTotal = 0;
+    double sarTotal = 0;
+    int pieces = 0;
+    for (int i = 0; i < lines.length; i++) {
+      final CartItem item = lines[i];
+      localTotal += item.lineTotalLocal;
+      sarTotal += item.sourcePrice * item.quantity;
+      pieces += item.quantity;
+      b.writeln('${i + 1}. ${item.title}');
+      if (item.color.isNotEmpty) b.writeln('   اللون: ${item.color}');
+      if (item.size.isNotEmpty) b.writeln('   المقاس: ${item.size}');
+      b.writeln('   الكمية: ${item.quantity}');
+      b.writeln(
+        '   السعر: ${item.sourcePrice.toStringAsFixed(2)} SAR',
+      );
+      b.writeln('');
+    }
+    final double rate =
+        (localTotal / (sarTotal == 0 ? 1 : sarTotal));
+    b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
+    b.writeln('📦 عدد الأسطر: ${lines.length}');
+    b.writeln('🔢 عدد القطع: $pieces');
+    b.writeln('💵 قيمة المنتجات: ${sarTotal.toStringAsFixed(2)} SAR');
+    b.writeln(
+      rate <= 1.0
+          ? '💰 الإجمالي: ${localTotal.toStringAsFixed(2)} SAR'
+          : '🇾🇪 الإجمالي: ${localTotal.toStringAsFixed(0)} ريال',
+    );
+    try {
+      b.writeln('🛒 رابط السلة:');
+      b.writeln(SelooCartLink.webLink(lines));
+    } catch (_) {}
+    b.writeln('📞 للتواصل: $_primaryPhone');
+    await _sendWhatsApp(b.toString());
   }
 
   Future<void> _shareCartToWhatsApp() async {
@@ -507,9 +608,13 @@ class _CartScreenState extends State<CartScreen> {
 
   /// فتح المنتج في متصفح التطبيق للتصفح (ضغط الصورة) بلا وضع تعديل
   void _browseProduct(CartItem item) {
-    final String url = item.goodsId.isNotEmpty
-        ? 'https://m.shein.com/ar/-p-${item.goodsId}.html'
-        : item.sourceUrl.trim();
+    // الرابط المخزّن من صفحة المنتج نفسها هو الأدق
+    final String stored = item.sourceUrl.trim();
+    final String url = stored.startsWith('http')
+        ? stored
+        : (item.goodsId.isNotEmpty
+            ? 'https://ar.shein.com/-p-${item.goodsId}.html'
+            : '');
     if (url.isEmpty) {
       _snack('لا يوجد رابط لهذا المنتج');
       return;
@@ -860,7 +965,14 @@ class _CartScreenState extends State<CartScreen> {
             if (_cart.items.isEmpty) {
               return Column(
                 children: <Widget>[
-                  _Header(count: _cart.items.length, onRefresh: _refreshCart, onClear: _clearCart),
+                  _Header(
+                  count: _cart.items.length,
+                  onRefresh: _refreshCart,
+                  onClear: _clearCart,
+                  onSelectAll: _toggleSelectAll,
+                  allSelected: _selected.isNotEmpty &&
+                      _selected.length == _cart.items.length,
+                ),
                   const SizedBox(height: 8),
                   _buildImportSheinCartButton(),
                   const Expanded(child: _EmptyCart()),
@@ -870,7 +982,14 @@ class _CartScreenState extends State<CartScreen> {
 
             return Column(
               children: <Widget>[
-                _Header(count: _cart.items.length, onRefresh: _refreshCart, onClear: _clearCart),
+                _Header(
+                  count: _cart.items.length,
+                  onRefresh: _refreshCart,
+                  onClear: _clearCart,
+                  onSelectAll: _toggleSelectAll,
+                  allSelected: _selected.isNotEmpty &&
+                      _selected.length == _cart.items.length,
+                ),
                 Expanded(
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
@@ -907,6 +1026,8 @@ class _CartScreenState extends State<CartScreen> {
                             onRemove: () => _run(() => _cart.remove(item)),
                             onEdit: () => _cart.startEditing(item),
                             onBrowse: () => _browseProduct(item),
+                            selected: _isSelected(item),
+                            onSelect: () => _toggleSelect(item),
                           ),
                         ),
                       ),
@@ -967,6 +1088,70 @@ class _CartScreenState extends State<CartScreen> {
                         ),
                       ),
                       const SizedBox(height: 10),
+                      if (_selected.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Column(
+                            children: <Widget>[
+                              Row(
+                                children: <Widget>[
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: _shareSelected,
+                                      icon: const Icon(Icons.share, size: 18),
+                                      label: Text(
+                                        'مشاركة المحدد (${_selected.length})',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: _green,
+                                        side: const BorderSide(
+                                          color: _green,
+                                          width: 1.5,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: _deleteSelected,
+                                      icon: const Icon(
+                                        Icons.delete_outline,
+                                        size: 18,
+                                      ),
+                                      label: Text(
+                                        'حذف المحدد (${_selected.length})',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: const Color(
+                                          0xFFEF4444,
+                                        ),
+                                        side: const BorderSide(
+                                          color: Color(0xFFEF4444),
+                                          width: 1.5,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
                       _CheckoutButton(cart: _cart),
                       const SizedBox(height: 8),
                       Text(
@@ -999,6 +1184,8 @@ class _Header extends StatelessWidget {
   final int count;
   final VoidCallback onRefresh;
   final VoidCallback? onClear;
+  final VoidCallback? onSelectAll;
+  final bool allSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -1053,6 +1240,18 @@ class _Header extends StatelessWidget {
                 ),
             ],
           ),
+          if (onSelectAll != null && count > 0)
+            IconButton(
+              onPressed: onSelectAll,
+              tooltip: allSelected ? 'إلغاء تحديد الكل' : 'تحديد الكل',
+              icon: Icon(
+                allSelected
+                    ? Icons.check_box
+                    : Icons.check_box_outline_blank,
+                color: _purple,
+                size: 22,
+              ),
+            ),
           if (onClear != null && count > 0)
             IconButton(
               onPressed: onClear,
@@ -1118,6 +1317,8 @@ class _CartLineTile extends StatelessWidget {
     required this.onRemove,
     required this.onEdit,
     required this.onBrowse,
+    required this.selected,
+    required this.onSelect,
   });
 
   final CartItem item;
@@ -1125,6 +1326,8 @@ class _CartLineTile extends StatelessWidget {
   final VoidCallback onRemove;
   final VoidCallback onEdit;
   final VoidCallback onBrowse;
+  final bool selected;
+  final VoidCallback onSelect;
 
   /// سعر المنتج بعملة المنطقة المختارة — يتغير تلقائياً مع تغيير المنطقة
   String _localPrice(CartItem item) {
@@ -1173,6 +1376,14 @@ class _CartLineTile extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.only(top: 26, left: 2),
+                child: Checkbox(
+                  value: selected,
+                  activeColor: _purple,
+                  onChanged: (_) => onSelect(),
+                ),
+              ),
               GestureDetector(
                 onTap: onBrowse,
                 onLongPress: () => _showImageDebug(context),
@@ -1368,7 +1579,7 @@ class _InfoChip extends StatelessWidget {
   }
 }
 
-class _ProductImage extends StatelessWidget {
+class _ProductImage extends StatefulWidget {
   const _ProductImage({required this.url});
 
   final String url;
@@ -1378,7 +1589,6 @@ class _ProductImage extends StatelessWidget {
     String u = raw.trim().replaceAll(' ', '');
     if (u.isEmpty) return '';
 
-    // لو تكرّر المخطط أو الدومين داخل الرابط نأخذ آخر جزء سليم
     final int lastScheme = u.lastIndexOf('http');
     if (lastScheme > 0) u = u.substring(lastScheme);
 
@@ -1391,12 +1601,58 @@ class _ProductImage extends StatelessWidget {
     return u;
   }
 
+  /// البديل: لو فشلت الصورة نجرّب النسخة الكبيرة ثم المصغّرة
+  static String _variant(String src, int step) {
+    if (step == 0) return src;
+    if (step == 1) {
+      // نزيل لاحقة التصغير => الصورة الكبيرة
+      return src
+          .replaceAllMapped(
+            RegExp(r'_thumbnail_\d+x\d+(?=\.(?:jpg|jpeg|png|webp))',
+                caseSensitive: false),
+            (Match _) => '',
+          )
+          .replaceAllMapped(
+            RegExp(r'_thumbnail(?=\.(?:jpg|jpeg|png|webp))', caseSensitive: false),
+            (Match _) => '',
+          );
+    }
+    // الخطوة الثانية: نعيد المصغّرة (أخف وأسرع)
+    if (src.contains('_thumbnail')) return src;
+    return src.replaceAllMapped(
+      RegExp(r'\.(jpg|jpeg|png|webp)$', caseSensitive: false),
+      (Match m) => '_thumbnail_405x552.${m.group(1)}',
+    );
+  }
+
+  @override
+  State<_ProductImage> createState() => _ProductImageState();
+}
+
+class _ProductImageState extends State<_ProductImage> {
+  int _step = 0;
+
+  @override
+  void didUpdateWidget(covariant _ProductImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) _step = 0;
+  }
+
+  void _next() {
+    if (_step >= 2) return;
+    if (!mounted) return;
+    setState(() => _step += 1);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final String src = _absolute(url);
-    if (src.isEmpty) return _placeholder();
+    final String base = _ProductImage._absolute(widget.url);
+    if (base.isEmpty) return _placeholder();
+
+    final String src = _ProductImage._variant(base, _step);
 
     return CachedNetworkImage(
+      key: ValueKey<String>(src),
       imageUrl: src,
       fit: BoxFit.cover,
       // شي إن ترفض بعض الصور بلا هوية متصفح/مرجع — نرسلها كما يفعل الويب
@@ -1420,7 +1676,13 @@ class _ProductImage extends StatelessWidget {
           ),
         ),
       ),
-      errorWidget: (_, __, ___) => _placeholder(),
+      errorWidget: (_, __, ___) {
+        if (_step < 2) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => _next());
+          return Container(color: _purpleLight);
+        }
+        return _placeholder();
+      },
     );
   }
 
