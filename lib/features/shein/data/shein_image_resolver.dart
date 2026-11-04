@@ -104,9 +104,16 @@ class SheinImageResolver {
     if (_isBad(u)) return null;
     if (!_productImg.hasMatch(u)) return null;
 
-    // ⭐ إزالة التصغير
-    u = u.replaceAll(RegExp(r'_thumbnail_\d+x\d+\.(jpg|jpeg|png|webp)', caseSensitive: false), r'.$1');
-    u = u.replaceAll(RegExp(r'_thumbnail\.(jpg|jpeg|png|webp)', caseSensitive: false), r'.$1');
+    // ⭐ إزالة التصغير: نستعمل الصورة الكبيرة الجاهزة للتنزيل
+    // (replaceAll لا يستبدل $1 — لذلك replaceAllMapped)
+    u = u.replaceAllMapped(
+      RegExp(r'_thumbnail_\d+x\d+\.(jpg|jpeg|png|webp)', caseSensitive: false),
+      (Match m) => '.${m.group(1)}',
+    );
+    u = u.replaceAllMapped(
+      RegExp(r'_thumbnail\.(jpg|jpeg|png|webp)', caseSensitive: false),
+      (Match m) => '.${m.group(1)}',
+    );
 
     return u;
   }
