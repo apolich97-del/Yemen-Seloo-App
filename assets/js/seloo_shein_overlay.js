@@ -646,6 +646,69 @@
   }
 
   /// يقرأ منتجات السلة المعروضة على الشاشة (تعمل بلا معرّف سلة مشتركة)
+  /// سلة SHEIN الحديثة تبني البطاقات من div بلا href.
+  /// هنا نلتقط أي بطاقة تحمل زر حذف/تحديد ثم نستخرج المعرّف من داخل HTML البطاقة.
+  function scrapeCartCards() {
+    var out = [];
+    var seen = {};
+    var marks = qa('[class*="delete"],[class*="Delete"],[class*="remove"],[class*="trash"],[aria-label*="حذف"],[aria-label*="delete"],[class*="checkbox"],[class*="j-checkbox"]');
+    for (var m = 0; m < marks.length && out.length < 60; m++) {
+      var card = marks[m];
+      for (var up = 0; up < 6 && card && card.parentNode; up++) {
+        var t = txt(card);
+        if (t && t.length > 25 && /(?:SAR|ر\.س|ريال|\$)/.test(t)) break;
+        card = card.parentNode;
+      }
+      if (!card || !card.innerHTML) continue;
+
+      var html = card.innerHTML;
+      var idm = html.match(/-p-(\d{5,})\.html/) ||
+                html.match(/[?&]goods_id=(\d{5,})/) ||
+                html.match(/"goodsId"\s*:\s*"?(\d{5,})/) ||
+                html.match(/goods_id["'\s:=]+(\d{5,})/) ||
+                html.match(/data-(?:id|goods-id)="(\d{5,})"/);
+      if (!idm) continue;
+      var id = idm[1];
+      if (seen[id]) continue;
+
+      var text = txt(card).replace(/\s+/g, ' ').slice(0, 400);
+      var pm = text.match(/(\d+(?:\.\d{1,2})?)\s*(?:ر\.س|SAR|ر\.ي|ريال|\$)/) ||
+               text.match(/(?:SAR|ر\.س|ر\.ي|\$)\s*(\d+(?:\.\d{1,2})?)/);
+      var price = pm ? parseFloat(pm[1]) : 0;
+      if (!price || !isFinite(price)) continue;
+
+      var img = '';
+      var imgs = card.querySelectorAll ? card.querySelectorAll('img') : [];
+      for (var j = 0; j < imgs.length; j++) {
+        var c = hiRes(imgFrom(imgs[j]));
+        if (c) { img = c; break; }
+      }
+
+      var title = longestTitle(card);
+      if (!title || title.length < 8) title = text.slice(0, 120);
+      var v = readVariantFrom(card);
+
+      seen[id] = true;
+      out.push({
+        goodsId: id,
+        productUrl: 'https://m.shein.com/-p-' + id + '.html',
+        title: title.replace(/\s+/g, ' ').slice(0, 300),
+        imageUrl: img,
+        sourcePrice: price,
+        sourceCurrency: 'SAR',
+        quantity: qtyFromText(text),
+        color: v.color,
+        size: v.size,
+        options: {},
+        sourceStore: 'SHEIN',
+        sku: '',
+        variantId: '',
+        source: 'webview-cart'
+      });
+    }
+    return out;
+  }
+
   function scrapeCartDom() {
     var links = qa('a[href]');
     var seen = {};
@@ -873,7 +936,10 @@
 
   /// يعيد طلب واجهات الشبكة التي استدعتها الصفحة (بكوكيز الجلسة) لالتقاط بيانات السلة
   function refetchCartApis() {
-    var urls = [];
+    // أولاً: الروابط التي جمعها التطبيق نفسه من طبقة الشبكة (أدق مصدر)
+    var dartUrls = [];
+    try { dartUrls = (window.__selooUrls || []).slice(0, 12); } catch (e) {}
+    var urls = dartUrls.slice(0);
     try {
       var res = performance.getEntriesByType('resource') || [];
       for (var i = 0; i < res.length; i++) {
@@ -910,8 +976,17 @@
 
     // 1) بيانات الشبكة (أدق مصدر: استجابة سلة SHEIN نفسها)
     var netList = scrapeCapturedJson();
-    // 2) السلة المعروضة على الشاشة
+    // 2) السلة المعروضة على الشاشة (روابط، ثم بطاقات بلا روابط)
     var domList = scrapeCartDom();
+    var cardList = scrapeCartCards();
+    if (cardList.length) {
+      var seenDom = {};
+      var k;
+      for (k = 0; k < domList.length; k++) seenDom[domList[k].goodsId] = true;
+      for (k = 0; k < cardList.length; k++) {
+        if (!seenDom[cardList[k].goodsId]) domList.push(cardList[k]);
+      }
+    }
     // 3) بيانات الصفحة المضمّنة — تكمّل ما فات البطاقات
     var jsonList = netList.length ? [] : scrapeCartJson();
 
@@ -1033,6 +1108,8 @@
         importing = false;
         updateBulkLabel(null);
         toast('لم أجد منتجات — شبكة:' + scrapeCapturedJson().length +
+            ' · روابط:' + scrapeCartDom().length +
+            ' · بطاقات:' + scrapeCartCards().length +
           ' · بطاقات:' + scrapeCartDom().length +
           ' · مضمّن:' + scrapeCartJson().length);
         return;
@@ -1116,5 +1193,5 @@
   } else {
     setTimeout(sync, 800);
   }
-  setInterval(sync, 4000);
+  setInterval(sync, 6000);
 })();
