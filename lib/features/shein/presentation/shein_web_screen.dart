@@ -74,6 +74,13 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
 
   /// خطّاف يُحقن قبل تحميل الصفحة: يسجّل استجابات السلة من SHEIN نفسها،
   /// لأن بيانات السلة لا تكون دائماً في الصفحة ولا في بطاقات ثابتة.
+  /// روابط استجابات قد تحمل بيانات السلة
+  final List<String> _netUrls = <String>[];
+  static final RegExp _netUrlRe = RegExp(
+    r'cart|order|bff-api|goods|product',
+    caseSensitive: false,
+  );
+
   static const String _apiHook = r"""
 (function () {
   if (window.__selooHooked) return;
@@ -83,9 +90,20 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
     try {
       if (!t || typeof t !== 'string') return;
       if (t.length > 500000) return;
-      if (!/cart|order|bff-api/i.test(String(u))) return;
+      var looksCart = /cart|order|bff-api|product|goods/i.test(String(u));
+      var hasGoods = t.indexOf('goods_id') !== -1 || t.indexOf('goodsId') !== -1;
+      if (!looksCart && !hasGoods) return;
+      if (!hasGoods) return;
       window.__selooApi.push(t);
-      if (window.__selooApi.length > 6) window.__selooApi.shift();
+      if (window.__selooApi.length > 8) window.__selooApi.shift();
+      try {
+        window.__selooUrls = window.__selooUrls || [];
+        var uu = String(u);
+        if (uu && window.__selooUrls.indexOf(uu) === -1) {
+          window.__selooUrls.push(uu);
+          if (window.__selooUrls.length > 12) window.__selooUrls.shift();
+        }
+      } catch (e) {}
     } catch (e) {}
   }
   var of = window.fetch;
@@ -225,13 +243,26 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
             },
           ),
         ],
-        leading: IconButton(icon: const Icon(Icons.close), onPressed: () {
-          if (_isCrawling) {
-            setState(() => _isCrawling = false);
-          } else {
-            Get.back();
-          }
-        }),
+        leading: IconButton(
+          tooltip: 'رجوع',
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () async {
+            if (_isCrawling) {
+              setState(() => _isCrawling = false);
+              return;
+            }
+            // داخل متصفح شي إن: رجوع خطوة، وإن لم يوجد تاريخ نعود للتطبيق
+            bool wentBack = false;
+            try {
+              final InAppWebViewController? c = _webViewController;
+              if (c != null && await c.canGoBack()) {
+                await c.goBack();
+                wentBack = true;
+              }
+            } catch (_) {}
+            if (!wentBack) Get.back();
+          },
+        ),
       ),
       body: Column(
         children: <Widget>[
@@ -284,9 +315,30 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                   _nextCrawlStep();
                 };
               },
+              shouldInterceptRequest: (controller, request) async {
+                try {
+                  final String u = request.url.toString();
+                  if (u.startsWith('http') &&
+                      _netUrlRe.hasMatch(u) &&
+                      !_netUrls.contains(u)) {
+                    _netUrls.add(u);
+                    if (_netUrls.length > 12) _netUrls.removeAt(0);
+                  }
+                } catch (_) {}
+                return null;
+              },
               onLoadStart: (c, u) { setState(() { _isLoading = true; _progress = 0; }); },
               onLoadStop: (controller, url) async {
                 setState(() { _isLoading = false; _progress = 1; });
+                // نمرّر روابط واجهات السلة التي رصدناها إلى الصفحة
+                if (_netUrls.isNotEmpty) {
+                  final String list = _netUrls
+                      .map((String e) => '"${e.replaceAll('"', '')}"')
+                      .join(',');
+                  await controller.evaluateJavascript(
+                    source: 'window.__selooUrls = [$list];',
+                  );
+                }
                 final script = await _bridgeController.loadOverlayScript();
                 await controller.evaluateJavascript(source: script);
 
