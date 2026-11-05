@@ -24,7 +24,8 @@ class SelooCartLink {
     final List<List<Object?>> list = items.map((CartItem e) {
       String title = e.title.trim();
       // ⭐ تقصير اسم المنتج إلى 15 حرفاً لتقليل حجم الرابط
-      if (title.length > 15) title = '${title.substring(0, 13)}..';
+      // نُبقي وصفاً كاملاً: كانت 13 حرفاً فتُقطع أسماء المنتجات عند الاستيراد
+      if (title.length > 90) title = '${title.substring(0, 88)}..';
       
       return [
         e.goodsId,
