@@ -596,7 +596,7 @@ class _CartScreenState extends State<CartScreen> {
     try {
       if (_cart.items.isNotEmpty) {
         b.writeln('🛒 *سلة كاملة — كل المنتجات في رابط واحد:*');
-        b.writeln(_cartLink ?? SelooCartLink.webLink(_cart.items));
+        b.writeln(cartLink ?? SelooCartLink.webLink(_cart.items));
         b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
       }
     } catch (_) {}
