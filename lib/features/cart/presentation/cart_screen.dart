@@ -1,4 +1,3 @@
-
 import 'dart:convert';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -111,7 +110,9 @@ class _CartScreenState extends State<CartScreen> {
   /// يعيد جلب الصور الصحيحة لكل سطر (يحلّ محل زر التحديث في صفحة شي إن)
   Future<void> _resyncImages() async {
     final List<CartItem> lines = _cart.items
-        .where((CartItem e) => e.goodsId.trim().isNotEmpty)
+        .where((CartItem e) =>
+            e.goodsId.trim().isNotEmpty &&
+            (e.imageUrl.isEmpty || !e.imageUrl.contains('/images')))
         .toList();
     if (lines.isEmpty) return;
     int fixed = 0;
@@ -266,6 +267,9 @@ class _CartScreenState extends State<CartScreen> {
     }
     final double rate =
         (localTotal / (sarTotal == 0 ? 1 : sarTotal));
+    final String regionName = _cart.region.value == 'south'
+        ? 'الجنوب'
+        : (_cart.region.value == 'saudi' ? 'سعودي' : 'الشمال');
     b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
     b.writeln('📦 عدد الأسطر: ${lines.length}');
     b.writeln('🔢 عدد القطع: $pieces');
@@ -275,9 +279,10 @@ class _CartScreenState extends State<CartScreen> {
           ? '💰 الإجمالي: ${localTotal.toStringAsFixed(2)} SAR'
           : '🇾🇪 الإجمالي: ${localTotal.toStringAsFixed(0)} ريال',
     );
+    b.writeln('📍 المنطقة: $regionName');
     try {
       b.writeln('🛒 رابط السلة:');
-      b.writeln(SelooCartLink.webLink(lines));
+      b.writeln(await SelooCartLink.shortWebLink(lines));
     } catch (_) {}
     b.writeln('📞 للتواصل: $_primaryPhone');
     await _sendWhatsApp(b.toString());
@@ -297,9 +302,11 @@ class _CartScreenState extends State<CartScreen> {
       return;
     }
 
+    final String cartLink = await SelooCartLink.shortWebLink(_cart.items);
     final String message = _buildWhatsAppMessage(
       q: q,
       includeCommission: false,
+      cartLink: cartLink,
     );
 
     await _sendWhatsApp(message);
@@ -445,9 +452,11 @@ class _CartScreenState extends State<CartScreen> {
 
     _cart.approveCommission();
 
+    final String cartLink = await SelooCartLink.shortWebLink(_cart.items);
     final String message = _buildWhatsAppMessage(
       q: q,
       includeCommission: true,
+      cartLink: cartLink,
     );
 
     await _sendWhatsApp(message);
@@ -456,6 +465,7 @@ class _CartScreenState extends State<CartScreen> {
   String _buildWhatsAppMessage({
     required CartQuote q,
     required bool includeCommission,
+    String? cartLink,
   }) {
     final StringBuffer b = StringBuffer();
 
@@ -586,7 +596,7 @@ class _CartScreenState extends State<CartScreen> {
     try {
       if (_cart.items.isNotEmpty) {
         b.writeln('🛒 *سلة كاملة — كل المنتجات في رابط واحد:*');
-        b.writeln(SelooCartLink.webLink(_cart.items));
+        b.writeln(_cartLink ?? SelooCartLink.webLink(_cart.items));
         b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
       }
     } catch (_) {}
@@ -1664,6 +1674,16 @@ class _ProductImage extends StatefulWidget {
 class _ProductImageState extends State<_ProductImage> {
   int _step = 0;
 
+  /// الصورة الكبيرة تُطلب دائماً؛ وفي الوقت نفسه تُعرض المصغّرة فوراً
+  /// حتى لا يبقى المربّع فارغاً على الشبكة الضعيفة.
+  static const Map<String, String> _headers = <String, String>{
+    'User-Agent': 'Mozilla/5.0 (Linux; Android 13; SM-G991B) '
+        'AppleWebKit/537.36 (KHTML, like Gecko) '
+        'Chrome/120.0.0.0 Mobile Safari/537.36',
+    'Referer': 'https://m.shein.com/',
+    'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+  };
+
   @override
   void didUpdateWidget(covariant _ProductImage oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -1676,45 +1696,65 @@ class _ProductImageState extends State<_ProductImage> {
     setState(() => _step += 1);
   }
 
+  /// نسخة مصغّرة تُحمّل بسرعة (نفس المسار + لاحقة التصغير)
+  String _thumbOf(String src) {
+    if (src.contains('_thumbnail')) return src;
+    return src.replaceAllMapped(
+      RegExp(r'\.(jpg|jpeg|png|webp)$', caseSensitive: false),
+      (Match m) => '_thumbnail_405x552.${m.group(1)}',
+    );
+  }
+
+  Widget _spinner() => Container(
+        color: _purpleLight,
+        child: const Center(
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2, color: _purple),
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final String base = _ProductImage._absolute(widget.url);
     if (base.isEmpty) return _placeholder();
 
     final String src = _ProductImage._variant(base, _step);
+    final String thumb = _thumbOf(src);
+    final bool hasThumb = thumb != src;
 
-    return CachedNetworkImage(
-      key: ValueKey<String>(src),
-      imageUrl: src,
-      fit: BoxFit.cover,
-      // شي إن ترفض بعض الصور بلا هوية متصفح/مرجع — نرسلها كما يفعل الويب
-      httpHeaders: const <String, String>{
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 13; SM-G991B) '
-            'AppleWebKit/537.36 (KHTML, like Gecko) '
-            'Chrome/120.0.0.0 Mobile Safari/537.36',
-        'Referer': 'https://m.shein.com/',
-        'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
-      },
-      placeholder: (_, __) => Container(
-        color: _purpleLight,
-        child: const Center(
-          child: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: _purple,
-            ),
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        // 1) المصغّرة أولاً: تظهر خلال أجزاء من الثانية
+        if (hasThumb)
+          CachedNetworkImage(
+            imageUrl: thumb,
+            fit: BoxFit.cover,
+            httpHeaders: _headers,
+            fadeInDuration: const Duration(milliseconds: 120),
+            memCacheWidth: 200,
+            placeholder: (_, __) => _spinner(),
+            errorWidget: (_, __, ___) => Container(color: _purpleLight),
           ),
+        // 2) الكبيرة فوقها وتحل مكانها عند الجاهزية
+        CachedNetworkImage(
+          key: ValueKey<String>(src),
+          imageUrl: src,
+          fit: BoxFit.cover,
+          httpHeaders: _headers,
+          fadeInDuration: const Duration(milliseconds: 180),
+          placeholder: (_, __) => const SizedBox.shrink(),
+          errorWidget: (_, __, ___) {
+            if (_step < 2) {
+              WidgetsBinding.instance.addPostFrameCallback((_) => _next());
+            }
+            return const SizedBox.shrink();
+          },
         ),
-      ),
-      errorWidget: (_, __, ___) {
-        if (_step < 2) {
-          WidgetsBinding.instance.addPostFrameCallback((_) => _next());
-          return Container(color: _purpleLight);
-        }
-        return _placeholder();
-      },
+      ],
     );
   }
 
