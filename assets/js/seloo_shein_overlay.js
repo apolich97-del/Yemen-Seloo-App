@@ -1,8 +1,9 @@
+
 /**
  * Yemen Seloo — Overlay JS
  * الفكرة: زر "أضف إلى سلة سيلو" فقط.
  * 1) في صفحة المنتج: زر يضيف المنتج بالمقاس واللون المختارين.
- * 2) في السلة المشتركة: زر صغير على كل منتج يفتح صفحته لاختيار المقاس واللون ثم الإضافة.
+ * 2) في السلة االمشتركة: زر صغير على كل منتج يفتح صفحته لاختيار المقاس واللون ثم الإضافة.
  */
 (function () {
   'use strict';
@@ -75,45 +76,80 @@
   function isShareOrCartPage() { return /\/cart(\/|\?|$)/i.test(window.location.pathname); }
 
   // قراءة المقاس واللون المختارين بعدة استراتيجيات
+  /// مقاسات شي إن: M · XL · 38 · 7Y · 4Y (98-104 cm) · 16Y-12Y
+  function isSizeToken(v) {
+    var t = String(v || '').replace(/\s+/g, ' ').trim();
+    if (!t || t.length > 22) return false;
+    if (/^(?:XXS|XS|S|M|L|XL|XXL|2XL|3XL|4XL|5XL)$/i.test(t)) return true;
+    if (/^\d{1,2}Y(?:\s*[-–]\s*\d{1,2}Y)?(?:\s*\([^)]*\))?$/i.test(t)) return true;
+    if (/^\d{2}(?:[.-]\d{2})?$/.test(t)) return true;
+    if (/^\d{2,3}\s?(?:سم|cm)$/i.test(t)) return true;
+    return false;
+  }
+
   function readSelectedVariant() {
     var out = { size: '', color: '' };
 
     function pick(el) {
       if (!el) return '';
-      var t = (el.getAttribute('title') || el.getAttribute('aria-label') || txt(el) || '').trim();
-      return t.length <= 30 ? t : '';
+      var t = (el.getAttribute('title') || el.getAttribute('aria-label') || txt(el) || '')
+        .replace(/\s+/g, ' ').trim();
+      return t.length <= 40 ? t : '';
     }
 
-    // 1) عناصر عليها aria-checked / aria-selected
-    var chosen = qa('[aria-checked="true"], [aria-selected="true"]');
-    chosen.forEach(function (el) {
-      var t = pick(el);
+    function take(t) {
       if (!t) return;
-      if (/^[0-9XxSsLlMm]{1,6}$/.test(t) || /\b(xx?s|xl|\d{2,3})\b/i.test(t)) {
-        if (!out.size) out.size = t;
-      } else if (!out.color) {
+      if (isSizeToken(t)) { if (!out.size) out.size = t; }
+      else if (!out.color && t.length >= 2 && !/^(?:حذف|إزالة|تعديل|العدد|كمية)$/.test(t)) {
         out.color = t;
       }
-    });
+    }
 
-    // 2) أصناف مختارة شائعة
+    // 1) العناصر المختارة فعلياً
+    qa('[aria-checked="true"], [aria-selected="true"], [aria-pressed="true"]')
+      .forEach(function (el) { take(pick(el)); });
+
+    // 2) أصناف "مختار" الشائعة داخل مجموعات المقاس/اللون
     if (!out.size) {
-      out.size = pick(q('[class*="size"] [class*="active"], [class*="size"] [class*="selected"], [class*="sku"] [class*="active"]'));
+      take(pick(q('[class*="size"] [class*="active"], [class*="size"] [class*="selected"], ' +
+                  '[class*="sku"] [class*="active"], [class*="attr"] [class*="selected"]')));
     }
     if (!out.color) {
-      out.color = pick(q('[class*="color"] [class*="active"], [class*="color"] [class*="selected"]'));
+      take(pick(q('[class*="color"] [class*="active"], [class*="color"] [class*="selected"]')));
     }
 
-    // 3) نص شريط الاختيار: "المقاس: M" / "اللون: الأسود"
+    // 3) شرائح تبدو مختارة بحدودها (SHEIN يحيط المختار بإطار)
     if (!out.size || !out.color) {
-      var body = txt(document.body).slice(0, 4000);
-      if (!out.size) {
-        var ms = body.match(/(?:المقاس|مقاس)\s*:?\s*([A-Za-z0-9]{1,6})/);
-        if (ms) out.size = ms[1];
+      var chips = qa('[class*="size"] span, [class*="size"] div, [class*="sku"] span, [class*="color"] span');
+      for (var i = 0; i < chips.length && i < 120; i++) {
+        var el = chips[i];
+        if (el.children && el.children.length) continue;
+        var cls = String(el.className || '');
+        if (!/active|selected|checked|current/i.test(cls)) continue;
+        take(pick(el));
+        if (out.size && out.color) break;
       }
-      if (!out.color) {
-        var mc = body.match(/(?:اللون|لون)\s*:?\s*([^\s,،|/]{2,20})/);
-        if (mc) out.color = mc[1];
+    }
+
+    // 4) نص الصفحة: "المقاس: M" · "لون: متعدد الألوان"
+    if (!out.size) {
+      var ms = txt(document.body).slice(0, 6000)
+        .match(/(?:المقاس|مقاس|الحجم)\s*[:：]\s*([^\n]{1,24})/);
+      if (ms) {
+        var cand = String(ms[1]).replace(/\s+/g, ' ').trim();
+        // نأخذ أول كلمة/رمز يشبه المقاس
+        var bits = cand.split(/[\s,،|/]+/);
+        for (var b = 0; b < bits.length; b++) {
+          if (isSizeToken(bits[b])) { out.size = bits[b]; break; }
+        }
+      }
+    }
+    if (!out.color) {
+      var mc = txt(document.body).slice(0, 6000)
+        .match(/(?:اللون|لون)\s*[:：]\s*([^\n]{2,24})/);
+      if (mc) {
+        var cv = String(mc[1]).replace(/\s+/g, ' ').replace(/^[>›\s]+/, '').trim();
+        if (cv && !/^(?:الافتراضي|افتراضي|default)$/i.test(cv)) out.color = cv;
       }
     }
 
@@ -143,7 +179,7 @@
     }
     if (!price) price = 0.01;
 
-    var BAD_IMG = /placeholder|loading|transparent|noimage|no_image|blank|grey|gray|default\.(png|jpg)|icon\//i;
+    var BAD_IMG = /placeholder|loading|transparent|noimage|no_image|blank|grey|gray|default\.(png|jpg)|icon\/|logo|avatar|brand|shein[-_]?icon|store[-_]?logo/i;
     // صور منتجات شي إن الحقيقية دائماً تحت مسار imagesN_pi
     var PRODUCT_IMG = /\/images\d+_pi\//i;
 
@@ -475,7 +511,7 @@
 
   // ════════════════ استخراج السلة من الصفحة (السلة الشخصية) ════════════════
   var IMG_OK = /\/images\d+_pi\//i;
-  var IMG_BAD = /placeholder|loading|transparent|noimage|no_image|blank|grey|gray|default\.(png|jpg)|icon\//i;
+  var IMG_BAD = /placeholder|loading|transparent|noimage|no_image|blank|grey|gray|default\.(png|jpg)|icon\/|logo|avatar|brand|shein[-_]?icon|store[-_]?logo/i;
 
   function imgFrom(el) {
     if (!el) return '';
@@ -828,7 +864,7 @@
         seen[id] = true;
         out.push({
           goodsId: id,
-          productUrl: productUrlFor(card, id),
+          productUrl: 'https://m.shein.com/ar/pdsearch/' + id + '/',
           title: (title || ('منتج SHEIN #' + id)).replace(/\s+/g, ' ').slice(0, 300),
           imageUrl: img,
           sourcePrice: price,
@@ -1051,12 +1087,17 @@
   /// كمية من نص البطاقة: نمط "‎- 2 +"
   /// كل الأسعار في نص واحد. SHEIN تعرض السعر قبل الخصم مشطوباً بجانب
   /// السعر الفعلي، فنأخذ الأقل — وإلا وصل السعر القديم إلى السلة.
+  var SAVING_CTA = /(?:وفّر|وفر|توفير|خصم|كوبون|قسيمة|save|saving|off\b|discount|coupon)/i;
+
   function priceCandidates(text) {
     var out = [];
     var re = /(\d+(?:[.,]\d{1,2})?)\s*(?:ر\.س|SAR|ر\.ي|ريال|\$)|(?:SAR|ر\.س|ر\.ي|\$)\s*(\d+(?:[.,]\d{1,2})?)/gi;
     var m;
     var src = String(text == null ? '' : text);
     while ((m = re.exec(src))) {
+      // "وفّر 2.10 ر.س" مبلغ توفير لا سعر
+      var ctx = src.slice(Math.max(0, m.index - 20), m.index);
+      if (SAVING_CTA.test(ctx)) continue;
       var v = parseFloat(String(m[1] || m[2] || '').replace(',', '.'));
       if (v > 0 && isFinite(v)) out.push(v);
     }
@@ -1087,7 +1128,7 @@
     if (s.indexOf('//') === 0) s = 'https:' + s;
     if (s.indexOf('http') !== 0) return '';
     if (!/\.(jpg|jpeg|png|webp)/i.test(s)) return '';
-    if (/placeholder|loading|transparent|noimage|no_image|blank|grey|gray|icon\//i.test(s)) return '';
+    if (/placeholder|loading|transparent|noimage|no_image|blank|grey|gray|icon\/|logo|avatar|brand/i.test(s)) return '';
     return hiRes(s);
   }
 
@@ -1326,11 +1367,13 @@
       if (!products || !products.length) {
         importing = false;
         updateBulkLabel(null);
-        toast('لم أجد منتجات — شبكة:' + scrapeCapturedJson().length +
-            ' · روابط:' + scrapeCartDom().length +
-            ' · بطاقات:' + scrapeCartCards().length +
-          ' · بطاقات:' + scrapeCartDom().length +
-          ' · مضمّن:' + scrapeCartJson().length);
+        var nNet = 0, nLinks = 0, nCards = 0, nJson = 0;
+        try { nNet = scrapeCapturedJson().length; } catch (e) {}
+        try { nLinks = scrapeCartDom().length; } catch (e) {}
+        try { nCards = scrapeCartCards().length; } catch (e) {}
+        try { nJson = scrapeCartJson().length; } catch (e) {}
+        toast('لم أجد منتجات — شبكة:' + nNet + ' · روابط:' + nLinks +
+              ' · بطاقات:' + nCards + ' · مضمّن:' + nJson);
         return;
       }
 
