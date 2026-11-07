@@ -460,15 +460,15 @@
     var img = String(it.goods_img || it.goodsImg || (it.goods_imgs && it.goods_imgs[0]) || '').trim();
     if (img.indexOf('//') === 0) img = 'https:' + img;
     if (img.indexOf('http') !== 0) img = '';
-    var attrs = String(it.goodsAttr || '').split('/');
+    var vvIt = variantOfNode(it);
     return {
       goodsId: id,
-      productUrl: 'https://m.shein.com/-p-' + id + '.html',
+      productUrl: 'https://m.shein.com/ar/pdsearch/' + id + '/',
       title: title,
       imageUrl: hiRes(img),
       sourcePrice: price,
-      color: (attrs[0] || '').trim(),
-      size: (attrs[1] || '').trim()
+      color: vvIt.color,
+      size: vvIt.size
     };
   }
 
@@ -518,9 +518,157 @@
   }
 
 
+  // ════════════ استخراج اللون والمقاس (أشكال SHEIN كلها) ════════════
+  // SHEIN ترسل goodsAttr = "اللون/المقاس" (عناوين فقط بلا قيم) في كثير من
+  // الردود، والقيم الحقيقية في saleAttr[].attr_value أو داخل البطاقة.
+  var LABEL_RE = /^(?:اللون|لون|المقاس|مقاس|الحجم|حجم|القياس|color|colour|size|attr)$/i;
+
+  /// تنظيف المفتاح: بلا حذف العناوين — العناوين هي ما نطابقه
+  function normKey(v) {
+    return String(v == null ? '' : v)
+      .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function cleanVal(v) {
+    var t = String(v == null ? '' : v)
+      .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    t = t.replace(/^[:\-\/|]+/, '').replace(/[:\-\/|]+$/, '').trim();
+    return LABEL_RE.test(t) ? '' : t;
+  }
+
+  function isSizeLike(v) {
+    var t = cleanVal(v);
+    if (!t) return false;
+    return /^(XXS|XS|S|M|L|XL|XXL|2XL|3XL|4XL|5XL)$/i.test(t) ||
+           /^\d{2}(?:\.\d)?$/.test(t) ||
+           /(?:سم|cm)$/i.test(t);
+  }
+
+  function variantFromAttrString(raw) {
+    var out = { color: '', size: '' };
+    var s = String(raw || '').trim();
+    if (!s) return out;
+
+    // 1) أزواج "مفتاح: قيمة" — Color:Blue;Size:M أو اللون:أزرق،المقاس:M
+    var chunks = s.split(/[;،,]+/);
+    for (var i = 0; i < chunks.length; i++) {
+      var c = chunks[i];
+      var at = c.indexOf(':');
+      if (at < 1) continue;
+      var k = normKey(c.slice(0, at));
+      var v = cleanVal(c.slice(at + 1));
+      if (!v) continue;
+      if (/لون|color|colour/i.test(k)) out.color = out.color || v;
+      else if (/مقاس|حجم|قياس|size/i.test(k)) out.size = out.size || v;
+    }
+    if (out.color && out.size) return out;
+
+    // 2) "أزرق داكن/M" أو "M/أزرق داكن"
+    var bits = s.split('/');
+    for (var j = 0; j < bits.length; j++) {
+      var b = cleanVal(bits[j]);
+      if (!b) continue;
+      if (!out.size && isSizeLike(b)) out.size = b;
+      else if (!out.color && !isSizeLike(b)) out.color = b;
+    }
+    return out;
+  }
+
+  function variantOfNode(node) {
+    var out = { color: '', size: '' };
+    try {
+      var arrs = [node.saleAttr, node.sale_attr, node.multiLevelSaleAttribute,
+                  node.goods_attrs, node.attrs, node.sku_sale_attr, node.attributes];
+      for (var i = 0; i < arrs.length; i++) {
+        var arr = arrs[i];
+        if (!arr || !arr.length) continue;
+        for (var j = 0; j < arr.length; j++) {
+          var it = arr[j] || {};
+          var k = normKey(it.attr_name != null ? it.attr_name : (it.name != null ? it.name : it.attrName));
+          var v = cleanVal(it.attr_value != null ? it.attr_value : (it.value != null ? it.value : it.attrValue));
+          if (!v) continue;
+          if (/لون|color|colour/i.test(k)) out.color = out.color || v;
+          else if (/مقاس|حجم|قياس|size/i.test(k)) out.size = out.size || v;
+        }
+      }
+    } catch (e) {}
+    var str = variantFromAttrString(node.goodsAttr || node.goods_attr || '');
+    if (!out.color) out.color = str.color;
+    if (!out.size) out.size = str.size;
+    return out;
+  }
+
+  /// يقرأ الأزواج من أي نص/HTML (يشمل JSON المخزّن داخل سمات البطاقة)
+  function variantFromText(text) {
+    var out = { color: '', size: '' };
+    try {
+      var re = /"attr_name"\s*:\s*"([^"]{1,40})"[\s\S]{0,160}?"attr_value"\s*:\s*"([^"]{1,80})"/g;
+      var m;
+      while ((m = re.exec(text))) {
+        var k = normKey(m[1]);
+        var v = cleanVal(m[2]);
+        if (!v) continue;
+        if (/لون|color|colour/i.test(k)) out.color = out.color || v;
+        else if (/مقاس|حجم|قياس|size/i.test(k)) out.size = out.size || v;
+      }
+    } catch (e) {}
+    if (out.color && out.size) return out;
+    var gm = String(text).match(/"goodsAttr"\s*:\s*"([^"]{1,160})"/);
+    var str = variantFromAttrString(gm ? gm[1] : '');
+    if (!out.color) out.color = str.color;
+    if (!out.size) out.size = str.size;
+    return out;
+  }
+
   /// يقرأ اللون والمقاس من عنصر مستقل داخل البطاقة (أدق من قراءة نص البطاقة كله)
+  /// رابط المنتج: نُبقي رابط الصفحة الحقيقي إن وُجد داخل البطاقة.
+  /// الرابط المُصنّع بلا slug (‎/-p-ID.html) يجعل SHEIN تعرض صفحة 404،
+  /// فنستخدم البحث بالمعرّف وهو مسار صالح دائماً.
+  function productUrlFor(card, id) {
+    var fallback = 'https://m.shein.com/ar/pdsearch/' + id + '/';
+    try {
+      if (card) {
+        var links = card.querySelectorAll ? card.querySelectorAll('a[href]') : [];
+        for (var i = 0; i < links.length; i++) {
+          var h = links[i].getAttribute('href') || '';
+          if (h.indexOf(String(id)) === -1) continue;
+          if (h.indexOf('/') === 0) h = 'https://m.shein.com' + h;
+          if (h.indexOf('http') === 0) return h;
+        }
+        var attrs = ['data-url', 'data-href', 'data-link', 'data-goods-url'];
+        for (var a = 0; a < attrs.length; a++) {
+          var v = card.getAttribute ? (card.getAttribute(attrs[a]) || '') : '';
+          if (!v || v.indexOf(String(id)) === -1) continue;
+          if (v.indexOf('/') === 0) v = 'https://m.shein.com' + v;
+          if (v.indexOf('http') === 0) return v;
+        }
+        var html = card.outerHTML || '';
+        var m = html.match(new RegExp('(?:href|data-url)="([^"]*-p-' + id + '[^"]*)"'));
+        if (m) {
+          var u = m[1];
+          if (u.indexOf('/') === 0) u = 'https://m.shein.com' + u;
+          if (u.indexOf('http') === 0) return u;
+        }
+      }
+    } catch (e) {}
+    return fallback;
+  }
+
   function readVariantFrom(card) {
     var out = { color: '', size: '' };
+
+    // 1) أزواج attr_name/attr_value المخزّنة داخل البطاقة (الأدق)
+    try {
+      var fromHtml = variantFromText(card.innerHTML || '');
+      if (fromHtml.color) out.color = fromHtml.color;
+      if (fromHtml.size) out.size = fromHtml.size;
+      if (out.color && out.size) return out;
+    } catch (e) {}
+
     var SZ = '(XXS|XS|S|M|L|XL|XXL|2XL|3XL|\\d{2,3}\\s?(?:سم|cm))';
     var nodes = card.querySelectorAll ? card.querySelectorAll('span, div, p, a, button') : [];
     for (var i = 0; i < nodes.length; i++) {
@@ -531,10 +679,56 @@
       if (m) { out.color = m[1].trim(); out.size = m[2].trim(); return out; }
     }
     var all = txt(card);
-    var mc = all.match(/(?:اللون|لون)\s*:?\s*([^\s\/|,،]{2,18})/);
-    if (mc) out.color = mc[1];
-    var ms = all.match(/(?:المقاس|مقاس)\s*:?\s*([A-Za-z0-9]{1,6})/);
-    if (ms) out.size = ms[1];
+
+    // 2) "اللون: أزرق داكن" — بشرط وجود نقطتين: كلمة "لون" داخل الوصف
+    //    مثل "بلون أزرق بحري" ليست عنواناً، فلا تُقرأ منه قيمة مفردة.
+    if (!out.color) {
+      var mc = all.match(/(?:اللون|لون|color|colour)\s*[:：]\s*([^\n\/|,،]{2,24})/i);
+      if (mc) out.color = cleanVal(mc[1]);
+    }
+    if (!out.size) {
+      var ms = all.match(/(?:المقاس|مقاس|الحجم|حجم|size)\s*[:：]\s*([A-Za-z0-9]{1,8})/i);
+      if (ms) { var cand = cleanVal(ms[1]); if (isSizeLike(cand)) out.size = cand; }
+    }
+
+    // 2.5) شرائح "العنوان ثم القيمة" كعنصرين متجاورين (شكل SHEIN الشائع)
+    try {
+      var pairNodes = card.querySelectorAll ? card.querySelectorAll('span,div,p,i,em,b') : [];
+      for (var q = 0; q < pairNodes.length - 1; q++) {
+        var kn = normKey(txt(pairNodes[q]));
+        if (!/^(?:اللون|لون|color|colour|المقاس|مقاس|الحجم|حجم|size)$/i.test(kn)) continue;
+        var vn = cleanVal(txt(pairNodes[q + 1]));
+        if (!vn) continue;
+        if (/لون|color|colour/i.test(kn) && !out.color) out.color = vn;
+        else if (/مقاس|حجم|size/i.test(kn) && !out.size && isSizeLike(vn)) out.size = vn;
+      }
+    } catch (e) {}
+
+    // 2.7) لون من شرائح القيم المفردة (بلا عنوان) — آخر مرشّح معقول
+    if (!out.color) {
+      var vals = card.querySelectorAll ? card.querySelectorAll('span,i,em,b') : [];
+      for (var z = 0; z < vals.length; z++) {
+        if (vals[z].children && vals[z].children.length) continue;
+        var vt = cleanVal(txt(vals[z]));
+        if (!vt || vt.length < 2 || vt.length > 24) continue;
+        if (/\d/.test(vt)) continue;
+        if (/حذف|إزالة|remove|delete|تعديل|edit/i.test(vt)) continue;
+        if (isSizeLike(vt)) continue;
+        out.color = vt;
+        break;
+      }
+    }
+
+    // 3) مقاس وحده داخل عنصر قصير (شرائح SHEIN تعرض المقاس كوسم مستقل)
+    if (!out.size) {
+      var SZ2 = /^(XXS|XS|S|M|L|XL|XXL|2XL|3XL|4XL|5XL|\d{2}(?:\.\d)?)$/i;
+      var chips = card.querySelectorAll ? card.querySelectorAll('span,i,b,em,button') : [];
+      for (var k = 0; k < chips.length; k++) {
+        if (chips[k].children && chips[k].children.length) continue;
+        var ct = cleanVal(txt(chips[k]));
+        if (ct && ct.length <= 5 && SZ2.test(ct)) { out.size = ct.toUpperCase(); break; }
+      }
+    }
     return out;
   }
 
@@ -620,20 +814,28 @@
         if (!title && !img) continue;
         if (!price || price <= 0) continue;
 
-        var parts = attrRaw.split('/');
+        var vvWin = (function () {
+          var fromPairs = variantFromText(win);
+          if (!fromPairs.color || !fromPairs.size) {
+            var fromAttr = variantFromAttrString(attrRaw);
+            if (!fromPairs.color) fromPairs.color = fromAttr.color;
+            if (!fromPairs.size) fromPairs.size = fromAttr.size;
+          }
+          return fromPairs;
+        })();
         var qm = win.match(/"(?:goods_num|goodsNum|cart_num|cartNum|num|quantity|qty)"\s*:\s*"?(\d{1,2})"?/);
         var qty = qm ? Math.min(50, Math.max(1, parseInt(qm[1], 10))) : 1;
         seen[id] = true;
         out.push({
           goodsId: id,
-          productUrl: 'https://m.shein.com/-p-' + id + '.html',
+          productUrl: productUrlFor(card, id),
           title: (title || ('منتج SHEIN #' + id)).replace(/\s+/g, ' ').slice(0, 300),
           imageUrl: img,
           sourcePrice: price,
           sourceCurrency: 'SAR',
           quantity: qty,
-          color: (parts[0] || '').trim(),
-          size: (parts[1] || '').trim(),
+          color: vvWin.color,
+          size: vvWin.size,
           options: {},
           sourceStore: 'SHEIN',
           sku: '',
@@ -661,7 +863,8 @@
       }
       if (!card || !card.innerHTML) continue;
 
-      var html = card.innerHTML;
+      // outerHTML ليشمل سمات البطاقة نفسها (data-goods-id قد تكون عليها)
+      var html = card.outerHTML || card.innerHTML || '';
       var idm = html.match(/-p-(\d{5,})\.html/) ||
                 html.match(/[?&]goods_id=(\d{5,})/) ||
                 html.match(/"goodsId"\s*:\s*"?(\d{5,})/) ||
@@ -672,9 +875,7 @@
       if (seen[id]) continue;
 
       var text = txt(card).replace(/\s+/g, ' ').slice(0, 400);
-      var pm = text.match(/(\d+(?:\.\d{1,2})?)\s*(?:ر\.س|SAR|ر\.ي|ريال|\$)/) ||
-               text.match(/(?:SAR|ر\.س|ر\.ي|\$)\s*(\d+(?:\.\d{1,2})?)/);
-      var price = pm ? parseFloat(pm[1]) : 0;
+      var price = pickLowestPrice(text);
       if (!price || !isFinite(price)) continue;
 
       var img = '';
@@ -691,7 +892,7 @@
       seen[id] = true;
       out.push({
         goodsId: id,
-        productUrl: 'https://m.shein.com/-p-' + id + '.html',
+        productUrl: productUrlFor(card, id),
         title: title.replace(/\s+/g, ' ').slice(0, 300),
         imageUrl: img,
         sourcePrice: price,
@@ -742,11 +943,8 @@
 
       var price = null;
       var pEl = card.querySelector('[class*="price"], [class*="Price"]');
-      if (pEl) price = parsePrice(txt(pEl));
-      if (!price) {
-        var pm = text.match(/(\d+(?:\.\d{1,2})?)\s*(?:ر\.ي|ر\.س|SAR|ريال)/);
-        if (pm) price = parseFloat(pm[1]);
-      }
+      if (pEl) price = pickLowestPrice(txt(pEl));
+      if (!price) price = pickLowestPrice(text);
       if (!price || !isFinite(price) || price <= 0) continue;
 
       var img = '';
@@ -763,7 +961,7 @@
       seen[id] = true;
       out.push({
         goodsId: id,
-        productUrl: 'https://m.shein.com/-p-' + id + '.html',
+        productUrl: productUrlFor(card, id),
         title: title.replace(/\s+/g, ' ').slice(0, 300),
         imageUrl: img,
         sourcePrice: price,
@@ -851,6 +1049,28 @@
   }
 
   /// كمية من نص البطاقة: نمط "‎- 2 +"
+  /// كل الأسعار في نص واحد. SHEIN تعرض السعر قبل الخصم مشطوباً بجانب
+  /// السعر الفعلي، فنأخذ الأقل — وإلا وصل السعر القديم إلى السلة.
+  function priceCandidates(text) {
+    var out = [];
+    var re = /(\d+(?:[.,]\d{1,2})?)\s*(?:ر\.س|SAR|ر\.ي|ريال|\$)|(?:SAR|ر\.س|ر\.ي|\$)\s*(\d+(?:[.,]\d{1,2})?)/gi;
+    var m;
+    var src = String(text == null ? '' : text);
+    while ((m = re.exec(src))) {
+      var v = parseFloat(String(m[1] || m[2] || '').replace(',', '.'));
+      if (v > 0 && isFinite(v)) out.push(v);
+    }
+    return out;
+  }
+
+  function pickLowestPrice(text) {
+    var a = priceCandidates(text);
+    if (!a.length) return 0;
+    var min = a[0];
+    for (var i = 1; i < a.length; i++) if (a[i] < min) min = a[i];
+    return min;
+  }
+
   function qtyFromText(t) {
     if (!t) return 1;
     var m = String(t).match(/[-−]\s*(\d{1,2})\s*\+/);
@@ -900,18 +1120,17 @@
         var price = deepPrice(node);
         if (title && price > 0) {
           seen[sid] = true;
-          var attr = String(node.goodsAttr || node.goods_attr || '');
-          var parts = attr.split('/');
+          var vvNode = variantOfNode(node);
           out.push({
             goodsId: sid,
-            productUrl: 'https://m.shein.com/-p-' + sid + '.html',
+            productUrl: 'https://m.shein.com/ar/pdsearch/' + sid + '/',
             title: String(title).replace(/\s+/g, ' ').slice(0, 300),
             imageUrl: normImg(node.goods_img || node.goodsImg || (node.goods_imgs && node.goods_imgs[0]) || node.image || node.main_image),
             sourcePrice: price,
             sourceCurrency: 'SAR',
             quantity: pickQty(node),
-            color: (parts[0] || '').trim(),
-            size: (parts[1] || '').trim(),
+            color: vvNode.color,
+            size: vvNode.size,
             options: {},
             sourceStore: 'SHEIN',
             sku: '',
