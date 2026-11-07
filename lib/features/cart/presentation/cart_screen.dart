@@ -107,24 +107,34 @@ class _CartScreenState extends State<CartScreen> {
     }
   }
 
-  /// يعيد جلب الصور الصحيحة لكل سطر (يحلّ محل زر التحديث في صفحة شي إن)
-  Future<void> _resyncImages() async {
+    /// صورة غير صالحة: فارغة، أو شعار/أيقونة، أو ليست من مسار صور المنتجات.
+  static bool _badImage(String url) {
+    if (url.trim().isEmpty) return true;
+    if (!url.contains('/images')) return true;
+    final String low = url.toLowerCase();
+    return low.contains('logo') || low.contains('avatar') || low.contains('brand') ||
+        low.contains('placeholder') || low.contains('noimage') ||
+        low.contains('no_image') || low.contains('icon');
+  }
+
+  Future<void> _resyncImages({bool force = false}) async {
     final List<CartItem> lines = _cart.items
         .where((CartItem e) =>
-            e.goodsId.trim().isNotEmpty &&
-            (e.imageUrl.isEmpty || !e.imageUrl.contains('/images')))
+            e.goodsId.trim().isNotEmpty && (force || _badImage(e.imageUrl)))
         .toList();
     if (lines.isEmpty) return;
+
     int fixed = 0;
-    for (final CartItem item in lines) {
+    await Future.wait(lines.map((CartItem item) async {
       try {
         final String? real = await SheinImageResolver.byGoodsId(item.goodsId);
-        if (real == null || real.isEmpty) continue;
-        if (real == item.imageUrl) continue;
-        final bool ok = await _cart.patchImage(item.goodsId, real);
-        if (ok) fixed++;
+        if (real == null || real.isEmpty) return;
+        if (_badImage(real)) return;
+        if (real == item.imageUrl) return;
+        if (await _cart.patchImage(item.goodsId, real)) fixed++;
       } catch (_) {}
-    }
+    }));
+
     if (fixed > 0 && mounted) _snack('تم تصحيح $fixed صورة');
   }
 
