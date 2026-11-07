@@ -76,6 +76,9 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
   /// لأن بيانات السلة لا تكون دائماً في الصفحة ولا في بطاقات ثابتة.
   /// روابط استجابات قد تحمل بيانات السلة
   final List<String> _netUrls = <String>[];
+
+  /// صفحة 404 من SHEIN: نجرّب مسار البحث بالمعرّف مرة واحدة فقط
+  bool _recovered404 = false;
   static final RegExp _netUrlRe = RegExp(
     r'cart|order|bff-api|goods|product',
     caseSensitive: false,
@@ -134,6 +137,39 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
   };
 })();
 """;
+
+  /// يكشف صفحة "لا يمكننا العثور على الصفحة" وينتقل إلى مسار البحث بالمعرّف.
+  Future<void> _recoverFrom404(
+    InAppWebViewController controller,
+    WebUri? url,
+  ) async {
+    if (_recovered404) return;
+    try {
+      final Object? isMissing = await controller.evaluateJavascript(source: '''
+(function () {
+  try {
+    var t = (document.body && document.body.innerText) || '';
+    return t.indexOf('لا يمكننا العثور على الصفحة') > -1 || /Oops/i.test(t);
+  } catch (e) { return false; }
+})();
+''');
+      if (isMissing != true) return;
+
+      final String source = '${url ?? ''} ${_editUrl ?? ''} $_initialUrl';
+      final RegExpMatch? m = RegExp(
+        r'-p-(\d{6,})|goods_id=(\d{6,})|pdsearch/(\d{6,})',
+      ).firstMatch(source);
+      final String id = m?.group(1) ?? m?.group(2) ?? m?.group(3) ?? '';
+      if (id.isEmpty) return;
+
+      _recovered404 = true;
+      await controller.loadUrl(
+        urlRequest: URLRequest(
+          url: WebUri('https://m.shein.com/ar/pdsearch/$id/'),
+        ),
+      );
+    } catch (_) {}
+  }
 
   @override
   void initState() {
@@ -341,6 +377,9 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                 }
                 final script = await _bridgeController.loadOverlayScript();
                 await controller.evaluateJavascript(source: script);
+
+                // شي إن تعرض 404 لرابط منتج بلا slug — ننتقل للبحث بالمعرّف
+                await _recoverFrom404(controller, url);
 
                 // ⭐ إذا كنا في صفحة منتج أثناء الزحف، نضيفه
                 if (_isCrawling && url.toString().contains('-p-')) {
