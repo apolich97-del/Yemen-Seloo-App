@@ -98,7 +98,8 @@ class _CartScreenState extends State<CartScreen> {
     try {
       await _cart.onItemAdded();
       await _cart.refreshQuote();
-      await _resyncImages();
+      await _resyncImages(force: true);
+
       _snack('تم تحديث السلة');
     } catch (_) {
       _snack('تعذّر تحديث السلة');
