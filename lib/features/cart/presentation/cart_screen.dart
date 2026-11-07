@@ -646,11 +646,14 @@ class _CartScreenState extends State<CartScreen> {
   void _browseProduct(CartItem item) {
     // الرابط المخزّن من صفحة المنتج نفسها هو الأدق
     final String stored = item.sourceUrl.trim();
-    final String url = stored.startsWith('http')
+    // رابط بلا slug (‎/-p-ID.html) سبب صفحة 404 في شي إن — نستبدله بالبحث بالمعرّف
+    final bool bareId = RegExp(r'^https?://[^/]+/+(?:[a-z]{2}/)?-p-\d+\.html$')
+        .hasMatch(stored);
+    final String url = (stored.startsWith('http') && !bareId)
         ? stored
         : (item.goodsId.isNotEmpty
-            ? 'https://ar.shein.com/-p-${item.goodsId}.html'
-            : '');
+            ? 'https://m.shein.com/ar/pdsearch/${item.goodsId}/'
+            : stored);
     if (url.isEmpty) {
       _snack('لا يوجد رابط لهذا المنتج');
       return;
