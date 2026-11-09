@@ -1,15 +1,15 @@
 import 'dart:io';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../features/cart/application/cart_counter.dart';
 import '../config/payment_accounts.dart';
 import '../models/currency.dart';
-import '../models/order.dart';
 import '../routes/app_routes.dart';
 import '../services/auth_service.dart';
 import '../models/cart.dart';

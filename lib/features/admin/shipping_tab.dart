@@ -79,7 +79,7 @@ class ShippingTab extends StatelessWidget {
         title: const Text('الإجراء', style: TextStyle(fontSize: 15)),
         children: next
             .map((s) => SimpleDialogOption(
-                  onPressed: () => Navigator.pop(Get.context!, s),
+                  onPressed: () => Navigator.pop(context, s),
                   child: Text(s.labelAr),
                 ))
             .toList(),
@@ -116,8 +116,8 @@ class ShippingTab extends StatelessWidget {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(Get.context!, false), child: const Text('إلغاء')),
-          ElevatedButton(onPressed: () => Navigator.pop(Get.context!, true), child: const Text('تنفيذ')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('تنفيذ')),
         ],
       ),
     );

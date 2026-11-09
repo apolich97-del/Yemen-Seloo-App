@@ -85,7 +85,7 @@ class OrderDetailScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: c.withValues(alpha: .12),
+                    color: c.withOpacity(.12),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(o.status.labelAr,
@@ -145,7 +145,7 @@ class OrderDetailScreen extends StatelessWidget {
                     Container(
                       width: 2,
                       height: 34,
-                      color: done ? AppColors.primary.withValues(alpha: .35) : const Color(0xFFEDF1EF),
+                      color: done ? AppColors.primary.withOpacity(.35) : const Color(0xFFEDF1EF),
                     ),
                 ],
               ),

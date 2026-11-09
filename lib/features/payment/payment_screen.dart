@@ -91,9 +91,9 @@ class PaymentScreen extends GetView<PaymentController> {
   Widget _notice() => Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppColors.accent.withValues(alpha: .12),
+          color: AppColors.accent.withOpacity(.12),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.accent.withValues(alpha: .4)),
+          border: Border.all(color: AppColors.accent.withOpacity(.4)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -108,7 +108,7 @@ class PaymentScreen extends GetView<PaymentController> {
                 style: TextStyle(
                   fontSize: 12.5,
                   height: 1.7,
-                  color: AppColors.ink.withValues(alpha: .85),
+                  color: AppColors.ink.withOpacity(.85),
                 ),
               ),
             ),
@@ -132,7 +132,7 @@ class PaymentScreen extends GetView<PaymentController> {
                 color: active ? AppColors.primary : const Color(0xFFE6EAE8),
                 width: active ? 1.6 : 1,
               ),
-              color: active ? AppColors.primary.withValues(alpha: .05) : Colors.white,
+              color: active ? AppColors.primary.withOpacity(.05) : Colors.white,
             ),
             child: Row(
               children: [

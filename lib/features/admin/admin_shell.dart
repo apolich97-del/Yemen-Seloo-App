@@ -58,7 +58,7 @@ class _AdminShellState extends State<AdminShell> {
                 extended: true,
                 selectedIndex: _index,
                 backgroundColor: Colors.white,
-                indicatorColor: AppColors.primary.withValues(alpha: .12),
+                indicatorColor: AppColors.primary.withOpacity(.12),
                 onDestinationSelected: (i) => setState(() => _index = i),
                 leading: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 20),

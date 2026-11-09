@@ -123,7 +123,7 @@ class PaymentsTab extends StatelessWidget {
     final note = TextEditingController();
     final ok = await showDialog<bool>(
       context: Get.context!,
-      builder: (_) => AlertDialog(
+      builder: (context) => AlertDialog(
         title: Text(approve ? 'تأكيد الحوالة' : 'رفض الحوالة',
             style: const TextStyle(fontSize: 15)),
         content: TextField(

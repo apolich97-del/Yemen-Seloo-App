@@ -52,7 +52,7 @@ String formatMoney(num amount, AppCurrency currency) {
 }
 
 /// تقريب آمن حسب العملة (يمنع فروق الكسور بين التطبيق والسيرفر).
-num roundMoney(num value, AppCurrency currency) {
+double roundMoney(num value, AppCurrency currency) {
   final f = currency.decimals == 0 ? 1 : 100;
   return (value * f).round() / f;
 }

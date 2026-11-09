@@ -116,7 +116,7 @@ class ProfileScreen extends GetView<ProfileController> {
             children: [
               CircleAvatar(
                 radius: 28,
-                backgroundColor: AppColors.primary.withValues(alpha: .12),
+                backgroundColor: AppColors.primary.withOpacity(.12),
                 child: Text(
                   (u.displayName.isEmpty ? '؟' : u.displayName.characters.first),
                   style: const TextStyle(

@@ -31,7 +31,7 @@ class MyOrdersScreen extends GetView<OrdersController> {
                     return ChoiceChip(
                       label: Text(s == null ? 'الكل' : s.labelAr),
                       selected: active,
-                      selectedColor: AppColors.primary.withValues(alpha: .12),
+                      selectedColor: AppColors.primary.withOpacity(.12),
                       labelStyle: TextStyle(
                         fontSize: 12.5,
                         color: active ? AppColors.primaryDark : AppColors.ink,
@@ -110,7 +110,7 @@ class MyOrdersScreen extends GetView<OrdersController> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: .12),
+                        color: statusColor.withOpacity(.12),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(

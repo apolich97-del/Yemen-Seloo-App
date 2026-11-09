@@ -67,7 +67,7 @@ class _OrdersTabState extends State<OrdersTab> {
       child: ChoiceChip(
         label: Text(label),
         selected: active,
-        selectedColor: AppColors.primary.withValues(alpha: .12),
+        selectedColor: AppColors.primary.withOpacity(.12),
         onSelected: (_) => setState(() => _filter = s),
       ),
     );
@@ -88,7 +88,7 @@ class _OrdersTabState extends State<OrdersTab> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: Color(o.status.colorValue).withValues(alpha: .12),
+                      color: Color(o.status.colorValue).withOpacity(.12),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(o.status.labelAr,

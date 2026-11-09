@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -68,7 +68,7 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
       final auth = Get.find<AuthService>();
       final uid = auth.uid;
       final col = FirebaseFirestore.instance.collection('users').doc(uid).collection('addresses');
-      final doc = _existing == null ? col.doc() : col.doc(_existing!.id);
+      final doc = _existing == null ? col.doc() : col.doc(_existing.id);
       final data = {
         'label': _label,
         'city': _city.text.trim(),

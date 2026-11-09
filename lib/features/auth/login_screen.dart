@@ -84,7 +84,7 @@ class _LoginScreenState extends State<LoginScreen> {
               width: 76,
               height: 76,
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: .1),
+                color: AppColors.primary.withOpacity(.1),
                 borderRadius: BorderRadius.circular(22),
               ),
               child: const Icon(Icons.shopping_bag_outlined,
@@ -181,7 +181,7 @@ class _LoginScreenState extends State<LoginScreen> {
           Text(
             'ملاحظة: دخول الهاتف عبر Firebase يرسل رسالة SMS فقط. خيار «واتساب» يمرّ عبر مزوّد '
             'مراسلة (Twilio/Meta) في Cloud Function ثم يُصدر customToken للدخول.',
-            style: TextStyle(fontSize: 10.5, height: 1.7, color: AppColors.muted.withValues(alpha: .9)),
+            style: TextStyle(fontSize: 10.5, height: 1.7, color: AppColors.muted.withOpacity(.9)),
           ),
         ],
       ),

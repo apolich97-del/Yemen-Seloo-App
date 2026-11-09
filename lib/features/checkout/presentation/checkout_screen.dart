@@ -23,7 +23,6 @@ class CheckoutScreen extends GetView<CheckoutController> {
         if (controller.lines.isEmpty) {
           return const Center(child: Text('السلة فارغة'));
         }
-        final est = controller.estimate.value;
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -191,7 +190,7 @@ class CheckoutScreen extends GetView<CheckoutController> {
               return ChoiceChip(
                 label: Text(c.labelAr),
                 selected: active,
-                selectedColor: AppColors.primary.withValues(alpha: .12),
+                selectedColor: AppColors.primary.withOpacity(.12),
                 labelStyle: TextStyle(
                   color: active ? AppColors.primaryDark : AppColors.ink,
                   fontWeight: active ? FontWeight.w700 : FontWeight.w500,
@@ -235,7 +234,7 @@ class CheckoutScreen extends GetView<CheckoutController> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: .06),
+                color: AppColors.primary.withOpacity(.06),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(

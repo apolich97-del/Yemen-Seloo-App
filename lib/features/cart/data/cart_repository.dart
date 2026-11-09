@@ -48,6 +48,19 @@ class CartLine {
   /// إجمالي السطر بالريال السعودي.
   double get lineTotalSar => unitPriceSar * qty;
 
+  /// الحمولة التي يتوقعها `submitOrder` على السيرفر.
+  ///
+  /// السعر يُرسل للعرض فقط: السيرفر يقرأه من `products/{goodsId}` ويتجاهل
+  /// هذه القيمة إلا إذا كان المنتج `isManual`. لا تُرسل [variantKey] ولا
+  /// [titleAr] لأن السيرفر يأخذ العنوان من الكتالوج ويثق به.
+  Map<String, dynamic> toServer() => <String, dynamic>{
+        'goodsId': goodsId,
+        'qty': qty,
+        'color': color,
+        'size': size,
+        'unitPriceSar': unitPriceSar,
+      };
+
   Map<String, dynamic> toJson() => <String, dynamic>{
         'goodsId': goodsId,
         'variantKey': variantKey,
