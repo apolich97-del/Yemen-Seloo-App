@@ -16,7 +16,16 @@ class SelooCartService {
   List<CartItem> loadItems() {
     final List<dynamic>? rawList = _box.read<List<dynamic>>(_cartKey);
     if (rawList == null) return <CartItem>[];
-    return rawList.whereType<Map>().map((Map e) => CartItem.fromMap(Map<String, dynamic>.from(e))).toList();
+    final List<CartItem> items = <CartItem>[];
+    for (final dynamic raw in rawList) {
+      if (raw is! Map) continue;
+      try {
+        items.add(CartItem.fromMap(Map<String, dynamic>.from(raw)));
+      } catch (_) {
+        // سطر تالف في التخزين لا يجب أن يُسقط السلة كلها
+      }
+    }
+    return items;
   }
 
   /// حفظ الأسطر من خارج الخدمة (تغيير المنطقة مثلاً)

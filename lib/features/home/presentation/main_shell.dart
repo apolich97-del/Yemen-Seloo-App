@@ -176,6 +176,12 @@ class _MainShellState extends State<MainShell> {
                 ],
               ),
               actions: <Widget>[
+                // ⭐ الحساب: تسجيل الدخول، العناوين، الطلبات
+                IconButton(
+                  tooltip: 'حسابي',
+                  icon: const Icon(Icons.person_outline, color: Colors.white),
+                  onPressed: () => Get.toNamed('/profile'),
+                ),
                 // ⭐ أيقونة تغيير العملة / التسعير
                 IconButton(
                   tooltip: 'تغيير العملة',

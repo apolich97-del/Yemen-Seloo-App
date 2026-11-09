@@ -58,7 +58,7 @@ class SheinBridgeController {
     final SheinDraft draft;
     try {
       draft = SheinDraft.fromBridgePayload(safePayload);
-    } on DraftValidationException catch (error) {
+    } on DraftValidationException {
       onCrawlStepFailed?.call();
       return _reply('invalid', 'بيانات المنتج غير مكتملة');
     }

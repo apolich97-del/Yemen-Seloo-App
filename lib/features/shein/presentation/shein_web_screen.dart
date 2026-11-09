@@ -248,9 +248,13 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
   void _nextCrawlStep() {
     if (_currentCrawlIndex >= _totalCrawlItems) {
       // انتهى الزحف
+      if (!mounted) return;
       setState(() => _isCrawling = false);
-      Get.back();
       Get.snackbar('✅ اكتمل الاستيراد', 'تمت إضافة $_addedCount منتج', backgroundColor: Colors.green, colorText: Colors.white);
+      // إن كانت شاشة شي إن مفتوحة كمسار منفصل نُغلقها، وإلا نبدّل التبويب فقط
+      if (Get.currentRoute == '/shein') {
+        Get.back();
+      }
       try { Get.find<MainTabController>().goToCart(); } catch (_) {}
       return;
     }
@@ -259,6 +263,7 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
     // نعود للخلف (لصفحة السلة) ثم ننقر على المنتج التالي
     _webViewController?.goBack();
     Future.delayed(const Duration(seconds: 2), () {
+      if (!mounted) return;
       _webViewController?.evaluateJavascript(source: 'window.__selooClickNext($_currentCrawlIndex);');
     });
   }
@@ -363,8 +368,12 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                 } catch (_) {}
                 return null;
               },
-              onLoadStart: (c, u) { setState(() { _isLoading = true; _progress = 0; }); },
+              onLoadStart: (c, u) {
+                if (!mounted) return;
+                setState(() { _isLoading = true; _progress = 0; });
+              },
               onLoadStop: (controller, url) async {
+                if (!mounted) return;
                 setState(() { _isLoading = false; _progress = 1; });
                 // نمرّر روابط واجهات السلة التي رصدناها إلى الصفحة
                 if (_netUrls.isNotEmpty) {
@@ -394,7 +403,10 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                   });
                 }
               },
-              onUpdateVisitedHistory: (controller, url, isReload) => setState(() {}),
+              onUpdateVisitedHistory: (controller, url, isReload) {
+                if (!mounted) return;
+                setState(() {});
+              },
               // أي رابط sheinlink:// أو مخطط غير http يُحوّل لصفحة السلة بدل رسالة الخطأ
               shouldOverrideUrlLoading: (controller, action) async {
                 final String target =
@@ -423,7 +435,10 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                 }
                 return NavigationActionPolicy.CANCEL;
               },
-              onProgressChanged: (c, p) { setState(() => _progress = p / 100); },
+              onProgressChanged: (c, p) {
+                if (!mounted) return;
+                setState(() => _progress = p / 100);
+              },
               ),
             ),
           ),

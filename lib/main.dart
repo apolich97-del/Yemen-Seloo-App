@@ -10,6 +10,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 import 'core/config/seloo_config.dart';
+import 'core/routes/app_routes.dart';
 import 'features/cart/application/cart_counter.dart';
 import 'features/cart/data/seloo_cart_link.dart';
 import 'features/cart/data/seloo_cart_service.dart';
@@ -255,11 +256,15 @@ class SelooApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFFFAF7FF),
       ),
       initialRoute: '/main',
+      initialBinding: InitialBinding(),
       getPages: <GetPage<dynamic>>[
         GetPage(name: '/main', page: () => const MainShell()),
         GetPage(name: '/shein', page: () => const SheinWebScreen()),
         GetPage(name: '/cartScreen', page: () => const CartScreen()),
+        // اسمان لنفس الشاشة: زر السلة القديم يستخدم '/checkoutScreen'،
+        // والمسار الجديد '/checkout'.
         GetPage(name: '/checkoutScreen', page: () => const CheckoutScreen()),
+        ...AppPages.pages,
       ],
     );
   }

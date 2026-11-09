@@ -3,45 +3,102 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ---------- المستخدم ----------
-    match /users/{uid} {
-      allow read: if request.auth != null && request.auth.uid == uid;
-      allow write: if false;
+    // ─────────────────────────── أدوار ───────────────────────────
+    // الأدوار تُضبط بـ custom claims فقط (Admin SDK)، ولا يعدّلها العميل.
+    function signedIn() { return request.auth != null; }
+    function myRole() { return request.auth.token.role; }
+    function isManager() { return signedIn() && myRole() == 'manager'; }
+    function staff() {
+      return signedIn() && myRole() in
+        ['manager', 'support', 'shipping', 'courier', 'accounting', 'agent'];
+    }
+    function owns(uid) { return signedIn() && request.auth.uid == uid; }
 
-      match /profile/{docId} {
-        allow read: if request.auth != null && request.auth.uid == uid;
-        allow write: if false;
+    // ─────────────────────────── المستخدم ───────────────────────────
+    match /users/{uid} {
+      allow read: if owns(uid) || staff();
+      allow create: if owns(uid) && !request.resource.data.keys().hasAny(['role']);
+      // العميل يعدّل بياناته، لكن لا الدور ولا توكنات الإشعارات.
+      allow update: if owns(uid)
+        && !request.resource.data.diff(resource.data).affectedKeys()
+             .hasAny(['role', 'fcmTokens', 'createdAt']);
+      allow update, delete: if isManager();
+
+      match /addresses/{addrId} {
+        allow read: if owns(uid) || staff();
+        allow write: if owns(uid);
       }
 
-      // السلة: قراءة فقط من العميل، الكتابة عبر Cloud Functions.
+      // السلة في Firestore: قراءة فقط من العميل، والكتابة عبر Cloud Functions.
       match /cart/{lineId} {
-        allow read: if request.auth != null && request.auth.uid == uid;
+        allow read: if owns(uid);
         allow write: if false;
       }
     }
 
-    // ---------- الطلبات ----------
+    // ─────────────────────────── الطلبات ───────────────────────────
     match /orders/{orderId} {
-      allow read: if request.auth != null &&
-        (resource.data.uid == request.auth.uid ||
-         request.auth.token.role == 'agent');
+      allow read: if signedIn() &&
+        (resource.data.userId == request.auth.uid || staff());
+      // كل كتابة عبر Cloud Functions (Admin SDK يتجاوز القواعد).
       allow write: if false;
+
+      match /messages/{msgId} {
+        allow read: if signedIn() &&
+          (get(/databases/$(database)/documents/orders/$(orderId)).data.userId
+             == request.auth.uid || staff());
+        // لا يكتب في المحادثة إلا صاحب الطلب أو الطاقم.
+        allow create: if signedIn() &&
+          (get(/databases/$(database)/documents/orders/$(orderId)).data.userId
+             == request.auth.uid || staff());
+        allow update, delete: if false;
+      }
 
       match /events/{eventId} {
-        allow read: if request.auth != null &&
-          (get(/databases/$(database)/documents/orders/$(orderId)).data.uid == request.auth.uid ||
-           request.auth.token.role == 'agent');
+        allow read: if signedIn() &&
+          (get(/databases/$(database)/documents/orders/$(orderId)).data.userId
+             == request.auth.uid || staff());
         allow write: if false;
       }
     }
 
-    // ---------- الإعدادات المرجعية ----------
+    // ─────────────── كتالوج الأسعار (مصدر السعر على السيرفر) ───────────────
+    // القراءة للجميع كي تعرض الشاشات السعر الرسمي، والكتابة للسيرفر فقط.
+    match /products/{goodsId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ─────────────────────────── الكوبونات ───────────────────────────
+    // قراءة لمسجّل الدخول فقط (تحقق مبدئي في الواجهة)، والتأكيد النهائي في السيرفر.
+    match /coupons/{code} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    // ─────────────────────────── الإعدادات ───────────────────────────
+    match /settings/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
     match /meta/{docId} {
       allow read: if true;
       allow write: if false;
     }
 
-    // ---------- رفض كل ما لم يُذكر صراحة ----------
+    // ─────────────────────────── تنبيهات الطاقم ───────────────────────────
+    match /alerts/{alertId} {
+      allow read, update: if staff();
+      allow create: if false;
+    }
+
+    // ─────────────────────────── عدّادات ───────────────────────────
+    match /counters/{counterId} {
+      allow read, write: if false;
+    }
+
+    // ─────────── رفض كل ما لم يُذكر صراحة ───────────
     match /{document=**} {
       allow read, write: if false;
     }

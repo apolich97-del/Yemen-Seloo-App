@@ -16,6 +16,7 @@ class CartCounter extends GetxService {
 
   // ثوابت مفاتيح التخزين
   static const String _kLastCommission = 'seloo_last_commission';
+  static const String _kRegion = 'seloo_region';
 
   final RxList<CartItem> items = <CartItem>[].obs;
   final Rx<CartQuote?> quote = Rx<CartQuote?>(null);
@@ -44,7 +45,13 @@ class CartCounter extends GetxService {
       0, (double sum, CartItem item) => sum + item.lineTotalLocal);
 
   /// ⭐ إجمالي العمولة بالريال السعودي = العمولة × عدد القطع
-  double get commissionTotalSar => commissionPerPiece.value * items.length;
+  /// مجموع القطع (لا الأسطر) — العمولة تُحسب لكل قطعة.
+  int get totalPieces =>
+      items.fold<int>(0, (int sum, CartItem item) => sum + item.quantity);
+
+  /// العمولة إجمالاً: لكل قطعة × عدد القطع. بند داخلي للمندوب ولا يدخل
+  /// في إجمالي العميل.
+  double get commissionTotalSar => commissionPerPiece.value * totalPieces;
 
   /// ⭐ إجمالي العمولة بالريال اليمني = العمولة الإجمالية × سعر الصرف
   double get commissionTotalYer {
@@ -71,6 +78,7 @@ class CartCounter extends GetxService {
   @override
   void onInit() {
     super.onInit();
+    _loadRegion();
     _loadFromStorage();
     _loadLastCommission();
     // إعادة حساب الإجمالي بعد استرجاع السلة من التخزين
@@ -169,9 +177,30 @@ class CartCounter extends GetxService {
 
   void setRegion(String newRegion) {
     if (region.value == newRegion) return;
+    if (!_validRegions.contains(newRegion)) return;
     region.value = newRegion;
+    _saveRegion(newRegion);
     applyRegionRate();
     refreshQuote();
+  }
+
+  static const Set<String> _validRegions = <String>{'north', 'south', 'saudi'};
+
+  /// استرجاع المنطقة المختارة — بدونها كان سعر الصرف يرجع إلى الشمال
+  /// عند كل إعادة تشغيل، فتتغير أسعار السلة ثلاثة أضعاف.
+  void _loadRegion() {
+    try {
+      final String? saved = _box.read<String>(_kRegion);
+      if (saved != null && _validRegions.contains(saved)) {
+        region.value = saved;
+      }
+    } catch (_) {}
+  }
+
+  void _saveRegion(String value) {
+    try {
+      _box.write(_kRegion, value);
+    } catch (_) {}
   }
 
   // ═══════════════════════════════════════════════════════════════
