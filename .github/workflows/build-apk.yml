@@ -358,6 +358,37 @@ jobs:
           echo "=== الإصدار الجديد ==="
           grep "^version:" pubspec.yaml
 
+      - name: ⭐ ترقية أدوات Gradle (AGP 8.6 / Gradle 8.9 / SDK 35)
+        run: |
+          python3 << 'PYEOF'
+          from pathlib import Path
+          import re
+
+          w = Path('android/gradle/wrapper/gradle-wrapper.properties')
+          w.write_text(re.sub(r'gradle-[0-9.]+-all\.zip', 'gradle-8.9-all.zip', w.read_text()))
+
+          s = Path('android/settings.gradle')
+          c = s.read_text()
+          c = re.sub(r'id\s+"com\.android\.application"\s+version\s+"[^"]*"',
+                     'id "com.android.application" version "8.6.1"', c)
+          c = re.sub(r'id\s+"org\.jetbrains\.kotlin\.android"\s+version\s+"[^"]*"',
+                     'id "org.jetbrains.kotlin.android" version "1.9.24"', c)
+          s.write_text(c)
+
+          b = Path('android/app/build.gradle')
+          t = b.read_text().replace('compileSdk = flutter.compileSdkVersion', 'compileSdk = 35')
+          b.write_text(t)
+
+          g = Path('android/gradle.properties')
+          gt = g.read_text()
+          if 'kotlin.jvm.target.validation.mode' not in gt:
+              g.write_text(gt + '\nkotlin.jvm.target.validation.mode=warning\n')
+
+          print('settings:', [l.strip() for l in Path('android/settings.gradle').read_text().splitlines() if 'com.android.application' in l or 'kotlin.android' in l])
+          print('wrapper:', Path('android/gradle/wrapper/gradle-wrapper.properties').read_text().strip().splitlines()[-1])
+          print('sdk:', [l.strip() for l in Path('android/app/build.gradle').read_text().splitlines() if 'compileSdk' in l])
+          PYEOF
+
       - name: Flutter pub get
         run: flutter pub get
 
