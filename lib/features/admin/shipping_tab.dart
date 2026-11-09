@@ -75,11 +75,11 @@ class ShippingTab extends StatelessWidget {
     if (next.isEmpty) return;
     final to = await showDialog<OrderStatus>(
       context: Get.context!,
-      builder: (_) => SimpleDialog(
+      builder: (context) => SimpleDialog(
         title: const Text('الإجراء', style: TextStyle(fontSize: 15)),
         children: next
             .map((s) => SimpleDialogOption(
-                  onPressed: () => Navigator.pop(context, s),
+                  onPressed: () => Navigator.pop(Get.context!, s),
                   child: Text(s.labelAr),
                 ))
             .toList(),
@@ -91,7 +91,7 @@ class ShippingTab extends StatelessWidget {
     final proof = TextEditingController(text: o.proofImageUrl);
     final ok = await showDialog<bool>(
       context: Get.context!,
-      builder: (_) => AlertDialog(
+      builder: (context) => AlertDialog(
         title: Text(to.labelAr, style: const TextStyle(fontSize: 15)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -116,8 +116,8 @@ class ShippingTab extends StatelessWidget {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('تنفيذ')),
+          TextButton(onPressed: () => Navigator.pop(Get.context!, false), child: const Text('إلغاء')),
+          ElevatedButton(onPressed: () => Navigator.pop(Get.context!, true), child: const Text('تنفيذ')),
         ],
       ),
     );
