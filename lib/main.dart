@@ -24,12 +24,22 @@ import 'features/shein/presentation/shein_web_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // ⭐ أي خطأ في البناء يظهر كنص على الشاشة بدل شاشة رمادية فارغة
+  ErrorWidget.builder = (FlutterErrorDetails details) =>
+      _ErrorScreen('خطأ في الواجهة', details.exceptionAsString());
+
   // 1) تهيئة التخزين المحلي
   await GetStorage.init();
   debugPrint('[Seloo] GetStorage OK ✓');
 
-  // 2) Firebase في الخلفية (لا يوقف التطبيق)
-  _initFirebase();
+  // 2) Firebase أولاً وبانتظار: كل الخدمات (Auth/Firestore/Functions) تُنشأ
+  //    بعد التهيئة، وإلا انهار التطبيق بشاشة رمادية.
+  final String? firebaseError = await _initFirebase();
+  if (firebaseError != null) {
+    debugPrint('[Seloo] Firebase FAILED → شاشة خطأ');
+    runApp(_ErrorScreen('تعذر تشغيل Firebase', firebaseError));
+    return;
+  }
 
   // 3) سجّل CartCounter قبل أي شاشة
   Get.put<CartCounter>(CartCounter(), permanent: true);
@@ -222,12 +232,67 @@ void _handleShared(List<SharedMediaFile> items) {
   }
 }
 
-Future<void> _initFirebase() async {
+Future<String?> _initFirebase() async {
   try {
-    await Firebase.initializeApp().timeout(const Duration(seconds: 10));
+    await Firebase.initializeApp().timeout(const Duration(seconds: 20));
     debugPrint('[Seloo] Firebase OK ✓');
+    return null;
   } catch (e) {
     debugPrint('[Seloo] Firebase FAILED: $e');
+    return '$e';
+  }
+}
+
+/// شاشة خطأ واضحة (بدل الشاشة الرمادية) — تُظهر الرسالة ليصلحها المطوّر.
+class _ErrorScreen extends StatelessWidget {
+  const _ErrorScreen(this.title, this.message);
+
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Directionality(
+        textDirection: TextDirection.rtl,
+        child: Scaffold(
+          backgroundColor: const Color(0xFF111827),
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'أرسل صورة هذه الشاشة للمطوّر:',
+                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
+                  const SizedBox(height: 10),
+                  SelectableText(
+                    message,
+                    style: const TextStyle(
+                      color: Color(0xFFFCA5A5),
+                      fontSize: 11.5,
+                      height: 1.6,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
