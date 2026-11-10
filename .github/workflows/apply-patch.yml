@@ -10,14 +10,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Download and extract
         run: |
-          curl -fsSL -o /tmp/p.zip "https://base44.app/api/apps/6aefee2d117870b4236d26a4/files/mp/public/6aefee2d117870b4236d26a4/e276c6af2_seloo_size4.zip"
+          curl -fsSL -o /tmp/p.zip "https://base44.app/api/apps/6aefee2d117870b4236d26a4/files/mp/public/6aefee2d117870b4236d26a4/489fea43e_seloo_approve5.zip"
           mkdir -p /tmp/p
           python3 -c "import zipfile;zipfile.ZipFile('/tmp/p.zip').extractall('/tmp/p')"
           cp -R /tmp/p/. .
       - name: Commit
         run: |
           git config user.name "seloo-bot"
-          git config user.email "[seloo-bot@users.noreply.github.com](mailto:seloo-bot@users.noreply.github.com)"
+          git config user.email "seloo-bot@users.noreply.github.com"
           git add -A
-          git commit -m "Keep full size and variant details on import"
+          git commit -m "Add order edit lifecycle with single approved revision"
           git push
