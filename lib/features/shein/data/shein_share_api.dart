@@ -298,20 +298,14 @@ class SheinShareApi {
       return null;
     }
 
-    final double? salePrice =
-        _priceAmount(it['salePrice']);
-
-    final double? retailPrice =
-        _priceAmount(it['retailPrice']);
-
-    final double price =
-        (salePrice != null && salePrice > 0)
-            ? salePrice
-            : (retailPrice != null && retailPrice > 0)
-                ? retailPrice
-                : 0.01;
+    // ⭐ السعر: نجرّب كل حقول السعر المعروفة قبل أي قيمة احتياطية،
+    // لأن شي إن ترسل salePrice أحياناً ككائن {amount: ...}.
+    final double price = _bestPrice(it) ?? 0.01;
 
     if (price <= 0) return null;
+
+    // ⭐ الكمية الحقيقية من السلة المشتركة (كانت تُثبَّت على 1 فتفشل الزيادة)
+    final int quantity = _quantityOf(it);
 
     String title =
         '${it['goods_name'] ?? it['goodsName'] ?? ''}'.trim();
@@ -348,7 +342,7 @@ class SheinShareApi {
       'imageUrl': imageUrl,
       'sourcePrice': price,
       'sourceCurrency': 'SAR',
-      'quantity': 1,
+      'quantity': quantity,
       'color': color,
       'size': size,
       'options': const <String, String>{},
@@ -359,17 +353,73 @@ class SheinShareApi {
     };
   }
 
-  /// قراءة السعر سواء جاء رقماً أو داخل كائن amount.
+  /// قراءة السعر سواء جاء رقماً أو نصاً أو داخل كائن amount.
   static double? _priceAmount(Object? value) {
-    Object? amount = value;
+    if (value == null) return null;
 
     if (value is Map) {
-      amount = value['amount'];
+      return _priceAmount(
+        value['amount'] ?? value['price'] ?? value['value'] ?? value['salePrice'],
+      );
     }
 
-    if (amount == null) return null;
+    if (value is num) return value.toDouble();
 
-    return double.tryParse('$amount');
+    final String cleaned =
+        '$value'.replaceAll(',', '').replaceAll(RegExp(r'[^0-9.]'), '');
+    return double.tryParse(cleaned);
+  }
+
+  /// أفضل سعر متاح للمنتج — بالترتيب المعروف في استجابة شي إن.
+  static double? _bestPrice(Map<String, dynamic> it) {
+    const List<String> keys = <String>[
+      'salePrice', 'sku_sale_price', 'skuSalePrice', 'price',
+      'goodsPrice', 'retailPrice', 'originalPrice', 'marketPrice', 'unitPrice',
+    ];
+
+    for (final String key in keys) {
+      final double? v = _priceAmount(it[key]);
+      if (v != null && v > 0) return v;
+    }
+
+    // احتياطي: أي حقل يحتوي كلمة price وقيمته منطقية.
+    for (final MapEntry<String, dynamic> e in it.entries) {
+      if (!e.key.toLowerCase().contains('price')) continue;
+      final double? v = _priceAmount(e.value);
+      if (v != null && v > 0 && v < 1000000) return v;
+    }
+
+    return null;
+  }
+
+  /// الكمية المطلوبة لهذا المنتج داخل السلة المشتركة.
+  static int _quantityOf(Map<String, dynamic> it) {
+    const List<String> keys = <String>[
+      'goods_num', 'goodsNum', 'num', 'quantity', 'qty', 'goods_count',
+    ];
+
+    for (final String key in keys) {
+      final Object? raw = it[key];
+      final int? n = raw is int
+          ? raw
+          : int.tryParse('$raw'.replaceAll(RegExp(r'[^0-9]'), ''));
+      if (n != null && n > 0) {
+        return n > 99 ? 99 : n;
+      }
+    }
+    return 1;
+  }
+
+  /// هل النص يبدو رابط صورة؟ (للحقول غير المعروفة في استجابة شي إن)
+  static bool _looksLikeImage(String value) {
+    if (value.length < 20) return false;
+    final String v = value.toLowerCase();
+    if (v.startsWith('data:')) return false;
+    if (v.contains('ltwebstatic')) return true;
+    return v.endsWith('.jpg') ||
+        v.endsWith('.jpeg') ||
+        v.endsWith('.png') ||
+        v.endsWith('.webp');
   }
 
   /// البحث عن الصورة في عدة حقول محتملة وتوحيد الرابط.
@@ -392,6 +442,17 @@ class SheinShareApi {
         candidates.add(
           '${first['goods_img'] ?? first['goodsImg'] ?? first['url'] ?? ''}',
         );
+      }
+    }
+
+    // ⭐ احتياطي: أي حقل نصي في المنتج يبدو صورة (أسماء الحقول تتغيّر).
+    for (final Object? value in it.values) {
+      if (value is String && _looksLikeImage(value)) {
+        candidates.add(value);
+      } else if (value is List) {
+        for (final Object? inner in value) {
+          if (inner is String && _looksLikeImage(inner)) candidates.add(inner);
+        }
       }
     }
 

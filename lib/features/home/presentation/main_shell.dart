@@ -203,7 +203,11 @@ class _MainShellState extends State<MainShell> {
             bottomNavigationBar: Obx(
               () => BottomNavigationBar(
                 currentIndex: _tabCtrl.index.value,
-                onTap: (int i) => _tabCtrl.goTo(i),
+                onTap: (int i) {
+                  _tabCtrl.goTo(i);
+                  // ⭐ فتح تبويب السلة يعيد قراءتها من التخزين فوراً
+                  if (i == 2) _cart.onItemAdded();
+                },
                 type: BottomNavigationBarType.fixed,
                 backgroundColor: Colors.white,
                 selectedItemColor: _purple,

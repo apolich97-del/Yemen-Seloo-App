@@ -69,6 +69,9 @@ class SelooCartLink {
     final String? tiny = await _shortViaTinyUrl(long);
     if (tiny != null) return tiny;
 
+    final String? isgd = await _shortViaIsGd(long);
+    if (isgd != null) return isgd;
+
     return long;
   }
 
@@ -102,7 +105,23 @@ class SelooCartLink {
       final http.Response r =
           await http.get(api).timeout(const Duration(seconds: 8));
       final String body = r.body.trim();
-      if (r.statusCode == 200 && body.startsWith('http') && body.length <= 60) {
+      if (r.statusCode == 200 && body.startsWith('http') && body.length <= 80) {
+        return body;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// مزوّد ثانٍ مجاني بلا مفتاح، إن حجب أحد المزوّدين أو تغيّر ردّه.
+  static Future<String?> _shortViaIsGd(String long) async {
+    try {
+      final Uri api = Uri.parse(
+        'https://is.gd/create.php?format=simple&url=${Uri.encodeComponent(long)}',
+      );
+      final http.Response r =
+          await http.get(api).timeout(const Duration(seconds: 8));
+      final String body = r.body.trim();
+      if (r.statusCode == 200 && body.startsWith('http') && body.length <= 80) {
         return body;
       }
     } catch (_) {}

@@ -87,6 +87,13 @@
     return false;
   }
 
+  /// نصوص ليست لوناً ولا مقاساً: شرائح اقتراح شي إن ("التوصية") وغيرها.
+  function isPlaceholderText(v) {
+    var t = String(v || '').replace(/\s+/g, ' ').trim();
+    if (!t) return true;
+    return /(?:توصية|التوصية|مقترح|مقترحة|recommend|recommended|suggest|suggested|افتراضي|الافتراضي|default|اختر|اختاري|select|choose|الحجم المناسب|مقاسك|size\s*guide|دليل المقاسات|^\s*[-–—]\s*$)/i.test(t);
+  }
+
   function readSelectedVariant() {
     var out = { size: '', color: '' };
 
@@ -94,11 +101,12 @@
       if (!el) return '';
       var t = (el.getAttribute('title') || el.getAttribute('aria-label') || txt(el) || '')
         .replace(/\s+/g, ' ').trim();
+      if (isPlaceholderText(t)) return '';
       return t.length <= 40 ? t : '';
     }
 
     function take(t) {
-      if (!t) return;
+      if (!t || isPlaceholderText(t)) return;
       if (isSizeToken(t)) { if (!out.size) out.size = t; }
       else if (!out.color && t.length >= 2 && !/^(?:حذف|إزالة|تعديل|العدد|كمية)$/.test(t)) {
         out.color = t;
@@ -156,6 +164,57 @@
     return out;
   }
 
+  /// سعر المنتج الحقيقي: نتجاهل أسعار التقسيط والبطاقات والخصومات المشطوبة،
+  /// ونقرأ من صندوق سعر المنتج أولاً. كانت القراءة القديمة تأخذ أول عنصر فيه
+  /// كلمة price على الصفحة، فيظهر رقم شارة أو تقسيط بدل السعر.
+  function readMainPrice() {
+    var SKIP = /(old|origin|retail|cross|strike|through|discount|coupon|installment|split|afterpay|tabby|tamara|klarna|save|saving|duty|shipping|delivery|vat|bonus|point)/i;
+    var BOX = '[class*="product-intro"], [class*="goods-price"], [class*="goodsPrice"], ' +
+              '[class*="product-price"], [class*="productPrice"], [class*="price-box"], [class*="priceBox"], ' +
+              '[class*="detail-price"], [class*="detailPrice"]';
+
+    var roots = qa(BOX);
+    if (!roots.length) roots = [document.body];
+
+    var all = [];
+    for (var r = 0; r < roots.length; r++) {
+      var els = roots[r].querySelectorAll('[class*="price"], [class*="Price"]');
+      for (var i = 0; i < els.length; i++) {
+        var el = els[i];
+        if (!el || (el.children && el.children.length)) continue;
+        var cls = String(el.className || '');
+        if (SKIP.test(cls)) continue;
+        var parentCls = el.parentElement ? String(el.parentElement.className || '') : '';
+        if (SKIP.test(parentCls)) continue;
+        try {
+          var cs = window.getComputedStyle(el);
+          if (cs && cs.textDecorationLine && cs.textDecorationLine.indexOf('line-through') !== -1) continue;
+        } catch (e) {}
+        if (el.closest && el.closest('del, s')) continue;
+        var n = parsePrice(txt(el));
+        if (!n || n < 0.5) continue;
+        all.push({ value: n, cls: cls });
+      }
+      if (all.length) break; // أول صندوق سعر هو صندوق المنتج
+    }
+
+    if (!all.length) return null;
+
+    // الأفضلية لصنف يدل على السعر الحالي
+    for (var k = 0; k < all.length; k++) {
+      if (/(sale|current|now|main|final|goods[-_]?price|price[-_]?now)/i.test(all[k].cls)) {
+        return all[k].value;
+      }
+    }
+
+    // وإلا: أصغر سعر معقول (السعر المعروض دائماً أقل من المشطوب)
+    var best = all[0].value;
+    for (var j = 1; j < all.length; j++) {
+      if (all[j].value < best) best = all[j].value;
+    }
+    return best;
+  }
+
   function readCurrentProduct() {
     var m = window.location.href.match(/-p-(\d+)\.html/);
     if (!m) return null;
@@ -167,12 +226,7 @@
     title = title.replace(/\s+/g, ' ').slice(0, 300);
     if (!title) title = 'منتج SHEIN #' + goodsId;
 
-    var price = null;
-    var priceEls = qa('[class*="price"], [class*="Price"]');
-    for (var i = 0; i < priceEls.length; i++) {
-      var p = parsePrice(txt(priceEls[i]));
-      if (p) { price = p; break; }
-    }
+    var price = readMainPrice();
     if (!price) {
       var pm = q('meta[property="product:price:amount"], meta[property="og:price:amount"]');
       if (pm) price = parsePrice(pm.content);
