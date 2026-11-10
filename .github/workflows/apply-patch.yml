@@ -1,0 +1,23 @@
+name: Apply patch
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and extract
+        run: |
+          curl -fsSL -o /tmp/p.zip "https://base44.app/api/apps/6aefee2d117870b4236d26a4/files/mp/public/6aefee2d117870b4236d26a4/a47e93b94_seloo_fix3.zip"
+          mkdir -p /tmp/p
+          python3 -c "import zipfile;zipfile.ZipFile('/tmp/p.zip').extractall('/tmp/p')"
+          cp -R /tmp/p/. .
+      - name: Commit
+        run: |
+          git config user.name "seloo-bot"
+          git config user.email "seloo-bot@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix cart price, quantity, images, short links and page script"
+          git push
