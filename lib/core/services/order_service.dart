@@ -46,6 +46,41 @@ class OrderService extends GetxService {
     }
   }
 
+  /// تعديل الطلب القائم بدل إنشاء طلب جديد: نفس المستند، نسخة جديدة.
+  /// السيرفر يعيد التسعير ويرفض التعديل بعد إغلاق الطلب.
+  Future<Map<String, dynamic>> updateOrderDraft({
+    required String orderId,
+    required List<CartLine> lines,
+    required AppCurrency currency,
+    String couponCode = '',
+    String note = '',
+  }) async {
+    try {
+      final res = await _fn.httpsCallable('updateOrderDraft').call({
+        'orderId': orderId,
+        'items': lines.map((e) => e.toServer()).toList(),
+        'currency': currency.key,
+        'couponCode': couponCode,
+        'note': note,
+      });
+      return Map<String, dynamic>.from((res.data as Map?) ?? {});
+    } on FirebaseFunctionsException catch (e) {
+      throw _msg(e);
+    }
+  }
+
+  /// اعتماد آخر تعديل: يثبّت النسخة الحالية ويختم وقت الاعتماد.
+  Future<Map<String, dynamic>> approveDraftOrder(String orderId) async {
+    try {
+      final res = await _fn
+          .httpsCallable('approveOrderDraft')
+          .call({'orderId': orderId});
+      return Map<String, dynamic>.from((res.data as Map?) ?? {});
+    } on FirebaseFunctionsException catch (e) {
+      throw _msg(e);
+    }
+  }
+
   Future<void> attachPayment({
     required String orderId,
     required Map<String, dynamic> payment,

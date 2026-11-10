@@ -245,6 +245,23 @@ export const submitOrder = onCall(baseOpts, async (request) => {
       // ولا تُشارك مع الشركة إلا بموافقة المندوب (approved).
       commission,
       address,
+      // فكرة يمن: نسخة واحدة معتمدة + سجل التعديلات محفوظ داخلياً
+      revision: 1,
+      approvedAt: Timestamp.now(),
+      approvedByName: "العميل",
+      editingLocked: false,
+      revisions: [
+        {
+          revision: 1,
+          at: Timestamp.now(),
+          byName: "العميل",
+          totalSar: totals.totalSar,
+          totalLocal: totals.totalLocal,
+          itemCount: totals.lines.length,
+          pieceCount: totals.lines.reduce((a, l) => a + l.qty, 0),
+          note: "النسخة الأولى",
+        },
+      ],
       status,
       timeline,
       payment: payment
@@ -444,8 +461,12 @@ export const advanceOrderStatus = onCall(baseOpts, async (request) => {
       );
     }
 
+    // بعد بدء التنفيذ لا يُعدَّل الطلب من العميل إطلاقاً.
+    const lockEdit = !["unpaid", "verifying"].includes(target);
+
     const patch: Record<string, unknown> = {
       status: target,
+      ...(lockEdit ? { editingLocked: true, editingLockedAt: Timestamp.now() } : {}),
       updatedAt: FieldValue.serverTimestamp(),
       timeline: FieldValue.arrayUnion({
         status: target,
@@ -521,3 +542,160 @@ export function accountsForCurrency(currency: Currency): string[] {
 }
 
 export { roundMoney };
+
+
+/* ═══════════ فكرة يمن: تعديل الطلب واعتماد آخر نسخة ═══════════ */
+
+/** المنتجات قابلة للتعديل فقط قبل الإغلاق وقبل بدء التنفيذ. */
+function assertEditable(order: Record<string, unknown>) {
+  const status = String(order.status ?? "unpaid") as OrderStatus;
+  if (order.editingLocked === true) {
+    throw new HttpsError(
+      "failed-precondition",
+      "تم إغلاق تعديل هذا الطلب — تواصل مع يمن سيلو",
+    );
+  }
+  if (!["unpaid", "verifying"].includes(status)) {
+    throw new HttpsError(
+      "failed-precondition",
+      "لا يمكن تعديل الطلب بعد بدء التنفيذ",
+    );
+  }
+}
+
+/**
+ * تعديل الطلب نفسه — لا ينشئ طلباً جديداً.
+ * كل تعديل يرفع رقم النسخة ويحفظ لقطة داخلية في revisions،
+ * ويعيد الطلب إلى «قيد التعديل» حتى يعتمد العميل آخر تعديل.
+ */
+export const updateOrderDraft = onCall(baseOpts, async (request) => {
+  const uid = requireUid(request);
+  const data = (request.data ?? {}) as Record<string, unknown>;
+  const orderId = String(data.orderId ?? "").trim();
+  if (!orderId) throw new HttpsError("invalid-argument", "orderId مطلوب");
+
+  const currencyRaw = String(data.currency ?? "sar");
+  if (!isCurrency(currencyRaw)) {
+    throw new HttpsError("invalid-argument", "عملة غير مدعومة");
+  }
+  const currency: Currency = currencyRaw;
+
+  const items = parseItems(data.items);
+  const coupon = await loadCoupon(db(), String(data.couponCode ?? ""));
+  const note = String(data.note ?? "").trim().slice(0, 200);
+
+  const { lines } = await priceItems(db(), items, true);
+  const settings = await loadSettings(db());
+  const totals = computeTotals(lines, settings, currency, coupon);
+
+  const ref = db().collection(ORDERS).doc(orderId);
+
+  return db().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError("not-found", "الطلب غير موجود");
+
+    const order = snap.data() as Record<string, unknown>;
+    if (String(order.userId ?? "") !== uid) {
+      throw new HttpsError("permission-denied", "هذا الطلب ليس لك");
+    }
+    assertEditable(order);
+
+    const revision = Number(order.revision ?? 1) + 1;
+    const snapshot = {
+      revision,
+      at: Timestamp.now(),
+      byName: "العميل",
+      totalSar: totals.totalSar,
+      totalLocal: totals.totalLocal,
+      itemCount: totals.lines.length,
+      pieceCount: totals.lines.reduce((a, l) => a + l.qty, 0),
+      note: note || "تعديل السلة",
+    };
+
+    tx.update(ref, {
+      items: totals.lines.map((line) => ({
+        goodsId: line.goodsId,
+        sku: line.sku,
+        title: line.title,
+        imageUrl: line.imageUrl,
+        color: line.color,
+        size: line.size,
+        qty: line.qty,
+        unitPriceSar: line.unitPriceSar,
+        productUrl: line.productUrl,
+      })),
+      currency,
+      exchangeRate: totals.rate,
+      subtotalSar: totals.subtotalSar,
+      shippingFeeSar: totals.shippingFeeSar,
+      deliveryFeeSar: totals.deliveryFeeSar,
+      discountSar: totals.discountSar,
+      totalSar: totals.totalSar,
+      totalLocal: totals.totalLocal,
+      couponCode: totals.couponCode,
+      revision,
+      revisions: FieldValue.arrayUnion(snapshot),
+      approvedAt: null,
+      approvedByName: "",
+      status: "unpaid",
+      payment: null,
+      updatedAt: FieldValue.serverTimestamp(),
+      timeline: FieldValue.arrayUnion({
+        status: "unpaid",
+        at: Timestamp.now(),
+        byName: "العميل",
+        note: `تعديل رقم ${revision} — بانتظار الاعتماد`,
+      }),
+    });
+
+    return {
+      orderId,
+      orderNo: String(order.orderNo ?? orderId),
+      revision,
+      totalSar: totals.totalSar,
+      totalLocal: totals.totalLocal,
+      needsApproval: true,
+    };
+  });
+});
+
+/** تثبيت آخر نسخة باعتبارها النسخة المعتمدة. */
+export const approveOrderDraft = onCall(baseOpts, async (request) => {
+  const uid = requireUid(request);
+  const data = (request.data ?? {}) as Record<string, unknown>;
+  const orderId = String(data.orderId ?? "").trim();
+  if (!orderId) throw new HttpsError("invalid-argument", "orderId مطلوب");
+
+  const ref = db().collection(ORDERS).doc(orderId);
+
+  return db().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError("not-found", "الطلب غير موجود");
+
+    const order = snap.data() as Record<string, unknown>;
+    if (String(order.userId ?? "") !== uid) {
+      throw new HttpsError("permission-denied", "هذا الطلب ليس لك");
+    }
+    assertEditable(order);
+
+    const at = Timestamp.now();
+    tx.update(ref, {
+      approvedAt: at,
+      approvedByName: "العميل",
+      updatedAt: FieldValue.serverTimestamp(),
+      timeline: FieldValue.arrayUnion({
+        status: String(order.status ?? "unpaid"),
+        at,
+        byName: "العميل",
+        note: `اعتماد النسخة ${Number(order.revision ?? 1)}`,
+      }),
+    });
+
+    return {
+      orderId,
+      orderNo: String(order.orderNo ?? orderId),
+      revision: Number(order.revision ?? 1),
+      approvedAt: at.toDate().toISOString(),
+    };
+  });
+});

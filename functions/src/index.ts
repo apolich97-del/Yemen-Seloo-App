@@ -561,4 +561,6 @@ export {
   confirmPayment,
   advanceOrderStatus,
   requestExpedite,
+  updateOrderDraft,
+  approveOrderDraft,
 } from "./orders";

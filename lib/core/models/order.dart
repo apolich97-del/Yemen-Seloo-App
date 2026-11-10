@@ -296,6 +296,18 @@ class Order {
   final DateTime updatedAt;
   final DateTime? expediteRequestedAt;
 
+  // ═══ فكرة يمن: نسخة واحدة معتمدة + سجل تعديلات داخلي ═══
+  /// رقم النسخة الحالية. يزيد مع كل تعديل قبل الاعتماد النهائي.
+  final int revision;
+
+  /// وقت اعتماد العميل لآخر نسخة. `null` يعني الطلب ما زال «قيد التعديل».
+  final DateTime? approvedAt;
+
+  /// يُغلق بعد أن يبدأ فريق يمن سيلو التنفيذ، فلا يُعدَّل الطلب بعدها.
+  final bool editingLocked;
+
+  final String approvedByName;
+
   const Order({
     required this.id,
     required this.orderNo,
@@ -324,6 +336,10 @@ class Order {
     this.courierName = '',
     this.proofImageUrl = '',
     this.expediteRequestedAt,
+    this.revision = 1,
+    this.approvedAt,
+    this.editingLocked = false,
+    this.approvedByName = '',
   });
 
   int get totalPieces => items.fold(0, (s, i) => s + i.qty);
@@ -355,6 +371,21 @@ class Order {
         OrderStatus.delivered => 5,
         OrderStatus.cancelled => 0,
       };
+
+  /// 🟡 قيد التعديل · 🟢 تم اعتماد الطلب · 🔒 تم إغلاق التعديل
+  String get editStateAr {
+    if (editingLocked) return 'تم إغلاق التعديل';
+    if (approvedAt == null) return 'قيد التعديل';
+    return 'تم اعتماد الطلب';
+  }
+
+  /// لا يُعدَّل إلا قبل الإغلاق وقبل أن يتقدّم التنفيذ.
+  bool get isEditable =>
+      !editingLocked &&
+      (status == OrderStatus.unpaid || status == OrderStatus.verifying);
+
+  /// عميل عدّل بعد اعتماد سابق ولم يعتمد آخر تعديل بعد.
+  bool get needsApproval => isEditable && approvedAt == null;
 
   factory Order.fromDoc(String id, Map<String, dynamic> m) {
     final items = ((m['items'] as List?) ?? const [])
@@ -392,6 +423,10 @@ class Order {
       createdAt: _ts(m['createdAt']) ?? DateTime.now(),
       updatedAt: _ts(m['updatedAt']) ?? DateTime.now(),
       expediteRequestedAt: _ts(m['expediteRequestedAt']),
+      revision: (m['revision'] as num?)?.toInt() ?? 1,
+      approvedAt: _ts(m['approvedAt']),
+      editingLocked: (m['editingLocked'] as bool?) ?? false,
+      approvedByName: (m['approvedByName'] ?? '') as String,
     );
   }
 }

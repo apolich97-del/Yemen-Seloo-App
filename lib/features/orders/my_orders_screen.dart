@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../core/controllers/orders_controller.dart';
 import '../../core/models/currency.dart';
 import '../../core/models/order.dart';
+import '../../core/services/order_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -89,7 +90,12 @@ class MyOrdersScreen extends GetView<OrdersController> {
       );
 
   Widget _orderCard(Order o, SettingsService settings) {
-    final statusColor = Color(o.status.colorValue);
+    // 🟡 قيد التعديل · 🟢 تم اعتماد الطلب · 🔒 تم إغلاق التعديل
+    final Color statusColor = o.editingLocked
+        ? AppColors.muted
+        : o.approvedAt == null
+            ? const Color(0xFFF59E0B)
+            : const Color(0xFF10B981);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Card(
@@ -114,7 +120,7 @@ class MyOrdersScreen extends GetView<OrdersController> {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        o.status.labelAr,
+                        o.editStateAr,
                         style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
@@ -191,11 +197,62 @@ class MyOrdersScreen extends GetView<OrdersController> {
                     ],
                   ],
                 ),
+                if (o.needsApproval) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _approve(o),
+                      icon: const Icon(Icons.verified, size: 17),
+                      label: Text('اعتماد التعديل الأخير (نسخة ${o.revision})',
+                          style: const TextStyle(fontSize: 12.5)),
+                      style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(46)),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  /// يثبّت آخر نسخة ويُظهر إيصال الاعتماد برقم الطلب ووقته.
+  Future<void> _approve(Order o) async {
+    try {
+      final Map<String, dynamic> res =
+          await Get.find<OrderService>().approveDraftOrder(o.id);
+      await Get.dialog<void>(
+        AlertDialog(
+          title: const Text('تم الاعتماد', style: TextStyle(fontSize: 16)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Text('✅ تم اعتماد آخر تعديل على طلبك',
+                  style: TextStyle(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 10),
+              Text('رقم الطلب: ${res['orderNo'] ?? o.orderNo}'),
+              Text('النسخة: ${res['revision'] ?? o.revision}'),
+              Text('وقت الاعتماد: ${_fmt(res['approvedAt'])}'),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(onPressed: () => Get.back<void>(), child: const Text('حسناً')),
+          ],
+        ),
+      );
+    } catch (e) {
+      Get.snackbar('تعذر الاعتماد', '$e');
+    }
+  }
+
+  static String _fmt(Object? iso) {
+    final DateTime? d = iso is String ? DateTime.tryParse(iso)?.toLocal() : null;
+    if (d == null) return '—';
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${d.year}/${two(d.month)}/${two(d.day)} ${two(d.hour)}:${two(d.minute)}';
   }
 }
