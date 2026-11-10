@@ -323,13 +323,34 @@ class SheinShareApi {
     final String attributes =
         '${it['goodsAttr'] ?? ''}';
 
-    final List<String> parts = attributes.split('/');
+    // شي إن ترسل السمات بصيغة "اللون / المقاس" وأحياناً
+    // "اللون / المقاس / اسم الطقم أو الخيار". الملصق الأول هو اللون،
+    // وأول جزء يشبه مقاساً هو المقاس، والباقي يُحفظ كتفاصيل لا تُهمل.
+    final List<String> parts = attributes
+        .split('/')
+        .map((String e) => e.trim())
+        .where((String e) => e.isNotEmpty)
+        .toList();
 
-    final String color =
-        parts.isNotEmpty ? parts[0].trim() : '';
+    String color = parts.isNotEmpty ? parts[0] : '';
+    String size = '';
+    final List<String> extra = <String>[];
 
-    final String size =
-        parts.length > 1 ? parts[1].trim() : '';
+    for (int i = 1; i < parts.length; i++) {
+      if (size.isEmpty && _looksLikeSize(parts[i])) {
+        size = parts[i];
+      } else {
+        extra.add(parts[i]);
+      }
+    }
+
+    // احتياط: لا جزء يشبه المقاس → نأخذ الثاني كما هو.
+    if (size.isEmpty && parts.length > 1) {
+      size = parts[1];
+      extra.remove(parts[1]);
+    }
+
+    color = color.replaceFirst(RegExp(r'^(?:اللون|لون)\s*[:：]\s*'), '').trim();
 
     // رابط منتج فعلي، وليس نص Markdown.
     final String productUrl =
@@ -345,12 +366,28 @@ class SheinShareApi {
       'quantity': quantity,
       'color': color,
       'size': size,
-      'options': const <String, String>{},
+      'options': extra.isEmpty
+          ? const <String, String>{}
+          : <String, String>{'تفاصيل': extra.join(' · ')},
+      'rawAttr': attributes,
       'sourceStore': 'SHEIN',
       'sku': '${it['sku_code'] ?? it['itemSku'] ?? ''}'.trim(),
       'variantId': '',
       'source': 'shared-cart',
     };
+  }
+
+  /// هل النص مقاس فعلاً؟ (M · 5Y · 38 · مقاس واحد · 104-110 cm)
+  static bool _looksLikeSize(String v) {
+    final String t = v.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (t.isEmpty || t.length > 40) return false;
+    if (RegExp(r'^(?:XXS|XS|S|M|L|XL|XXL|2XL|3XL|4XL|5XL)$', caseSensitive: false).hasMatch(t)) return true;
+    if (RegExp(r'^\d{1,2}Y(?:\s*[-–]\s*\d{1,2}Y)?(?:\s*\([^)]*\))?$').hasMatch(t)) return true;
+    if (RegExp(r'^\d{2}(?:[.-]\d{2})?$').hasMatch(t)) return true;
+    if (RegExp(r'^\d{2,3}\s?(?:سم|cm)$', caseSensitive: false).hasMatch(t)) return true;
+    if (RegExp(r'^مقاس(?:\s+(?:واحد|موحد|افتراضي))?$').hasMatch(t)) return true;
+    if (RegExp(r'^\d{2,3}\s*[-–]\s*\d{2,3}\s*(?:سم|cm)$', caseSensitive: false).hasMatch(t)) return true;
+    return false;
   }
 
   /// قراءة السعر سواء جاء رقماً أو نصاً أو داخل كائن amount.

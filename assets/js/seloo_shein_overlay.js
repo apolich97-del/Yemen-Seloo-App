@@ -107,9 +107,20 @@
 
     function take(t) {
       if (!t || isPlaceholderText(t)) return;
-      if (isSizeToken(t)) { if (!out.size) out.size = t; }
-      else if (!out.color && t.length >= 2 && !/^(?:حذف|إزالة|تعديل|العدد|كمية)$/.test(t)) {
-        out.color = t;
+
+      // قد يأتي اللون والمقاس في نص واحد: "الأسود / مقاس: 2-3Y"
+      var chunks = String(t).split(/\s*[\/|،]\s*/);
+      for (var ci = 0; ci < chunks.length; ci++) {
+        var c = chunks[ci]
+          .replace(/^(?:اللون|لون|المقاس|مقاس|الحجم|اختر|اختاري)\s*[:：]\s*/i, '')
+          .trim();
+        if (!c || isPlaceholderText(c)) continue;
+        if (isSizeToken(c) || /^مقاس\s*(?:واحد|موحد|افتراضي)$/i.test(c)) {
+          if (!out.size) out.size = c;
+        } else if (!out.color && c.length >= 2 && c.length <= 40 &&
+                   !/^(?:حذف|إزالة|تعديل|العدد|كمية)$/.test(c)) {
+          out.color = c;
+        }
       }
     }
 
