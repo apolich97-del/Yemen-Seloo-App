@@ -10,6 +10,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 import 'core/config/seloo_config.dart';
+import 'core/controllers/checkout_controller.dart';
 import 'core/routes/app_routes.dart';
 import 'features/cart/application/cart_counter.dart';
 import 'features/cart/data/seloo_cart_link.dart';
@@ -328,7 +329,13 @@ class SelooApp extends StatelessWidget {
         GetPage(name: '/cartScreen', page: () => const CartScreen()),
         // اسمان لنفس الشاشة: زر السلة القديم يستخدم '/checkoutScreen'،
         // والمسار الجديد '/checkout'.
-        GetPage(name: '/checkoutScreen', page: () => const CheckoutScreen()),
+        GetPage(
+          name: '/checkoutScreen',
+          page: () => const CheckoutScreen(),
+          binding: BindingsBuilder(
+            () => Get.lazyPut<CheckoutController>(() => CheckoutController()),
+          ),
+        ),
         ...AppPages.pages,
       ],
     );
