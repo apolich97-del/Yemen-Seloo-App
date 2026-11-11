@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 
 /// هوية «يمن سيلو» — أخضر يمَني غامق + ذهبي، واجهة RTL بالكامل.
 class AppColors {
-  static const primary = Color(0xFF0E7C5A);
-  static const primaryDark = Color(0xFF075640);
+  static const primary = Color(0xFF7C3AED);
+  static const primaryDark = Color(0xFF5B21B6);
   static const accent = Color(0xFFC9A227);
-  static const surface = Color(0xFFF7F8F7);
+  static const surface = Color(0xFFF7F5FB);
   static const ink = Color(0xFF1B1F1D);
   static const muted = Color(0xFF6B7671);
   static const danger = Color(0xFFB3261E);

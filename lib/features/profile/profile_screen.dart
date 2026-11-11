@@ -14,26 +14,68 @@ class ProfileScreen extends GetView<ProfileController> {
   Widget build(BuildContext context) {
     final auth = Get.find<AuthService>();
     return Scaffold(
-      appBar: AppBar(title: const Text('حسابي')),
+      appBar: AppBar(
+        centerTitle: true,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset('assets/images/logo.png', height: 26),
+            const SizedBox(width: 8),
+            const Text('حسابي'),
+          ],
+        ),
+      ),
       body: Obx(() {
         final u = auth.user.value;
         if (u == null) {
           return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.person_outline, size: 64, color: AppColors.muted),
-                const SizedBox(height: 12),
-                const Text('سجّل الدخول لإدارة حسابك وطلباتك'),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: 220,
-                  child: ElevatedButton(
-                    onPressed: () => Get.toNamed(AppRoutes.login),
-                    child: const Text('تسجيل الدخول'),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [AppColors.primary, AppColors.primaryDark],
+                        begin: Alignment.topRight,
+                        end: Alignment.bottomLeft,
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Image.asset('assets/images/logo.png', height: 64),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  const Text('يمن سيلو',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.primaryDark)),
+                  const SizedBox(height: 4),
+                  const Text('وسيطك الموثوق للتسوق العالمي',
+                      style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                  const SizedBox(height: 20),
+                  const Text('سجّل الدخول لإدارة حسابك وطلباتك',
+                      style: TextStyle(fontSize: 13.5)),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: 240,
+                    child: ElevatedButton(
+                      onPressed: () => Get.toNamed(AppRoutes.login),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: const Text('تسجيل الدخول',
+                          style: TextStyle(fontWeight: FontWeight.w800)),
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         }
@@ -109,34 +151,64 @@ class ProfileScreen extends GetView<ProfileController> {
     );
   }
 
-  Widget _identity(AppUser u) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: AppColors.primary.withOpacity(.12),
-                child: Text(
-                  (u.displayName.isEmpty ? '؟' : u.displayName.characters.first),
-                  style: const TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.primaryDark),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(u.displayName.isEmpty ? 'مستخدم جديد' : u.displayName,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                    Text(u.phone ?? u.email ?? '',
-                        style: const TextStyle(fontSize: 12, color: AppColors.muted)),
-                  ],
-                ),
-              ),
-            ],
+  Widget _identity(AppUser u) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [AppColors.primary, AppColors.primaryDark],
+            begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
           ),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withOpacity(.25),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 28,
+              backgroundColor: Colors.white.withOpacity(.2),
+              child: Text(
+                (u.displayName.isEmpty ? '؟' : u.displayName.characters.first),
+                style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(u.displayName.isEmpty ? 'مستخدم جديد' : u.displayName,
+                      style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white)),
+                  const SizedBox(height: 2),
+                  Text(u.phone ?? u.email ?? '',
+                      style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                  const SizedBox(height: 6),
+                  const Text('وسيطك الموثوق للتسوق العالمي',
+                      style: TextStyle(fontSize: 10.5, color: Colors.white60)),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(.16),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Image.asset('assets/images/logo.png', height: 30),
+            ),
+          ],
         ),
       );
 
@@ -156,7 +228,14 @@ class ProfileScreen extends GetView<ProfileController> {
       );
 
   Widget _tile(IconData icon, String label, VoidCallback onTap) => ListTile(
-        leading: Icon(icon, size: 20, color: AppColors.primary),
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withOpacity(.10),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 18, color: AppColors.primary),
+        ),
         title: Text(label, style: const TextStyle(fontSize: 14)),
         trailing: const Icon(Icons.arrow_back_ios_new, size: 14, color: AppColors.muted),
         onTap: onTap,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../core/models/order.dart';
+import '../../core/routes/app_routes.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -67,6 +68,13 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
     try {
       final auth = Get.find<AuthService>();
       final uid = auth.uid;
+      if (uid == null || uid.isEmpty) {
+        setState(() => _busy = false);
+        Get.snackbar('تسجيل الدخول مطلوب',
+            'لا يمكن حفظ العنوان قبل تسجيل الدخول');
+        Get.toNamed(AppRoutes.login);
+        return;
+      }
       final col = FirebaseFirestore.instance.collection('users').doc(uid).collection('addresses');
       final doc = _existing == null ? col.doc() : col.doc(_existing.id);
       final data = {
@@ -83,7 +91,8 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
       Get.back(result: Address.fromMap({'id': doc.id, ...data}));
       Get.snackbar('تم', 'تم حفظ العنوان');
     } catch (e) {
-      Get.snackbar('تعذر الحفظ', '$e');
+      Get.snackbar('تعذر الحفظ',
+          'تحقق من الاتصال وصلاحية الكتابة في قاعدة البيانات: $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }

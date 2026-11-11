@@ -167,6 +167,15 @@ class CheckoutController extends GetxController {
   }
 
   Future<void> editAddress() async {
+    // العنوان يُحفظ تحت حساب المستخدم: بلا دخول لا يوجد uid.
+    if (!_auth.isSignedIn) {
+      Get.snackbar(
+        'تسجيل الدخول مطلوب',
+        'سجّل الدخول أولاً لتتمكن من إضافة عنوان التوصيل',
+      );
+      Get.toNamed(AppRoutes.login);
+      return;
+    }
     final res = await Get.toNamed<Address>(AppRoutes.addressForm, arguments: address.value);
     if (res != null) {
       address.value = res;

@@ -13,7 +13,15 @@ class CheckoutScreen extends GetView<CheckoutController> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ملخص الطلب'),
+        centerTitle: true,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset('assets/images/logo.png', height: 26),
+            const SizedBox(width: 8),
+            const Text('ملخص الطلب'),
+          ],
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_forward_ios, size: 18),
           onPressed: Get.back,
@@ -26,6 +34,8 @@ class CheckoutScreen extends GetView<CheckoutController> {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            _brandStrip(),
+            const SizedBox(height: 12),
             _addressCard(context),
             const SizedBox(height: 12),
             _orderDetailsCard(context),
@@ -72,13 +82,65 @@ class CheckoutScreen extends GetView<CheckoutController> {
                     onPressed: controller.busy.value
                         ? null
                         : controller.continueToPayment,
-                    child: const Text('متابعة الدفع'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: const Text('متابعة الدفع',
+                        style: TextStyle(fontWeight: FontWeight.w800)),
                   ),
                 ),
               ],
             );
           }),
         ),
+      ),
+    );
+  }
+
+  /// شريط هوية يمن سيلو أعلى الملخص.
+  Widget _brandStrip() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.primary, AppColors.primaryDark],
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(.18),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Image.asset('assets/images/logo.png', height: 30),
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('يمن سيلو',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900)),
+                SizedBox(height: 2),
+                Text('وسيطك الموثوق للتسوق العالمي',
+                    style: TextStyle(color: Colors.white70, fontSize: 11.5)),
+              ],
+            ),
+          ),
+          const Icon(Icons.verified_user_outlined, color: Colors.white70, size: 18),
+        ],
       ),
     );
   }
