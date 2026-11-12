@@ -1,0 +1,39 @@
+name: Diagnose Firebase deploy
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Service account identity
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA_JSON" ]; then
+            echo "::error::السر FIREBASE_SERVICE_ACCOUNT غير موجود"
+            exit 1
+          fi
+          printf '%s' "$SA_JSON" > "$RUNNER_TEMP/sa.json"
+          python3 - "$RUNNER_TEMP/sa.json" <<'PY'
+          import json, sys
+          d = json.load(open(sys.argv[1]))
+          print("client_email =", d.get("client_email"))
+          print("project_id   =", d.get("project_id"))
+          print("type         =", d.get("type"))
+          PY
+      - name: Google Cloud checks
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: |
+          gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS" || true
+          echo "== الحساب الفعّال:"
+          gcloud auth list --format="value(account)" || true
+          echo "== حالة الفاتورة (billingEnabled):"
+          gcloud beta billing projects describe yemen-seloo-app --format="value(billingEnabled)" 2>&1 | head -3
+          echo "== حالة المشروع:"
+          gcloud projects describe yemen-seloo-app --format="value(lifecycleState)" 2>&1 | head -3
+          echo "== خدمات مفعّلة:"
+          gcloud services list --enabled --project yemen-seloo-app 2>&1 | head -8
