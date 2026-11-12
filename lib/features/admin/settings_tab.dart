@@ -24,6 +24,10 @@ class _SettingsTabState extends State<SettingsTab> {
   final _shipping = TextEditingController();
   final _delivery = TextEditingController();
   final _freeOver = TextEditingController();
+  final _serviceFee = TextEditingController();
+  final _perPiece = TextEditingController();
+  final _minDays = TextEditingController();
+  final _maxDays = TextEditingController();
   final _whatsapp = TextEditingController();
   final _phone = TextEditingController();
 
@@ -52,6 +56,10 @@ class _SettingsTabState extends State<SettingsTab> {
     _shipping.text = s.shippingFeeSar.toStringAsFixed(2);
     _delivery.text = s.deliveryFeeSar.toStringAsFixed(2);
     _freeOver.text = s.freeShippingThresholdSar.toStringAsFixed(0);
+    _serviceFee.text = s.serviceFeeSar.toStringAsFixed(2);
+    _perPiece.text = s.shippingPerPieceSar.toStringAsFixed(2);
+    _minDays.text = s.deliveryMinDays.toString();
+    _maxDays.text = s.deliveryMaxDays.toString();
     _whatsapp.text = s.supportWhatsApp;
     _phone.text = s.supportPhone;
     _loaded = true;
@@ -66,6 +74,10 @@ class _SettingsTabState extends State<SettingsTab> {
         shippingFeeSar: double.tryParse(_shipping.text) ?? 0,
         deliveryFeeSar: double.tryParse(_delivery.text) ?? 0,
         freeShippingThresholdSar: double.tryParse(_freeOver.text) ?? 300,
+        serviceFeeSar: double.tryParse(_serviceFee.text) ?? 1.22,
+        shippingPerPieceSar: double.tryParse(_perPiece.text) ?? 1,
+        deliveryMinDays: int.tryParse(_minDays.text) ?? 15,
+        deliveryMaxDays: int.tryParse(_maxDays.text) ?? 20,
         supportWhatsApp: _whatsapp.text.trim(),
         supportPhone: _phone.text.trim(),
         companyNameAr: 'يمن سيلو',
@@ -144,6 +156,61 @@ class _SettingsTabState extends State<SettingsTab> {
                     'التسعير الداخلي بالريال السعودي. تغيير السعر يؤثر على الطلبات الجديدة فقط؛ '
                     'كل طلب يحتفظ بـ exchangeRate الخاص به عند إنشائه.',
                     style: TextStyle(fontSize: 11, height: 1.6, color: AppColors.muted),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            SectionCard(
+              title: 'رسوم الخدمة و الشحن لكل قطعة',
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _serviceFee,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'رسوم الخدمة (ر.س)'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _perPiece,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'شحن القطعة (ر.س)'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'تُطبَّق رسوم الخدمة على كل طلب، والشحن لكل قطعة ما دام الطلب تحت حد الشحن المجاني.',
+                    style: TextStyle(fontSize: 11, height: 1.6, color: AppColors.muted),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            SectionCard(
+              title: 'مدة التوصيل المتوقعة (أيام)',
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _minDays,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'من (يوم)'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _maxDays,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'إلى (يوم)'),
+                    ),
                   ),
                 ],
               ),

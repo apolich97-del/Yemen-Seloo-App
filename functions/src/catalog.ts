@@ -27,6 +27,13 @@ export type Settings = {
   deliveryFeeSarLocal: number;
   freeShippingThresholdSar: number;
   maxManualPriceSar: number;
+  /** رسوم خدمة يمن سيلو الثابتة على كل طلب (بالريال السعودي). */
+  serviceFeeSar: number;
+  /** شحن لكل قطعة عند بقاء الطلب تحت حد الشحن المجاني. */
+  shippingPerPieceSar: number;
+  /** مدة التوصيل المتوقعة بالأيام — تُعدَّل من لوحة الإدارة. */
+  deliveryMinDays: number;
+  deliveryMaxDays: number;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -37,8 +44,12 @@ export const DEFAULT_SETTINGS: Settings = {
   deliveryFeeNorthLocal: 1500,
   deliveryFeeSouthLocal: 1000,
   deliveryFeeSarLocal: 0,
-  freeShippingThresholdSar: 300,
+  freeShippingThresholdSar: 75,
   maxManualPriceSar: DEFAULT_MAX_MANUAL_PRICE_SAR,
+  serviceFeeSar: 1.22,
+  shippingPerPieceSar: 1,
+  deliveryMinDays: 15,
+  deliveryMaxDays: 20,
 };
 
 export type Product = {
@@ -163,6 +174,13 @@ export async function loadSettings(db: Firestore): Promise<Settings> {
       data.maxManualPriceSar,
       DEFAULT_SETTINGS.maxManualPriceSar,
     ),
+    serviceFeeSar: num(data.serviceFeeSar, DEFAULT_SETTINGS.serviceFeeSar),
+    shippingPerPieceSar: num(
+      data.shippingPerPieceSar,
+      DEFAULT_SETTINGS.shippingPerPieceSar,
+    ),
+    deliveryMinDays: num(data.deliveryMinDays, DEFAULT_SETTINGS.deliveryMinDays),
+    deliveryMaxDays: num(data.deliveryMaxDays, DEFAULT_SETTINGS.deliveryMaxDays),
   };
 }
 
@@ -235,6 +253,7 @@ export type Totals = {
   subtotalSar: number;
   shippingFeeSar: number;
   deliveryFeeSar: number;
+  serviceFeeSar: number;
   discountSar: number;
   totalSar: number;
   totalLocal: number;
@@ -336,10 +355,13 @@ export function computeTotals(
     lines.reduce((sum, l) => sum + l.lineTotalSar, 0),
   );
 
+  const units = lines.reduce((sum, l) => sum + l.qty, 0);
+  // نفس معادلة السلة: شحن لكل قطعة حتى بلوغ حد الشحن المجاني.
   const shippingFeeSar =
     subtotalSar >= settings.freeShippingThresholdSar
       ? 0
-      : round2(settings.shippingFeeSar);
+      : round2(units * settings.shippingPerPieceSar);
+  const serviceFeeSar = round2(settings.serviceFeeSar);
   const rate = rateFor(currency, settings);
   // رسوم التوصيل اتفاقية بالعملة المحلية: 1500 شمال · 1000 جنوب · 0 سعودي.
   const deliveryLocal =
@@ -370,12 +392,16 @@ export function computeTotals(
   }
 
   const totalSar = round2(
-    Math.max(0, subtotalSar + shippingFeeSar + deliveryFeeSar - discountSar),
+    Math.max(
+      0,
+      subtotalSar + shippingFeeSar + serviceFeeSar + deliveryFeeSar - discountSar,
+    ),
   );
   const totalLocal = Math.max(
     0,
     roundMoney(
-      (subtotalSar + shippingFeeSar - discountSar) * rate + deliveryLocal,
+      (subtotalSar + shippingFeeSar + serviceFeeSar - discountSar) * rate +
+        deliveryLocal,
       currency,
     ),
   );
@@ -385,6 +411,7 @@ export function computeTotals(
     subtotalSar,
     shippingFeeSar,
     deliveryFeeSar,
+    serviceFeeSar,
     discountSar,
     totalSar,
     totalLocal,

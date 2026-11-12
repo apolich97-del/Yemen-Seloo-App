@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -12,6 +13,7 @@ import '../../shein/application/shein_cart_importer.dart';
 import '../../shein/data/shein_image_resolver.dart';
 import '../application/cart_counter.dart';
 import '../data/seloo_cart_link.dart';
+import '../../../core/services/catalog_service.dart';
 import '../domain/cart_item.dart';
 
 const Color _purple = Color(0xFF7C3AED);
@@ -204,6 +206,9 @@ class _CartScreenState extends State<CartScreen> {
 
       _shareCartController.clear();
       await _cart.refreshQuote();
+
+      // تسجيل منتجات شي إن في كتالوج السيرفر حتى يستطيع الدفع تسعيرها
+      unawaited(CatalogService().registerImported(_cart.items.toList()));
 
       _snack(result.message);
     } catch (_) {

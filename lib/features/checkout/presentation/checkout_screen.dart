@@ -278,6 +278,10 @@ class CheckoutScreen extends GetView<CheckoutController> {
               value: formatMoney(e.localOf(e.subtotalSar), c),
             ),
             MoneyRow(
+              label: 'رسوم الخدمة',
+              value: formatMoney(e.localOf(e.serviceFeeSar), c),
+            ),
+            MoneyRow(
               label: 'رسوم الشحن',
               value: e.shippingIsFree ? 'مجاني' : formatMoney(e.localOf(e.shippingFeeSar), c),
               free: e.shippingIsFree,

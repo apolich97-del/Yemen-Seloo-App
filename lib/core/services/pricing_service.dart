@@ -6,6 +6,7 @@ import '../models/currency.dart';
 class PriceEstimate {
   final double subtotalSar;
   final double shippingFeeSar;
+  final double serviceFeeSar;
   final double deliveryFeeSar;
 
   /// التوصيل بعملة العرض كما اتُّفق (1500 شمال · 1000 جنوب).
@@ -21,6 +22,7 @@ class PriceEstimate {
   const PriceEstimate({
     required this.subtotalSar,
     required this.shippingFeeSar,
+    required this.serviceFeeSar,
     required this.deliveryFeeSar,
     required this.deliveryLocal,
     required this.discountSar,
@@ -48,7 +50,12 @@ class PricingService {
     Coupon? coupon,
   }) {
     final subtotal = lines.fold<double>(0, (s, l) => s + l.lineTotalSar);
-    final shipping = subtotal >= settings.freeShippingThresholdSar ? 0.0 : settings.shippingFeeSar;
+    final units = lines.fold<int>(0, (s, l) => s + l.qty);
+    // شحن لكل قطعة حتى بلوغ حد الشحن المجاني — نفس معادلة السلة والسيرفر.
+    final shipping = subtotal >= settings.freeShippingThresholdSar
+        ? 0.0
+        : roundMoney(units * settings.shippingPerPieceSar, AppCurrency.sar);
+    final serviceFee = roundMoney(settings.serviceFeeSar, AppCurrency.sar);
 
     // التوصيل يُحدَّد بالعملة المحلية (1500 شمال / 1000 جنوب) ويُحوَّل
     // للريال السعودي لحساب الإجمالي، فلا يتغيّر الرقم المعروض بكسر.
@@ -74,16 +81,18 @@ class PricingService {
       if (discount > subtotal) discount = subtotal;
     }
 
-    final totalSar = roundMoney(subtotal + shipping + delivery - discount, AppCurrency.sar);
+    final totalSar =
+        roundMoney(subtotal + shipping + serviceFee + delivery - discount, AppCurrency.sar);
     final rate = rate0;
     final totalLocal = roundMoney(
-      (subtotal + shipping - discount) * rate + deliveryLocal,
+      (subtotal + shipping + serviceFee - discount) * rate + deliveryLocal,
       currency,
     );
 
     return PriceEstimate(
       subtotalSar: subtotal,
       shippingFeeSar: shipping,
+      serviceFeeSar: serviceFee,
       deliveryFeeSar: delivery,
       deliveryLocal: deliveryLocal,
       discountSar: roundMoney(discount, AppCurrency.sar),

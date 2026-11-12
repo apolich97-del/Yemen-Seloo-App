@@ -21,6 +21,16 @@ class AppSettings {
   final String companyNameAr;
   final bool codEnabled;
 
+  /// رسوم الخدمة الثابتة على كل طلب (ريال سعودي).
+  final double serviceFeeSar;
+
+  /// شحن لكل قطعة تحت حد الشحن المجاني.
+  final double shippingPerPieceSar;
+
+  /// مدة التوصيل المتوقعة بالأيام — تُعدَّل من لوحة الإدارة.
+  final int deliveryMinDays;
+  final int deliveryMaxDays;
+
   const AppSettings({
     this.rateNorth = 140,
     this.rateSouth = 413,
@@ -29,11 +39,15 @@ class AppSettings {
     this.deliveryFeeNorthLocal = 1500,
     this.deliveryFeeSouthLocal = 1000,
     this.deliveryFeeSarLocal = 0,
-    this.freeShippingThresholdSar = 300,
+    this.freeShippingThresholdSar = 75,
     this.supportWhatsApp = '',
     this.supportPhone = '',
     this.companyNameAr = 'يمن سيلو',
     this.codEnabled = false,
+    this.serviceFeeSar = 1.22,
+    this.shippingPerPieceSar = 1,
+    this.deliveryMinDays = 15,
+    this.deliveryMaxDays = 20,
   });
 
   /// رسوم التوصيل بعملة العرض المختارة.
@@ -90,11 +104,15 @@ class AppSettings {
       deliveryFeeNorthLocal: d(m['deliveryFeeNorthLocal'], 1500),
       deliveryFeeSouthLocal: d(m['deliveryFeeSouthLocal'], 1000),
       deliveryFeeSarLocal: d(m['deliveryFeeSarLocal'], 0),
-      freeShippingThresholdSar: d(m['freeShippingThresholdSar'], 300),
+      freeShippingThresholdSar: d(m['freeShippingThresholdSar'], 75),
       supportWhatsApp: (m['supportWhatsApp'] ?? '') as String,
       supportPhone: (m['supportPhone'] ?? '') as String,
       companyNameAr: (m['companyNameAr'] ?? 'يمن سيلو') as String,
       codEnabled: (m['codEnabled'] ?? false) as bool,
+      serviceFeeSar: d(m['serviceFeeSar'], 1.22),
+      shippingPerPieceSar: d(m['shippingPerPieceSar'], 1),
+      deliveryMinDays: (m['deliveryMinDays'] as num?)?.toInt() ?? 15,
+      deliveryMaxDays: (m['deliveryMaxDays'] as num?)?.toInt() ?? 20,
     );
   }
 
@@ -111,6 +129,10 @@ class AppSettings {
         'supportPhone': supportPhone,
         'companyNameAr': companyNameAr,
         'codEnabled': codEnabled,
+        'serviceFeeSar': serviceFeeSar,
+        'shippingPerPieceSar': shippingPerPieceSar,
+        'deliveryMinDays': deliveryMinDays,
+        'deliveryMaxDays': deliveryMaxDays,
       };
 }
 

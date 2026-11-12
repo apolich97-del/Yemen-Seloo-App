@@ -564,3 +564,60 @@ export {
   updateOrderDraft,
   approveOrderDraft,
 } from "./orders";
+
+
+/* ═══════════ كتالوج: تسجيل منتجات شي إن المستوردة ═══════════ */
+/**
+ * يسجّل منتجات الاستيراد في products/{goodsId}.
+ * السعر يأتي من الصفحة كما رآه العميل، ويُقيَّد بسقف السعر اليدوي
+ * حتى لا يُستخدم لتضخيم الطلبات.
+ */
+export const registerImportedProducts = onCall(baseOpts, async (request) => {
+  const uid = requireUid(request);
+
+  const raw = (request.data as Record<string, unknown> | undefined)?.items;
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new HttpsError("invalid-argument", "لا توجد منتجات للتسجيل");
+  }
+  if (raw.length > 60) {
+    throw new HttpsError("invalid-argument", "الحد الأعلى 60 منتجاً في الدفعة");
+  }
+
+  const maxPrice = await loadMaxManualPriceSar();
+  const batch = db().batch();
+  let registered = 0;
+  let skipped = 0;
+
+  for (const entry of raw) {
+    const item = (entry ?? {}) as Record<string, unknown>;
+    const goodsId = String(item.goodsId ?? "").trim();
+    const price = Number(item.priceSar);
+    if (!goodsId || goodsId.length > 64) {
+      skipped++;
+      continue;
+    }
+    if (!Number.isFinite(price) || price <= 0 || price > maxPrice) {
+      skipped++;
+      continue;
+    }
+    batch.set(
+      db().collection(PRODUCTS).doc(goodsId),
+      {
+        titleAr: String(item.titleAr ?? "").slice(0, 200),
+        priceSar: Math.round(price * 100) / 100,
+        imageUrl: String(item.imageUrl ?? "").slice(0, 2048),
+        productUrl: String(item.productUrl ?? "").slice(0, 2048),
+        source: "shein-import",
+        active: true,
+        registeredBy: uid,
+        registeredAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    registered++;
+  }
+
+  if (registered > 0) await batch.commit();
+  return { registered, skipped };
+});

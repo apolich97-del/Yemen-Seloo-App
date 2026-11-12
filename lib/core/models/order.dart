@@ -340,17 +340,27 @@ class Order {
     this.approvedAt,
     this.editingLocked = false,
     this.approvedByName = '',
+    this.deliveryMinDays = 15,
+    this.deliveryMaxDays = 20,
+    this.serviceFeeSar = 0,
   });
+
+  final int deliveryMinDays;
+  final int deliveryMaxDays;
+  final double serviceFeeSar;
 
   int get totalPieces => items.fold(0, (s, i) => s + i.qty);
   List<String> get thumbnails => items.map((i) => i.imageUrl).where((e) => e.isNotEmpty).toList();
 
-  /// تقدير نصي لوقت التوصيل (3–7 أيام عمل عبر الشحن الدولي).
+  /// مدة التوصيل المتوقعة — 15 إلى 20 يوماً افتراضياً،
+  /// وتُقرأ من الطلب نفسه إذا خزّنها السيرفر (قابلة للتعديل من اللوحة).
   String get expectedDeliveryAr {
-    final from = createdAt.add(const Duration(days: 4));
-    final to = createdAt.add(const Duration(days: 9));
+    final int minDays = deliveryMinDays > 0 ? deliveryMinDays : 15;
+    final int maxDays = deliveryMaxDays >= minDays ? deliveryMaxDays : minDays;
+    final from = createdAt.add(Duration(days: minDays));
+    final to = createdAt.add(Duration(days: maxDays));
     String d(DateTime x) => '${x.day}/${x.month}';
-    return 'متوقع بين ${d(from)} و ${d(to)}';
+    return 'من $minDays إلى $maxDays يوماً (${d(from)} – ${d(to)})';
   }
 
   bool stageReached(TimelineStage stage) {
@@ -401,8 +411,11 @@ class Order {
       currency: AppCurrencyX.fromKey(m['currency'] as String?),
       exchangeRate: (m['exchangeRate'] as num?)?.toDouble() ?? 1,
       items: items,
+      deliveryMinDays: (m['deliveryMinDays'] as num?)?.toInt() ?? 15,
+      deliveryMaxDays: (m['deliveryMaxDays'] as num?)?.toInt() ?? 20,
       subtotalSar: (m['subtotalSar'] as num?)?.toDouble() ?? 0,
       shippingFeeSar: (m['shippingFeeSar'] as num?)?.toDouble() ?? 0,
+      serviceFeeSar: (m['serviceFeeSar'] as num?)?.toDouble() ?? 0,
       deliveryFeeSar: (m['deliveryFeeSar'] as num?)?.toDouble() ?? 0,
       commissionSar: ((m['commission'] as Map?)?['totalSar'] as num?)?.toDouble() ?? 0,
       commissionLocal: ((m['commission'] as Map?)?['totalLocal'] as num?)?.toDouble() ?? 0,

@@ -73,8 +73,13 @@ class CheckoutController extends GetxController {
 
   String get expectedDeliveryAr {
     final now = DateTime.now();
+    final AppSettings st = _settings.settings.value;
+    final int minDays = st.deliveryMinDays > 0 ? st.deliveryMinDays : 15;
+    final int maxDays = st.deliveryMaxDays >= minDays ? st.deliveryMaxDays : minDays;
     String d(DateTime x) => '${x.day}/${x.month}';
-    return 'متوقع بين ${d(now.add(const Duration(days: 4)))} و ${d(now.add(const Duration(days: 9)))}';
+    final DateTime from = now.add(Duration(days: minDays));
+    final DateTime to = now.add(Duration(days: maxDays));
+    return 'من $minDays إلى $maxDays يوماً (${d(from)} – ${d(to)})';
   }
 
   void setCurrency(AppCurrency c) {
