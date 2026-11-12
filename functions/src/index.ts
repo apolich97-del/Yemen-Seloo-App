@@ -584,7 +584,7 @@ export const registerImportedProducts = onCall(baseOpts, async (request) => {
   }
 
   const maxPrice = await loadMaxManualPriceSar();
-  const batch = db().batch();
+  const batch = db.batch();
   let registered = 0;
   let skipped = 0;
 
@@ -601,7 +601,7 @@ export const registerImportedProducts = onCall(baseOpts, async (request) => {
       continue;
     }
     batch.set(
-      db().collection(PRODUCTS).doc(goodsId),
+      db.collection(PRODUCTS).doc(goodsId),
       {
         titleAr: String(item.titleAr ?? "").slice(0, 200),
         priceSar: Math.round(price * 100) / 100,
