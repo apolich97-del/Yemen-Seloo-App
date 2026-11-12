@@ -1,0 +1,30 @@
+name: Fix functions build
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Correct db() calls
+        run: |
+          sed -i 's/db()\./db./g' functions/src/index.ts
+          if grep -q 'db()' functions/src/index.ts; then
+            echo "::error::بقي استدعاء db() غير مصحح"
+            exit 1
+          fi
+          echo "تم تصحيح الاستدعاءين"
+      - name: Verify TypeScript build
+        working-directory: functions
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+      - name: Commit and push
+        run: |
+          git config user.name "seloo-bot"
+          git config user.email "[bot@seloo.app](mailto:bot@seloo.app)"
+          git add functions/src/index.ts
+          git commit -m "Fix db() calls in registerImportedProducts (TS2349)" || echo "لا تغييرات"
+          git push
