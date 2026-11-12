@@ -1,0 +1,62 @@
+name: Fix region and print SHA fingerprints
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set europe-west1 in catalog service
+        run: |
+          python3 - <<'PY'
+          p = "lib/core/services/catalog_service.dart"
+          s = open(p).read()
+          old = "FirebaseFunctions.instance;"
+          new = "FirebaseFunctions.instanceFor(region: 'europe-west1');"
+          if new in s:
+              print("مصحح مسبقاً")
+          else:
+              assert old in s, "لم أجد السطر المتوقع"
+              open(p, "w").write(s.replace(old, new, 1))
+              print("تم التصحيح")
+          PY
+
+      - name: Commit fix
+        run: |
+          git config user.name "seloo-bot"
+          git config user.email "seloo-bot@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "لا تغييرات"
+          else
+            git commit -m "Fix catalog service region to europe-west1"
+            git push
+          fi
+
+      - name: Print signing fingerprints
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASS: 'Seloo@2026!Key'
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::السر KEYSTORE_BASE64 غير موجود، لا يمكن قراءة البصمة"
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/ks.p12"
+          OUT=$(keytool -list -v -keystore "$RUNNER_TEMP/ks.p12" \
+            -storepass "$STORE_PASS" -alias yemen-seloo 2>&1) || OUT=$(keytool -list -v -keystore "$RUNNER_TEMP/ks.p12" -storepass "$STORE_PASS" 2>&1)
+          SHA1=$(printf '%s' "$OUT" | grep -i "SHA1:" | head -1 | sed 's/.*SHA1: *//')
+          SHA256=$(printf '%s' "$OUT" | grep -i "SHA256:" | head -1 | sed 's/.*SHA256: *//')
+          echo "SHA1 = $SHA1"
+          echo "SHA256 = $SHA256"
+          {
+            echo "## بصمات مفتاح التوقيع"
+            echo ""
+            echo "- **SHA-1:** \`$SHA1\`"
+            echo "- **SHA-256:** \`$SHA256\`"
+            echo ""
+            echo "أضف هاتين البصمتين في Firebase ← Project settings ← تطبيق أندرويد ← Add fingerprint"
+          } >> "$GITHUB_STEP_SUMMARY"
