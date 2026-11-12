@@ -1,9 +1,6 @@
 name: Deploy Cloud Functions
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'functions/**'
 permissions:
   contents: read
 jobs:
@@ -14,20 +11,23 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Install functions deps
+      - name: Install and build functions
         working-directory: functions
-        run: npm install --no-audit --no-fund
-      - name: Build functions
-        working-directory: functions
-        run: npm run build
-      - name: Deploy to Firebase
-        working-directory: functions
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         run: |
-          if [ -z "$FIREBASE_TOKEN" ]; then
-            echo "::error::سر FIREBASE_TOKEN غير مضاف في Settings ← Secrets"
+          npm install --no-audit --no-fund
+          npm run build
+      - name: Write service account
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA_JSON" ]; then
+            echo "::error::سر FIREBASE_SERVICE_ACCOUNT غير مضاف"
             exit 1
           fi
+          printf '%s' "$SA_JSON" > "$RUNNER_TEMP/sa.json"
+      - name: Deploy to Firebase
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: |
           npm install -g firebase-tools@13
           firebase deploy --only functions --project yemen-seloo-app --non-interactive
