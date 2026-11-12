@@ -6,7 +6,7 @@ import '../../features/cart/domain/cart_item.dart';
 /// تسجيل المنتجات المستوردة في كتالوج السيرفر `products/{goodsId}`.
 /// بدونه يرفض السيرفر تسعير الطلب («منتج غير مسجّل»).
 class CatalogService {
-  final FirebaseFunctions _fn = FirebaseFunctions.instance;
+  final FirebaseFunctions _fn = FirebaseFunctions.instanceFor(region: 'europe-west1');
 
   Future<int> registerImported(List<CartItem> lines) async {
     if (lines.isEmpty) return 0;
