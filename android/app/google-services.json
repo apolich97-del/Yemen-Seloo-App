@@ -12,7 +12,20 @@
           "package_name": "com.yemenseloo.yemen_seloo"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "580529134357-4r26jfasunkqqdhnaqoenclaavd2hn3t.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.yemenseloo.yemen_seloo",
+            "certificate_hash": "95f73d1b852e2360d9248737dd82a564569bcc8a"
+          }
+        },
+        {
+          "client_id": "580529134357-3ns98ki8rqvlnmkorf0k6j7i0g7vagt9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyA2aX5gDos7IBU3lkFM_i2nIpuAzMIsZgE"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "580529134357-3ns98ki8rqvlnmkorf0k6j7i0g7vagt9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
