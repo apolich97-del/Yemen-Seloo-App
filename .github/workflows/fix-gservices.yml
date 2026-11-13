@@ -1,0 +1,46 @@
+name: Move google-services.json to android/app
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  move:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy correct file into android/app and remove duplicate
+        run: |
+          set -e
+          SRC="android/google-services.json"
+          DST="android/app/google-services.json"
+          test -f "$SRC" || { echo "::error::الملف $SRC غير موجود"; exit 1; }
+          cp "$SRC" "$DST"
+          git rm -q "$SRC" || true
+
+      - name: Verify oauth_client inside android/app
+        run: |
+          python3 - <<'PY'
+          import json
+          d = json.load(open("android/app/google-services.json"))
+          c = d["client"][0]
+          oc = c.get("oauth_client", [])
+          hashes = [(o.get("android_info") or {}).get("certificate_hash", "") for o in oc]
+          print("oauth_client =", len(oc))
+          print("hashes =", hashes)
+          assert len(oc) >= 1, "لا يوجد oauth_client بعد النسخ"
+          assert any(h.startswith("95f73d1b") for h in hashes), "البصمة لا تطابق مفتاح التوقيع"
+          print("✓ الملف صحيح ومطابق للبصمة")
+          PY
+
+      - name: Commit
+        run: |
+          git config user.name "seloo-bot"
+          git config user.email "seloo-bot@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "لا تغييرات"
+          else
+            git commit -m "Use correct google-services.json path with OAuth clients"
+            git push
+          fi
