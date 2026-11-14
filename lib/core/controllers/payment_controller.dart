@@ -54,7 +54,8 @@ class PaymentController extends GetxController {
     super.onInit();
     payload = Get.arguments as CheckoutPayload;
     accounts.assignAll(accountsForCurrency(payload.currency));
-    amountCtrl.text = payload.estimate.totalLocal.toStringAsFixed(payload.currency.decimals == 0 ? 0 : 2);
+    amountCtrl.text = payload.estimate.totalLocal
+        .toStringAsFixed(payload.currency.decimals == 0 ? 0 : 2);
     if (accounts.length == 1) selected.value = accounts.first;
   }
 
@@ -73,14 +74,17 @@ class PaymentController extends GetxController {
 
   void select(PaymentAccount a) => selected.value = a;
 
+  String _proofUrl = '';
+
   Future<void> pickProof() async {
     try {
-      final x = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 70);
+      final x = await ImagePicker()
+          .pickImage(source: ImageSource.gallery, imageQuality: 70);
       if (x == null) return;
       uploading.value = true;
       final uid = _auth.uid ?? 'anon';
-      final ref = FirebaseStorage.instance
-          .ref('proofs/$uid/${DateTime.now().millisecondsSinceEpoch}_${x.name}');
+      final ref = FirebaseStorage.instance.ref(
+          'proofs/$uid/${DateTime.now().millisecondsSinceEpoch}_${x.name}');
       await ref.putFile(File(x.path));
       _proofUrl = await ref.getDownloadURL();
       Get.snackbar('تم', 'تم إرفاق صورة الحوالة');
@@ -90,8 +94,6 @@ class PaymentController extends GetxController {
       uploading.value = false;
     }
   }
-
-  String _proofUrl = '';
 
   /// تُفتح عند الضغط على «إدخال بيانات الحوالة».
   void saveTransfer() {
@@ -120,6 +122,7 @@ class PaymentController extends GetxController {
     if (t == null || acc == null) return;
     busy.value = true;
     try {
+      final cc = _cartCounter;
       final orderNo = await _orders.submitOrder(
         lines: payload.lines,
         currency: currency,
@@ -139,8 +142,8 @@ class PaymentController extends GetxController {
         },
         // عمولة المندوب: بند داخلي لا يُضاف إلى إجمالي العميل.
         commission: <String, dynamic>{
-          'perPieceSar': _[cartCounter.com](https://cartCounter.com)missionPerPiece.value,
-          'approved': _[cartCounter.com](https://cartCounter.com)missionApproved.value,
+          'perPieceSar': [cc.com](https://cc.com)missionPerPiece.value,
+          'approved': [cc.com](https://cc.com)missionApproved.value,
         },
       );
       _cart.clear();
