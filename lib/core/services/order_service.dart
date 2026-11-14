@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 
+import '../models/app_settings.dart';
 import '../models/cart.dart';
 import '../models/currency.dart';
 import '../models/order.dart';
@@ -77,18 +78,22 @@ class OrderService extends GetxService {
       'address': address.toMap(),
       'status': st,
       'payment': payment,
-      'commission': commission == null ? null : {
-            'perPieceSar': perPiece,
-            'approved': commission['approved'] ?? false,
-            'totalSar': perPiece * pieces,
-            'totalLocal': perPiece * pieces * e.rate,
-          },
-      'timeline': [{
-        'status': st,
-        'at': Timestamp.now(),
-        'byName': 'العميل',
-        'note': payment != null ? 'تم رفع بيانات الحوالة' : 'تم إنشاء الطلب',
-      }],
+      'commission': commission == null
+          ? null
+          : {
+              'perPieceSar': perPiece,
+              'approved': commission['approved'] ?? false,
+              'totalSar': perPiece * pieces,
+              'totalLocal': perPiece * pieces * e.rate,
+            },
+      'timeline': [
+        {
+          'status': st,
+          'at': Timestamp.now(),
+          'byName': 'العميل',
+          'note': payment != null ? 'تم رفع بيانات الحوالة' : 'تم إنشاء الطلب',
+        }
+      ],
       'revision': 1,
       'editingLocked': payment != null,
       'createdAt': FieldValue.serverTimestamp(),
@@ -96,6 +101,7 @@ class OrderService extends GetxService {
     });
     return ref.id;
   }
+
   Future<void> attachPayment({
     required String orderId,
     required Map<String, dynamic> payment,
