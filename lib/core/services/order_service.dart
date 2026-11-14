@@ -181,11 +181,13 @@ class OrderService extends GetxService {
   Stream<List<Order>> myOrders({OrderStatus? status}) {
     Query q = _db.collection('orders').where('userId', isEqualTo: _uid);
     if (status != null) q = q.where('status', isEqualTo: status.key);
-    return q.orderBy('createdAt', descending: true).limit(100).snapshots().map(
-          (s) => s.docs
-              .map((d) => Order.fromDoc(d.id, d.data() as Map<String, dynamic>))
-              .toList(),
-        );
+    return q.limit(100).snapshots().map((snap) {
+      final list = snap.docs
+          .map((d) => Order.fromDoc(d.id, d.data() as Map<String, dynamic>))
+          .toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
   }
 
   Stream<Order?> watchOrder(String id) =>

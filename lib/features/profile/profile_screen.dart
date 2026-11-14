@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../core/controllers/profile_controller.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/services/auth_service.dart';
+import 'address_form_screen.dart';
 import '../../core/theme/app_theme.dart';
 
 /// المرحلة 4 — «حسابي»
@@ -244,7 +245,10 @@ class ProfileScreen extends GetView<ProfileController> {
   Widget _addresses() => SectionCard(
         title: 'عنواني',
         trailing: TextButton.icon(
-          onPressed: controller.addAddress,
+          onPressed: () async {
+            final r = await Get.to(() => const AddressFormScreen());
+            if (r != null) await controller.loadAddresses();
+          },
           icon: const Icon(Icons.add, size: 16),
           label: const Text('إضافة'),
         ),
