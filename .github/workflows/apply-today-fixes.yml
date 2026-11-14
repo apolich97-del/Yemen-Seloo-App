@@ -11,21 +11,28 @@ jobs:
       - name: Patch Firebase client id, addresses and orders
         run: |
           python3 << 'PYEOF'
+          import json
           import re
           from pathlib import Path
 
-          CLIENT_ID = '[580529134357-3ns98ki8rqvlnmkorf0k6j7i0g7vagt9.apps.googleusercontent.com](https://580529134357-3ns98ki8rqvlnmkorf0k6j7i0g7vagt9.apps.googleusercontent.com)'
+          # 1) استخراج معرّف عميل الويب من ملف إعدادات فايربيس داخل المستودع
+          gs = json.loads(Path('android/app/google-services.json').read_text())
+          web_id = ''
+          for c in gs.get('client', []):
+              for oc in c.get('oauth_client', []):
+                  if oc.get('client_type') == 3:
+                      web_id = oc.get('client_id', '')
+          assert web_id, 'لا يوجد Web client id في google-services.json'
 
-          # 1) تعبئة default_web_client_id داخل values.xml في وركفلو البناء
+          # 2) تعبئة default_web_client_id داخل values.xml في وركفلو البناء
           wf = Path('.github/workflows/build-apk.yml')
           w = wf.read_text()
-          pat = [re.com](https://re.com)pile('<string name="default_web_client_id"[^>]*>[^<]*</string>')
-          new = '<string name="default_web_client_id" translatable="false">' + CLIENT_ID + '</string>'
-          w2, n = pat.subn(new, w, count=1)
-          assert n == 1, 'لم أجد سطر default_web_client_id'
+          new = '<string name="default_web_client_id" translatable="false">' + web_id + '</string>'
+          w2 = re.sub('<string name="default_web_client_id"[^>]*>[^<]*</string>', new, w, count=1)
+          assert w2 != w, 'لم أجد سطر default_web_client_id'
           wf.write_text(w2)
 
-          # 2) شاشة الحساب: فتح نموذج العنوان مباشرة بدل المسار المسمّى
+          # 3) شاشة الحساب: فتح نموذج العنوان مباشرة بدل المسار المسمّى
           p = Path('lib/features/profile/profile_screen.dart')
           s = p.read_text()
           if 'address_form_screen.dart' not in s:
@@ -42,13 +49,10 @@ jobs:
               s = s.replace('onPressed: controller.addAddress,', handler, 1)
           p.write_text(s)
 
-          # 3) خدمة الطلبات: إزالة orderBy الذي يحتاج فهرساً مركّباً
+          # 4) خدمة الطلبات: إزالة orderBy الذي يحتاج فهرساً مركّباً
           o = Path('lib/core/services/order_service.dart')
           t = o.read_text()
           if "orderBy('createdAt', descending: true).limit(100)" in t:
-              pat2 = [re.com](https://re.com)pile(
-                  r"return q\.orderBy\('createdAt', descending: true\)\.limit\(100\)\.snapshots\(\)\.map\(.*?\n\s*\);",
-                  re.S)
               new2 = (
                   "return q.limit(100).snapshots().map((snap) {" + chr(10) +
                   "      final list = snap.docs" + chr(10) +
@@ -58,12 +62,15 @@ jobs:
                   "          .compareTo(a.createdAt));" + chr(10) +
                   "      return list;" + chr(10) +
                   "    });")
-              t, n2 = pat2.subn(new2, t, count=1)
-              assert n2 == 1, 'لم أجد نمط myOrders'
-              o.write_text(t)
-          print('OK: patched build-apk.yml + profile_screen.dart + order_service.dart')
+              t2 = re.sub(
+                  r"return q\.orderBy\('createdAt', descending: true\)\.limit\(100\)\.snapshots\(\)\.map\(.*?\n\s*\);",
+                  new2, t, count=1, flags=re.S)
+              assert t2 != t, 'لم أجد نمط myOrders'
+              o.write_text(t2)
+
+          print('OK: web client id =', web_id)
           PYEOF
-          BOT_EMAIL=$(printf '%s@%s' seloo-bot [users.noreply.github.com](https://users.noreply.github.com))
+          BOT_EMAIL=$(printf '%s@%s' seloo-bot localhost)
           git config user.name seloo-bot
           git config user.email "$BOT_EMAIL"
           git add -A
