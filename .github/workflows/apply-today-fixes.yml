@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+  workflows: write
 jobs:
   fix:
     runs-on: ubuntu-latest
@@ -15,7 +16,6 @@ jobs:
           import re
           from pathlib import Path
 
-          # 1) استخراج معرّف عميل الويب من ملف إعدادات فايربيس داخل المستودع
           gs = json.loads(Path('android/app/google-services.json').read_text())
           web_id = ''
           for c in gs.get('client', []):
@@ -24,15 +24,14 @@ jobs:
                       web_id = oc.get('client_id', '')
           assert web_id, 'لا يوجد Web client id في google-services.json'
 
-          # 2) تعبئة default_web_client_id داخل values.xml في وركفلو البناء
           wf = Path('.github/workflows/build-apk.yml')
           w = wf.read_text()
           new = '<string name="default_web_client_id" translatable="false">' + web_id + '</string>'
-          w2 = re.sub('<string name="default_web_client_id"[^>]*>[^<]*</string>', new, w, count=1)
-          assert w2 != w, 'لم أجد سطر default_web_client_id'
-          wf.write_text(w2)
+          if 'name="default_web_client_id" translatable="false"></string>' in w:
+              w2 = re.sub('<string name="default_web_client_id"[^>]*>[^<]*</string>', new, w, count=1)
+              assert w2 != w, 'تعذر تعديل سطر default_web_client_id'
+              wf.write_text(w2)
 
-          # 3) شاشة الحساب: فتح نموذج العنوان مباشرة بدل المسار المسمّى
           p = Path('lib/features/profile/profile_screen.dart')
           s = p.read_text()
           if 'address_form_screen.dart' not in s:
@@ -49,7 +48,6 @@ jobs:
               s = s.replace('onPressed: controller.addAddress,', handler, 1)
           p.write_text(s)
 
-          # 4) خدمة الطلبات: إزالة orderBy الذي يحتاج فهرساً مركّباً
           o = Path('lib/core/services/order_service.dart')
           t = o.read_text()
           if "orderBy('createdAt', descending: true).limit(100)" in t:
