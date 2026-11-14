@@ -125,6 +125,7 @@ class PaymentController extends GetxController {
         currency: currency,
         address: payload.address,
         couponCode: payload.estimate.couponCode,
+        estimate: payload.estimate,
         payment: {
           'accountId': acc.id,
           'accountTitleAr': acc.titleAr,
@@ -138,8 +139,8 @@ class PaymentController extends GetxController {
         },
         // عمولة المندوب: بند داخلي لا يُضاف إلى إجمالي العميل.
         commission: <String, dynamic>{
-          'perPieceSar': _cartCounter.commissionPerPiece.value,
-          'approved': _cartCounter.commissionApproved.value,
+          'perPieceSar': _[cartCounter.com](https://cartCounter.com)missionPerPiece.value,
+          'approved': _[cartCounter.com](https://cartCounter.com)missionApproved.value,
         },
       );
       _cart.clear();
