@@ -142,8 +142,12 @@ class PaymentController extends GetxController {
         },
         // عمولة المندوب: بند داخلي لا يُضاف إلى إجمالي العميل.
         commission: <String, dynamic>{
-          'perPieceSar': [cc.com](https://cc.com)missionPerPiece.value,
-          'approved': [cc.com](https://cc.com)missionApproved.value,
+          'perPieceSar': cc
+              .commissionPerPiece
+              .value,
+          'approved': cc
+              .commissionApproved
+              .value,
         },
       );
       _cart.clear();
