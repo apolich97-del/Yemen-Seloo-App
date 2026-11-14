@@ -1,0 +1,40 @@
+name: Apply address fix
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          cat > /tmp/p.py <<'PYEOF'
+          from pathlib import Path
+          p = Path('lib/features/profile/profile_screen.dart'); s = p.read_text()
+          s = s.replace("import '../../core/services/auth_service.dart';",
+            "import '../../core/services/auth_service.dart';\nimport 'address_form_screen.dart';", 1)
+          s = s.replace("onPressed: controller.addAddress,",
+            "onPressed: () async {\n            final r = await Get.to(() => const AddressFormScreen());\n            if (r != null) await controller.loadAddresses();\n          },", 1)
+          p.write_text(s)
+          o = Path('lib/core/services/order_service.dart'); t = o.read_text()
+          old = """    return q.orderBy('createdAt', descending: true).limit(100).snapshots().map(
+                (s) => s.docs
+                    .map((d) => Order.fromDoc(d.id, d.data() as Map<String, dynamic>))
+                    .toList(),
+              );"""
+          new = """    return q.limit(100).snapshots().map((snap) {
+            final list = snap.docs
+                .map((d) => Order.fromDoc(d.id, d.data() as Map<String, dynamic>))
+                .toList();
+            list.sort((a, b) => [b.createdAt.com](https://b.createdAt.com)pareTo(a.createdAt));
+            return list;
+          });"""
+          assert old in t, 'لم أجد نمط myOrders'
+          o.write_text(t.replace(old, new, 1))
+          print('OK')
+          PYEOF
+          python3 /tmp/p.py
+          git config user.name seloo-bot
+          git config user.email [seloo-bot@users.noreply.github.com](mailto:seloo-bot@users.noreply.github.com)
+          git add -A && git commit -m "Fix address navigation and orders index" && git push
