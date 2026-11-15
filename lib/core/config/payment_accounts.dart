@@ -146,9 +146,9 @@ const List<PaymentAccount> kPaymentAccounts = [
     bankAr: 'محفظة شلن',
     titleAr: 'شلن — يمني',
     numbers: ['600589797', '775801198'],
-    currencies: {AppCurrency.north, AppCurrency.south},
+    currencies: {AppCurrency.south},
     brandColor: _shilling,
-    regionAr: 'شمال وجنوب',
+    regionAr: 'جنوب',
     brandShortAr: 'شلن',
     logoAsset: 'assets/images/payments/shilling.png',
   ),
@@ -182,6 +182,6 @@ PaymentAccount? accountById(String? id) {
 /// للتحقق على السيرفر (functions/index.js يملك نفس القائمة).
 const Map<String, List<String>> kAllowedAccountIdsByCurrency = {
   'sar': ['kuraimi_sar_old', 'kuraimi_sar_south', 'kuraimi_usd_old', 'kuraimi_usd_new', 'qatibi'],
-  'north': ['kuraimi_yer_old', 'kuraimi_sar_old', 'kuraimi_usd_old', 'shilling', 'jaib'],
+  'north': ['kuraimi_yer_old', 'kuraimi_sar_old', 'kuraimi_usd_old', 'jaib'],
   'south': ['kuraimi_yer_new', 'kuraimi_sar_south', 'kuraimi_usd_new', 'qatibi', 'shilling'],
 };
