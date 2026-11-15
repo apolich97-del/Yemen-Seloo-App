@@ -28,3 +28,7 @@ Thumbs.db
 *.env.local
 google-services.json
 GoogleService-Info.plist
+
+# ترشيح ملفات البناء المحلية
+android/local.properties
+android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
