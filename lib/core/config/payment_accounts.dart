@@ -41,8 +41,13 @@ const Color _qatibi = Color(0xFF2E7D32);
 const Color _shilling = Color(0xFF00897B);
 const Color _jaib = Color(0xFF6A1B9A);
 
+/// سعر صرف الدولار المعتمد للتحويل اليدوي (يحدّثه المالك عند تغيّر السوق).
+const String _usdRateNorth = '533';
+const String _usdRateSouth = '1570';
+
 const String _usdNote =
-    'حوّل ما يعادل إجمالي الطلب بالدولار، ثم أدخل المبلغ المرسل في بيانات الحوالة.';
+    'سعر الدولار المعتمد: 1 دولار = 533 ريال (شمال) · 1570 ريال (جنوب). '
+    'حوّل ما يعادل إجمالي الطلب بالدولار ثم أدخل المبلغ المرسل.';
 
 /// القائمة المعتمدة (الاسم: عبدالله عبدالعالم عبدالله) — محدثة 2026-11-15.
 const List<PaymentAccount> kPaymentAccounts = [
