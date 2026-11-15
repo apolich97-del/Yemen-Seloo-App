@@ -151,20 +151,46 @@ class PaymentScreen extends GetView<PaymentController> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: a.brandColor.withOpacity(.12),
+                if (a.logoAsset.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: a.brandColor.withOpacity(.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      a.brandShortAr,
+                      style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          color: a.brandColor),
+                    ),
+                  )
+                else
+                  ClipRRect(
                     borderRadius: BorderRadius.circular(6),
+                    child: Image.asset(
+                      a.logoAsset,
+                      width: 30,
+                      height: 30,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => Container(
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: a.brandColor.withOpacity(.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          a.brandShortAr,
+                          style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              color: a.brandColor),
+                        ),
+                      ),
+                    ),
                   ),
-                  child: Text(
-                    a.brandShortAr,
-                    style: TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w800,
-                        color: a.brandColor),
-                  ),
-                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Column(

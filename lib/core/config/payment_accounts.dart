@@ -20,6 +20,9 @@ class PaymentAccount {
   /// الجهة التي يخدمها الحساب: «شمال» أو «جنوب» أو «شمال وجنوب».
   final String regionAr;
 
+  /// مسار شعار الجهة داخل assets (فارغ = شارة نصية بلون الجهة).
+  final String logoAsset;
+
   const PaymentAccount({
     required this.id,
     required this.bankAr,
@@ -29,6 +32,7 @@ class PaymentAccount {
     required this.brandColor,
     required this.brandShortAr,
     this.regionAr = 'شمال وجنوب',
+    this.logoAsset = '',
     this.noteAr = 'حوّل المبلغ ثم أدخل بيانات الحوالة.',
   });
 
@@ -139,6 +143,7 @@ const List<PaymentAccount> kPaymentAccounts = [
     brandColor: _shilling,
     regionAr: 'شمال وجنوب',
     brandShortAr: 'شلن',
+    logoAsset: 'assets/images/payments/shilling.png',
   ),
 
   // ── محفظة جيب ──
