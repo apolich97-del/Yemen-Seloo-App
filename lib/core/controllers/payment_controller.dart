@@ -18,16 +18,18 @@ import 'checkout_controller.dart';
 
 /// بيانات الحوالة كما يدخلها العميل في نافذة «بيانات الحوالة».
 class TransferDraft {
+  final double amount;
   final String senderName;
   final String refNo;
   final String note;
   final String proofUrl;
 
   const TransferDraft({
+    required this.amount,
     required this.senderName,
     required this.refNo,
     this.note = '',
-    this.proofUrl = '',
+    required this.proofUrl,
   });
 }
 
@@ -70,7 +72,13 @@ class PaymentController extends GetxController {
 
   AppCurrency get currency => payload.currency;
   String get totalLabel => formatMoney(payload.estimate.totalLocal, currency);
-  bool get canConfirm => transfer.value != null && !busy.value;
+  bool get proofAttached => _proofUrl.isNotEmpty;
+
+  bool get canConfirm =>
+      transfer.value != null &&
+      transfer.value!.proofUrl.isNotEmpty &&
+      transfer.value!.amount + 0.01 >= payload.estimate.totalLocal &&
+      !busy.value;
 
   void select(PaymentAccount a) => selected.value = a;
 
@@ -89,7 +97,7 @@ class PaymentController extends GetxController {
       _proofUrl = await ref.getDownloadURL();
       Get.snackbar('تم', 'تم إرفاق صورة الحوالة');
     } catch (e) {
-      Get.snackbar('تعذر الإرفاق', 'يمكنك إكمال الطلب بدون صورة، أو المحاولة لاحقاً');
+      Get.snackbar('تعذر إرفاق الصورة', 'صورة الحوالة إلزامية — أعد المحاولة أو تحقق من الاتصال');
     } finally {
       uploading.value = false;
     }
@@ -107,7 +115,26 @@ class PaymentController extends GetxController {
       Get.snackbar('بيانات ناقصة', 'أدخل رقم عملية الحوالة');
       return;
     }
+    final amount = double.tryParse(amountCtrl.text.replaceAll(',', '').trim());
+    if (amount == null || amount <= 0) {
+      Get.snackbar('المبلغ مطلوب', 'أدخل المبلغ الذي حوّلته فعلاً');
+      return;
+    }
+    final required = payload.estimate.totalLocal;
+    if (amount + 0.01 < required) {
+      Get.snackbar(
+        'المبلغ أقل من المطلوب',
+        'إجمالي الطلب ${formatMoney(required, currency)} — لا يُقبل مبلغ أقل منه',
+        duration: const Duration(seconds: 4),
+      );
+      return;
+    }
+    if (_proofUrl.isEmpty) {
+      Get.snackbar('صورة الحوالة مطلوبة', 'أرفق صورة الإيداع أو الحوالة قبل الإرسال');
+      return;
+    }
     transfer.value = TransferDraft(
+      amount: amount,
       senderName: sender,
       refNo: refNo,
       note: noteCtrl.text.trim(),
@@ -133,7 +160,9 @@ class PaymentController extends GetxController {
           'accountId': acc.id,
           'accountTitleAr': acc.titleAr,
           'accountNumber': acc.primaryNumber,
-          'amount': payload.estimate.totalLocal,
+          'amount': t.amount,
+          'requiredAmount': payload.estimate.totalLocal,
+          'proofVerified': true,
           'currency': currency.key,
           'senderName': t.senderName,
           'refNo': t.refNo,

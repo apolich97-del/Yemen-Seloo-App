@@ -1,106 +1,59 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // ─────────────────────────── أدوار ───────────────────────────
-    // الأدوار تُضبط بـ custom claims فقط (Admin SDK)، ولا يعدّلها العميل.
-    function signedIn() { return request.auth != null; }
-    function myRole() { return request.auth.token.role; }
-    function isManager() { return signedIn() && myRole() == 'manager'; }
-    function staff() {
-      return signedIn() && myRole() in
-        ['manager', 'support', 'shipping', 'courier', 'accounting', 'agent'];
+    function auth() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+    function staff() { return auth() && request.auth.token.email in ['apolich97@gmail.com','abode212k@gmail.com','yemenseloo.shop@gmail.com']; }
+    function proofOk(p, minAmount) {
+      return p.proofUrl is string && p.proofUrl.size() > 0
+        && p.amount is number && p.amount >= minAmount
+        && p.refNo is string && p.refNo.size() >= 4
+        && p.senderName is string && p.senderName.size() >= 3;
     }
-    function owns(uid) { return signedIn() && request.auth.uid == uid; }
 
-    // ─────────────────────────── المستخدم ───────────────────────────
     match /users/{uid} {
-      allow read: if owns(uid) || staff();
-      allow create: if owns(uid) && !request.resource.data.keys().hasAny(['role']);
-      // العميل يعدّل بياناته، لكن لا الدور ولا توكنات الإشعارات.
-      allow update: if owns(uid)
-        && !request.resource.data.diff(resource.data).affectedKeys()
-             .hasAny(['role', 'fcmTokens', 'createdAt']);
-      allow update, delete: if isManager();
-
-      match /addresses/{addrId} {
-        allow read: if owns(uid) || staff();
-        allow write: if owns(uid);
-      }
-
-      // السلة في Firestore: قراءة فقط من العميل، والكتابة عبر Cloud Functions.
-      match /cart/{lineId} {
-        allow read: if owns(uid);
-        allow write: if false;
-      }
+      allow read: if auth() && (uid == me() || staff());
+      allow create: if auth() && uid == me() && !request.resource.data.keys().hasAny(['role']);
+      allow update: if auth() && uid == me() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role','fcmTokens']);
+      allow delete: if staff();
+      match /addresses/{a} { allow read, write: if auth() && (uid == me() || staff()); }
+      match /cart/{c} { allow read: if auth() && uid == me(); allow write: if false; }
     }
 
-    // ─────────────────────────── الطلبات ───────────────────────────
-    match /orders/{orderId} {
-      allow read: if signedIn() &&
-        (resource.data.userId == request.auth.uid || staff());
-      // كل كتابة عبر Cloud Functions (Admin SDK يتجاوز القواعد).
-      allow write: if false;
-
-      match /messages/{msgId} {
-        allow read: if signedIn() &&
-          (get(/databases/$(database)/documents/orders/$(orderId)).data.userId
-             == request.auth.uid || staff());
-        // لا يكتب في المحادثة إلا صاحب الطلب أو الطاقم.
-        allow create: if signedIn() &&
-          (get(/databases/$(database)/documents/orders/$(orderId)).data.userId
-             == request.auth.uid || staff());
+    match /orders/{o} {
+      allow read: if auth() && (resource.data.userId == me() || staff());
+      allow create: if auth() && request.resource.data.userId == me()
+        && request.resource.data.status in ['unpaid','verifying']
+        && request.resource.data.items is list
+        && request.resource.data.items.size() > 0
+        && request.resource.data.items.size() <= 60
+        && request.resource.data.totalSar is number
+        && (request.resource.data.status != 'verifying'
+            || proofOk(request.resource.data.payment, request.resource.data.totalLocal));
+      allow update: if auth() && resource.data.userId == me()
+        && resource.data.status in ['unpaid','verifying']
+        && request.resource.data.status in ['unpaid','verifying','cancelled']
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.totalSar == resource.data.totalSar
+        && (request.resource.data.status != 'verifying'
+            || proofOk(request.resource.data.payment, resource.data.totalLocal));
+      allow update: if staff();
+      allow delete: if false;
+      match /events/{e} {
+        allow read, create: if auth() && (get(/databases/$(database)/documents/orders/$(o)).data.userId == me() || staff());
         allow update, delete: if false;
       }
-
-      match /events/{eventId} {
-        allow read: if signedIn() &&
-          (get(/databases/$(database)/documents/orders/$(orderId)).data.userId
-             == request.auth.uid || staff());
-        allow write: if false;
+      match /messages/{m} {
+        allow read, create: if auth() && (get(/databases/$(database)/documents/orders/$(o)).data.userId == me() || staff());
+        allow update, delete: if false;
       }
     }
 
-    // ─────────────── كتالوج الأسعار (مصدر السعر على السيرفر) ───────────────
-    // القراءة للجميع كي تعرض الشاشات السعر الرسمي، والكتابة للسيرفر فقط.
-    match /products/{goodsId} {
-      allow read: if true;
-      allow write: if false;
-    }
-
-    // ─────────────────────────── الكوبونات ───────────────────────────
-    // قراءة لمسجّل الدخول فقط (تحقق مبدئي في الواجهة)، والتأكيد النهائي في السيرفر.
-    match /coupons/{code} {
-      allow read: if signedIn();
-      allow write: if false;
-    }
-
-    // ─────────────────────────── الإعدادات ───────────────────────────
-    match /settings/{docId} {
-      allow read: if signedIn();
-      allow write: if false;
-    }
-
-    match /meta/{docId} {
-      allow read: if true;
-      allow write: if false;
-    }
-
-    // ─────────────────────────── تنبيهات الطاقم ───────────────────────────
-    match /alerts/{alertId} {
-      allow read, update: if staff();
-      allow create: if false;
-    }
-
-    // ─────────────────────────── عدّادات ───────────────────────────
-    match /counters/{counterId} {
-      allow read, write: if false;
-    }
-
-    // ─────────── رفض كل ما لم يُذكر صراحة ───────────
-    match /{document=**} {
-      allow read, write: if false;
-    }
+    match /products/{g} { allow read: if true; allow write: if staff(); }
+    match /coupons/{c} { allow read: if auth(); allow write: if staff(); }
+    match /settings/{s} { allow read: if auth(); allow write: if staff(); }
+    match /meta/{m} { allow read: if true; allow write: if staff(); }
+    match /alerts/{a} { allow read, update: if staff(); allow create: if false; }
+    match /{document=**} { allow read, write: if false; }
   }
 }

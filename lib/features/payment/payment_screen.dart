@@ -307,9 +307,11 @@ class _TransferSheet extends StatelessWidget {
             const SizedBox(height: 16),
             TextField(
               controller: controller.amountCtrl,
-              enabled: false,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(
                 labelText: 'المبلغ المحوّل',
+                helperText:
+                    'المطلوب ${formatMoney(controller.payload.estimate.totalLocal, controller.currency)} — لا يُقبل أقل منه',
                 suffixText: controller.currency.shortAr,
               ),
             ),
@@ -347,7 +349,9 @@ class _TransferSheet extends StatelessWidget {
                       ? const SizedBox(
                           width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.add_photo_alternate_outlined),
-                  label: const Text('إرفاق صورة الحوالة (اختياري)'),
+                  label: Text(controller.proofAttached
+                      ? 'تم إرفاق صورة الحوالة ✓'
+                      : 'إرفاق صورة الحوالة (إلزامي)'),
                 )),
             const SizedBox(height: 16),
             ElevatedButton(
