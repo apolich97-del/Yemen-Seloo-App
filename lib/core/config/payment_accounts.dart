@@ -46,8 +46,9 @@ const String _usdRateNorth = '533';
 const String _usdRateSouth = '1570';
 
 const String _usdNote =
-    'سعر الدولار المعتمد: 1 دولار = 533 ريال (شمال) · 1570 ريال (جنوب). '
-    'حوّل ما يعادل إجمالي الطلب بالدولار ثم أدخل المبلغ المرسل.';
+    'سعر الدولار المعتمد: 1 دولار = ' + _usdRateNorth + ' ريال (شمال) · ' +
+    _usdRateSouth + ' ريال (جنوب). حوّل ما يعادل إجمالي الطلب بالدولار '
+    'ثم أدخل المبلغ المرسل.';
 
 /// القائمة المعتمدة (الاسم: عبدالله عبدالعالم عبدالله) — محدثة 2026-11-15.
 const List<PaymentAccount> kPaymentAccounts = [
@@ -57,8 +58,9 @@ const List<PaymentAccount> kPaymentAccounts = [
     bankAr: 'بنك الكريمي',
     titleAr: 'الكريمي — يمني قديم',
     numbers: ['3141952047'],
-    currencies: {AppCurrency.north, AppCurrency.south},
+    currencies: {AppCurrency.north},
     brandColor: _kuraimi,
+    regionAr: 'شمال',
     brandShortAr: 'كريمي',
   ),
   PaymentAccount(
@@ -66,8 +68,9 @@ const List<PaymentAccount> kPaymentAccounts = [
     bankAr: 'بنك الكريمي',
     titleAr: 'الكريمي — يمني جديد',
     numbers: ['3055509637'],
-    currencies: {AppCurrency.north, AppCurrency.south},
+    currencies: {AppCurrency.south},
     brandColor: _kuraimi,
+    regionAr: 'جنوب',
     brandShortAr: 'كريمي',
   ),
   PaymentAccount(
@@ -95,8 +98,9 @@ const List<PaymentAccount> kPaymentAccounts = [
     bankAr: 'بنك الكريمي',
     titleAr: 'الكريمي — دولار قديم',
     numbers: ['3207365296'],
-    currencies: {AppCurrency.sar, AppCurrency.north, AppCurrency.south},
+    currencies: {AppCurrency.sar, AppCurrency.north},
     brandColor: _kuraimi,
+    regionAr: 'شمال',
     brandShortAr: 'كريمي',
     noteAr: _usdNote,
   ),
@@ -105,8 +109,9 @@ const List<PaymentAccount> kPaymentAccounts = [
     bankAr: 'بنك الكريمي',
     titleAr: 'الكريمي — دولار جديد',
     numbers: ['3124522861'],
-    currencies: {AppCurrency.sar, AppCurrency.north, AppCurrency.south},
+    currencies: {AppCurrency.sar, AppCurrency.south},
     brandColor: _kuraimi,
+    regionAr: 'جنوب',
     brandShortAr: 'كريمي',
     noteAr: _usdNote,
   ),
@@ -117,8 +122,9 @@ const List<PaymentAccount> kPaymentAccounts = [
     bankAr: 'القطيبي',
     titleAr: 'القطيبي — يمني / سعودي / دولار',
     numbers: ['480642452'],
-    currencies: {AppCurrency.sar, AppCurrency.north, AppCurrency.south},
+    currencies: {AppCurrency.sar, AppCurrency.south},
     brandColor: _qatibi,
+    regionAr: 'جنوب',
     brandShortAr: 'قطيبي',
     noteAr: 'حساب واحد يستقبل العملات الثلاث — أدخل المبلغ بعملة الطلب.',
   ),
@@ -131,6 +137,7 @@ const List<PaymentAccount> kPaymentAccounts = [
     numbers: ['600589797', '775801198'],
     currencies: {AppCurrency.north, AppCurrency.south},
     brandColor: _shilling,
+    regionAr: 'شمال وجنوب',
     brandShortAr: 'شلن',
   ),
 
@@ -140,8 +147,9 @@ const List<PaymentAccount> kPaymentAccounts = [
     bankAr: 'محفظة جيب',
     titleAr: 'جيب — يمني',
     numbers: ['2291789', '775801198'],
-    currencies: {AppCurrency.north, AppCurrency.south},
+    currencies: {AppCurrency.north},
     brandColor: _jaib,
+    regionAr: 'شمال',
     brandShortAr: 'جيب',
     noteAr: 'أرسل إلى محفظة الرقم الأول، أو «تحويل إلى مشترك جيب» على الرقم الثاني.',
   ),
@@ -160,30 +168,7 @@ PaymentAccount? accountById(String? id) {
 
 /// للتحقق على السيرفر (functions/index.js يملك نفس القائمة).
 const Map<String, List<String>> kAllowedAccountIdsByCurrency = {
-  'sar': [
-    'kuraimi_sar_old',
-    'kuraimi_sar_south',
-    'kuraimi_usd_old',
-    'kuraimi_usd_new',
-    'qatibi',
-  ],
-  'north': [
-    'kuraimi_yer_old',
-    'kuraimi_yer_new',
-    'kuraimi_usd_old',
-    'kuraimi_usd_new',
-    'qatibi',
-    'shilling',
-    'jaib',
-  ],
-  'south': [
-    'kuraimi_yer_old',
-    'kuraimi_yer_new',
-    'kuraimi_sar_south',
-    'kuraimi_usd_old',
-    'kuraimi_usd_new',
-    'qatibi',
-    'shilling',
-    'jaib',
-  ],
+  'sar': ['kuraimi_sar_old', 'kuraimi_sar_south', 'kuraimi_usd_old', 'kuraimi_usd_new', 'qatibi'],
+  'north': ['kuraimi_yer_old', 'kuraimi_sar_old', 'kuraimi_usd_old', 'shilling', 'jaib'],
+  'south': ['kuraimi_yer_new', 'kuraimi_sar_south', 'kuraimi_usd_new', 'qatibi', 'shilling'],
 };
