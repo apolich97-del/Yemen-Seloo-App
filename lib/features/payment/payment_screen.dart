@@ -141,7 +141,31 @@ class PaymentScreen extends GetView<PaymentController> {
                   size: 20,
                   color: active ? AppColors.primary : AppColors.muted,
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
+                Container(
+                  width: 6,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: a.brandColor,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: a.brandColor.withOpacity(.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    a.brandShortAr,
+                    style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        color: a.brandColor),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -151,6 +175,20 @@ class PaymentScreen extends GetView<PaymentController> {
                       Text(
                         '${a.bankAr} · ${a.primaryNumber}',
                         style: const TextStyle(fontSize: 12, color: AppColors.muted),
+                      ),
+                      Row(
+                        children: <Widget>[
+                          Icon(Icons.place_outlined,
+                              size: 11, color: a.brandColor),
+                          const SizedBox(width: 3),
+                          Text(
+                            a.regionAr,
+                            style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: a.brandColor),
+                          ),
+                        ],
                       ),
                     ],
                   ),
