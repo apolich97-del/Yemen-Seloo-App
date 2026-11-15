@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -97,7 +98,19 @@ class PaymentController extends GetxController {
       _proofUrl = await ref.getDownloadURL();
       Get.snackbar('تم', 'تم إرفاق صورة الحوالة');
     } catch (e) {
-      Get.snackbar('تعذر إرفاق الصورة', 'صورة الحوالة إلزامية — أعد المحاولة أو تحقق من الاتصال');
+      final msg = '$e';
+      String hint = msg;
+      if (msg.contains('permission-denied')) {
+        hint = 'قواعد التخزين تمنع الرفع — يجب نشر storage.rules';
+      } else if (msg.contains('unauthorized') || msg.contains('401')) {
+        hint = 'انتهت صلاحية الجلسة — أعد تسجيل الدخول';
+      } else if (msg.contains('object-not-found') || msg.contains('404')) {
+        hint = 'مسار التخزين غير موجود — تحقق من إعداد Firebase Storage';
+      } else if (msg.contains('retry-limit') || msg.contains('unavailable')) {
+        hint = 'ضعف الاتصال — أعد المحاولة';
+      }
+      debugPrint('PROOF UPLOAD FAILED: $msg');
+      Get.snackbar('تعذر إرفاق الصورة', hint, duration: const Duration(seconds: 6));
     } finally {
       uploading.value = false;
     }
