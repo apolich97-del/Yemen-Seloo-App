@@ -66,6 +66,7 @@ const List<PaymentAccount> kPaymentAccounts = [
     brandColor: _kuraimi,
     regionAr: 'شمال',
     brandShortAr: 'كريمي',
+    logoAsset: 'assets/images/payments/kuraimi.jpg',
   ),
   PaymentAccount(
     id: 'kuraimi_yer_new',
@@ -76,6 +77,7 @@ const List<PaymentAccount> kPaymentAccounts = [
     brandColor: _kuraimi,
     regionAr: 'جنوب',
     brandShortAr: 'كريمي',
+    logoAsset: 'assets/images/payments/kuraimi.jpg',
   ),
   PaymentAccount(
     id: 'kuraimi_sar_old',
@@ -85,6 +87,7 @@ const List<PaymentAccount> kPaymentAccounts = [
     currencies: {AppCurrency.sar},
     brandColor: _kuraimi,
     brandShortAr: 'كريمي',
+    logoAsset: 'assets/images/payments/kuraimi.jpg',
     regionAr: 'شمال',
   ),
   PaymentAccount(
@@ -95,6 +98,7 @@ const List<PaymentAccount> kPaymentAccounts = [
     currencies: {AppCurrency.sar, AppCurrency.south},
     brandColor: _kuraimi,
     brandShortAr: 'كريمي',
+    logoAsset: 'assets/images/payments/kuraimi.jpg',
     regionAr: 'جنوب',
   ),
   PaymentAccount(
@@ -106,6 +110,7 @@ const List<PaymentAccount> kPaymentAccounts = [
     brandColor: _kuraimi,
     regionAr: 'شمال',
     brandShortAr: 'كريمي',
+    logoAsset: 'assets/images/payments/kuraimi.jpg',
     noteAr: _usdNote,
   ),
   PaymentAccount(
@@ -117,6 +122,7 @@ const List<PaymentAccount> kPaymentAccounts = [
     brandColor: _kuraimi,
     regionAr: 'جنوب',
     brandShortAr: 'كريمي',
+    logoAsset: 'assets/images/payments/kuraimi.jpg',
     noteAr: _usdNote,
   ),
 
@@ -130,6 +136,7 @@ const List<PaymentAccount> kPaymentAccounts = [
     brandColor: _qatibi,
     regionAr: 'جنوب',
     brandShortAr: 'قطيبي',
+    logoAsset: 'assets/images/payments/qatibi.png',
     noteAr: 'حساب واحد يستقبل العملات الثلاث — أدخل المبلغ بعملة الطلب.',
   ),
 
@@ -156,6 +163,7 @@ const List<PaymentAccount> kPaymentAccounts = [
     brandColor: _jaib,
     regionAr: 'شمال',
     brandShortAr: 'جيب',
+    logoAsset: 'assets/images/payments/jaib.jpg',
     noteAr: 'أرسل إلى محفظة الرقم الأول، أو «تحويل إلى مشترك جيب» على الرقم الثاني.',
   ),
 ];
