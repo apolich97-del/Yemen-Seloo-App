@@ -6,6 +6,7 @@ import '../../core/models/currency.dart';
 import '../../core/models/order.dart';
 import '../../core/services/order_service.dart';
 import '../../core/services/settings_service.dart';
+import '../../core/services/auth_service.dart';
 import '../../core/theme/app_theme.dart';
 
 /// المرحلة 3 — «طلباتي»: شريط الحالات + بطاقات الطلبات.
@@ -83,6 +84,9 @@ class MyOrdersScreen extends GetView<OrdersController> {
             const SizedBox(height: 12),
             const Text('لا توجد طلبات في هذا التبويب',
                 style: TextStyle(fontSize: 13, color: AppColors.muted)),
+            const SizedBox(height: 6),
+            Text('الحساب الحالي: ${Get.find<AuthService>().uid ?? 'غير مسجّل'}',
+                style: const TextStyle(fontSize: 10, color: AppColors.muted)),
             const SizedBox(height: 8),
             TextButton(onPressed: () => Get.toNamed('/cart'), child: const Text('ابدأ التسوق')),
           ],
