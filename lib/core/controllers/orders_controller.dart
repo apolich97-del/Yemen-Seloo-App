@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 
 import '../models/order.dart';
@@ -12,10 +15,22 @@ class OrdersController extends GetxController {
   final loading = true.obs;
   final error = ''.obs;
 
+  StreamSubscription<User?>? _authSub;
+
   @override
   void onInit() {
     super.onInit();
     _bind();
+    // إعادة الربط عند تغيّر حساب الدخول حتى لا تبقى القائمة فارغة
+    _authSub = FirebaseAuth.instance.authStateChanges().listen((u) {
+      if (u != null) _bind();
+    });
+  }
+
+  @override
+  void onClose() {
+    _authSub?.cancel();
+    super.onClose();
   }
 
   void _bind() {

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -389,6 +391,23 @@ class _TransferSheet extends StatelessWidget {
                       : 'إرفاق صورة الحوالة (إلزامي)'),
                 )),
             Obx(() {
+              if (!controller.proofAttached) return const SizedBox.shrink();
+              final uri = controller.proofDataUri;
+              final b64 = uri.substring(uri.indexOf(',') + 1);
+              return Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.memory(base64Decode(b64),
+                      height: 150,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Text(
+                          'تعذر عرض الصورة',
+                          style: TextStyle(fontSize: 11, color: AppColors.danger))),
+                ),
+              );
+            }),
+            Obx(() {
               if (!controller.ocrDone.value) return const SizedBox.shrink();
               Widget row(bool ok, String label) => Padding(
                     padding: const EdgeInsets.only(top: 4),
@@ -414,8 +433,13 @@ class _TransferSheet extends StatelessWidget {
                         style: TextStyle(
                             fontSize: 12, fontWeight: FontWeight.w700)),
                     row(controller.ocrAmountOk.value, 'المبلغ'),
-                    row(controller.ocrRefOk.value, 'رقم العملية'),
+                    row(controller.ocrNameOk.value, 'اسم المرسل'),
+                    if (controller.refCtrl.text.trim().length >= 4)
+                      row(controller.ocrRefOk.value, 'رقم العملية'),
                     row(controller.ocrDateOk.value, 'تاريخ اليوم'),
+                    const SizedBox(height: 4),
+                    const Text('النتائج إرشادية — المحاسبة تراجع الصورة',
+                        style: TextStyle(fontSize: 10, color: AppColors.muted)),
                   ],
                 ),
               );

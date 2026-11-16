@@ -76,6 +76,9 @@ class PaymentController extends GetxController {
   String get totalLabel => formatMoney(payload.estimate.totalLocal, currency);
   bool get proofAttached => _proofUrl.isNotEmpty;
 
+  /// صورة الحوالة كـ data URI لعرضها للمستخدم قبل الإرسال.
+  String get proofDataUri => _proofUrl;
+
   bool get canConfirm =>
       transfer.value != null &&
       transfer.value!.proofUrl.isNotEmpty &&
@@ -89,6 +92,7 @@ class PaymentController extends GetxController {
   final ocrAmountOk = false.obs;
   final ocrRefOk = false.obs;
   final ocrDateOk = false.obs;
+  final ocrNameOk = false.obs;
   String _ocrRaw = '';
   TextRecognizer? _recognizer;
 
@@ -130,6 +134,12 @@ class PaymentController extends GetxController {
 
       final ref = refCtrl.text.replaceAll(RegExp(r'\D'), '');
       ocrRefOk.value = ref.length >= 4 && text.contains(ref);
+
+      // مطابقة اسم المودع: يكفي تطابق كلمتين من اسم المرسل.
+      final name = _normDigits(senderCtrl.text.trim());
+      final words = name.split(RegExp(r'\s+')).where((w) => w.length > 2);
+      final hits = words.where(text.contains).length;
+      ocrNameOk.value = words.isNotEmpty && hits >= (words.length > 1 ? 2 : 1);
 
       final now = DateTime.now();
       final dmy = ['${now.day}${now.month}', '${now.month}${now.day}',
@@ -190,10 +200,7 @@ class PaymentController extends GetxController {
       Get.snackbar('بيانات ناقصة', 'أدخل اسم المرسل كما في الحوالة');
       return;
     }
-    if (refNo.length < 4) {
-      Get.snackbar('بيانات ناقصة', 'أدخل رقم عملية الحوالة');
-      return;
-    }
+    // رقم العملية اختياري: بعض الحوالات تُعرف باسم المودع فقط.
     final amount = double.tryParse(amountCtrl.text.replaceAll(',', '').trim());
     if (amount == null || amount <= 0) {
       Get.snackbar('المبلغ مطلوب', 'أدخل المبلغ الذي حوّلته فعلاً');
@@ -212,16 +219,8 @@ class PaymentController extends GetxController {
       Get.snackbar('صورة الحوالة مطلوبة', 'أرفق صورة الإيداع أو الحوالة قبل الإرسال');
       return;
     }
-    if (ocrDone.value && !ocrRefOk.value) {
-      Get.snackbar('رقم العملية لا يطابق الصورة',
-          'الرقم المدخل لا يظهر في صورة الحوالة — راجع الصورة أو الرقم');
-      return;
-    }
-    if (ocrDone.value && !ocrAmountOk.value) {
-      Get.snackbar('المبلغ لا يطابق الصورة',
-          'المبلغ المدخل لا يظهر في صورة الحوالة — راجع المبلغ');
-      return;
-    }
+    // نتائج القراءة إرشادية: المحاسبة تراجع الصورة، فلا نمنع العميل
+    // بسبب صورة غير واضحة أو حوالة مكتوبة بخط لا يقرأه المحرك.
     transfer.value = TransferDraft(
       amount: amount,
       senderName: sender,
