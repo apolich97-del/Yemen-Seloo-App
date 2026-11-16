@@ -279,6 +279,22 @@ class OrderDetailScreen extends StatelessWidget {
             value: p.confirmedAt == null ? 'بانتظار مراجعة المحاسبة' : 'مؤكدة',
             free: p.confirmedAt != null,
           ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                p.proofUrl.isEmpty
+                    ? 'لا توجد صورة حوالة مرفقة مع هذا الطلب'
+                    : 'صورة محفوظة (${(p.proofUrl.length / 1024).round()} ك.ب)',
+                style: TextStyle(
+                    fontSize: 11.5,
+                    color: p.proofUrl.isEmpty
+                        ? AppColors.danger
+                        : AppColors.success),
+              ),
+            ),
+          ),
           if (p.proofUrl.isNotEmpty) ...[
             const SizedBox(height: 10),
             const Align(

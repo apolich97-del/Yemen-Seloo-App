@@ -148,16 +148,16 @@ class PaymentController extends GetxController {
     try {
       final x = await ImagePicker().pickImage(
         source: ImageSource.gallery,
-        imageQuality: 45,
-        maxWidth: 1200,
-        maxHeight: 1200,
+        imageQuality: 35,
+        maxWidth: 900,
+        maxHeight: 900,
       );
       if (x == null) return;
       uploading.value = true;
       final bytes = await x.readAsBytes();
-      if (bytes.length > 700 * 1024) {
+      if (bytes.length > 450 * 1024) {
         Get.snackbar('الصورة كبيرة',
-            'اختر صورة أصغر (أقل من 700 ك.ب) أو أعد تصويرها بجودة أقل');
+            'اختر صورة أصغر (أقل من 450 ك.ب) أو أعد تصويرها بجودة أقل');
         return;
       }
       final mime = (x.path.toLowerCase().endsWith('.png')) ? 'image/png' : 'image/jpeg';
