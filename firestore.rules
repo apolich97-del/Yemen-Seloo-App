@@ -43,6 +43,20 @@ service cloud.firestore {
         allow read, create: if auth() && (get(/databases/$(database)/documents/orders/$(o)).data.userId == me() || staff());
         allow update, delete: if false;
       }
+      match /receipts/{r} {
+        allow read: if auth() && (get(/databases/$(database)/documents/orders/$(o)).data.userId == me() || staff());
+        // العميل ينشئ إيصالاً معلّقاً فقط، وبصورة إلزامية
+        allow create: if auth()
+          && request.resource.data.source == 'customer'
+          && request.resource.data.status == 'pending'
+          && request.resource.data.proofUrl is string
+          && request.resource.data.proofUrl.size() > 0
+          && request.resource.data.amountLocal is number
+          && request.resource.data.amountLocal > 0
+          && get(/databases/$(database)/documents/orders/$(o)).data.userId == me();
+        // الاعتماد والخصم من الأرصدة: للطاقم فقط
+        allow update, delete: if staff();
+      }
       match /messages/{m} {
         allow read, create: if auth() && (get(/databases/$(database)/documents/orders/$(o)).data.userId == me() || staff());
         allow update, delete: if false;
@@ -52,6 +66,12 @@ service cloud.firestore {
     match /products/{g} { allow read: if true; allow write: if staff(); }
     match /coupons/{c} { allow read: if auth(); allow write: if staff(); }
     match /settings/{s} { allow read: if auth(); allow write: if staff(); }
+    // عدّادات متسلسلة (أرقام الإيصالات) — القراءة والزيادة الذرية للمسجلين
+    match /counters/{c} {
+      allow read: if auth();
+      allow create, update: if auth() && request.resource.data.value is number;
+      allow delete: if staff();
+    }
     match /meta/{m} { allow read: if true; allow write: if staff(); }
     match /alerts/{a} { allow read, update: if staff(); allow create: if false; }
     match /{document=**} { allow read, write: if false; }

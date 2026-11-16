@@ -7,7 +7,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/currency.dart';
 import '../models/order.dart';
@@ -108,6 +110,13 @@ class OrderDocuments {
       ..writeln()
       ..writeln('شكراً لثقتكم بـ يمن سيلو 💜');
     return b.toString();
+  }
+
+  /// يفتح واتساب بنص الملخص.
+  static Future<void> shareWhatsApp(Order o) async {
+    final text = whatsappText(o);
+    final uri = Uri.parse('https://wa.me/?text=${Uri.encodeComponent(text)}');
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   // ───────────────────────── فاتورة PDF ─────────────────────────

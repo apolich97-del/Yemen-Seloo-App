@@ -37,6 +37,8 @@ class OrderService extends GetxService {
     Map<String, dynamic>? payment,
     Map<String, dynamic>? commission,
     PriceEstimate? estimate,
+    String paymentPlan = 'full',
+    double upfrontPercent = 100,
   }) async {
     if (lines.isEmpty) throw 'السلة فارغة';
     if (estimate == null) throw 'أعد فتح شاشة الملخص لحساب الإجمالي';
@@ -45,6 +47,13 @@ class OrderService extends GetxService {
     final st = payment != null ? 'verifying' : 'unpaid';
     final pieces = lines.fold<int>(0, (s, l) => s + l.qty);
     final perPiece = (commission?['perPieceSar'] as num?)?.toDouble() ?? 0;
+
+    final isDeferred = paymentPlan == 'half_deferred';
+    final upfrontLocal = isDeferred
+        ? roundMoney(e.totalLocal * (upfrontPercent / 100), currency)
+        : e.totalLocal;
+    final paidLocal = payment == null ? 0.0 : upfrontLocal;
+    final remainingLocal = payment == null ? e.totalLocal : (e.totalLocal - paidLocal);
 
     await ref.set({
       'orderNo': _no(ref.id),
@@ -74,6 +83,10 @@ class OrderService extends GetxService {
       'discountSar': e.discountSar,
       'totalSar': e.totalSar,
       'totalLocal': e.totalLocal,
+      'paymentPlan': paymentPlan,
+      'upfrontDueLocal': upfrontLocal,
+      'paidTotalLocal': paidLocal,
+      'remainingLocal': remainingLocal < 0 ? 0.0 : remainingLocal,
       'couponCode': e.couponCode.isEmpty ? couponCode : e.couponCode,
       'address': address.toMap(),
       'status': st,

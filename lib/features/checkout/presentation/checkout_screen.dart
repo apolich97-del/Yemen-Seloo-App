@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../../core/controllers/checkout_controller.dart';
 import '../../../core/models/currency.dart';
+import '../../../core/services/settings_service.dart';
 import '../../../core/theme/app_theme.dart';
 
 /// المرحلة 1 — «ملخص الطلب / إكمال الطلب»
@@ -41,6 +42,8 @@ class CheckoutScreen extends GetView<CheckoutController> {
             _orderDetailsCard(context),
             const SizedBox(height: 12),
             _currencyCard(context),
+            const SizedBox(height: 12),
+            _planCard(context),
             const SizedBox(height: 12),
             _summaryCard(context),
             const SizedBox(height: 12),
@@ -262,6 +265,111 @@ class CheckoutScreen extends GetView<CheckoutController> {
             }).toList(),
           )),
     );
+  }
+
+  /// اختيار خطة السداد: كاش أو طلب آجل 50%.
+  Widget _planCard(BuildContext context) {
+    if (!Get.isRegistered<SettingsService>()) return const SizedBox.shrink();
+    final sf = Get.find<SettingsService>().settings.value;
+    return Obx(() {
+      final est = controller.estimate.value;
+      if (est == null) return const SizedBox.shrink();
+      final eligible = sf.deferredEnabled &&
+          est.subtotalSar >= sf.deferredThresholdSar;
+      final pct = sf.deferredUpfrontPercent.toStringAsFixed(0);
+      final upfront = roundMoney(est.totalLocal * (sf.deferredUpfrontPercent / 100),
+          est.currency);
+
+      Widget option({
+        required String value,
+        required String title,
+        required String subtitle,
+        required bool enabled,
+      }) {
+        final selected = controller.paymentPlan.value == value;
+        return GestureDetector(
+          onTap: enabled ? () => controller.paymentPlan.value = value : null,
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: selected ? AppColors.primary.withOpacity(.08) : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                  color: selected ? AppColors.primary : const Color(0xFFE4DDF5),
+                  width: selected ? 1.6 : 1),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                    selected
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_off,
+                    size: 18,
+                    color: enabled
+                        ? (selected ? AppColors.primary : AppColors.muted)
+                        : const Color(0xFFCFC7E0)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
+                              color: enabled
+                                  ? AppColors.ink
+                                  : const Color(0xFFA9A2BC))),
+                      const SizedBox(height: 2),
+                      Text(subtitle,
+                          style: const TextStyle(
+                              fontSize: 11, color: AppColors.muted)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE9E4F5)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('طريقة السداد',
+                style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.primaryDark)),
+            const SizedBox(height: 10),
+            option(
+              value: 'full',
+              title: 'دفع كامل (كاش 100%)',
+              subtitle: 'تحويل ${formatMoney(est.totalLocal, est.currency)} الآن',
+              enabled: true,
+            ),
+            option(
+              value: 'half_deferred',
+              title: 'طلب آجل — السداد بالنصف $pct%',
+              subtitle: eligible
+                  ? 'المطلوب الآن ${formatMoney(upfront, est.currency)} · '
+                      'المتبقي ${formatMoney(est.totalLocal - upfront, est.currency)}'
+                  : 'غير متاح: قيمة السلة أقل من الحد الأدنى '
+                      '${formatMoney(sf.deferredThresholdSar * (est.currency == AppCurrency.sar ? 1 : est.rate), est.currency)}',
+              enabled: eligible,
+            ),
+          ],
+        ),
+      );
+    });
   }
 
   Widget _summaryCard(BuildContext context) {

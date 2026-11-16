@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import 'dashboard_tab.dart';
 import 'orders_tab.dart';
 import 'payments_tab.dart';
+import 'receipts_tab.dart';
 import 'settings_tab.dart';
 import 'shipping_tab.dart';
 
@@ -25,6 +26,7 @@ class _AdminShellState extends State<AdminShell> {
     _TabDef('لوحة المعلومات', Icons.dashboard_outlined),
     _TabDef('الطلبات', Icons.receipt_long_outlined),
     _TabDef('المدفوعات', Icons.account_balance_wallet_outlined),
+    _TabDef('إيصال', Icons.qr_code_2_outlined),
     _TabDef('الشحن', Icons.local_shipping_outlined),
     _TabDef('الإعدادات', Icons.settings_outlined),
   ];
@@ -47,7 +49,8 @@ class _AdminShellState extends State<AdminShell> {
         0 => const DashboardTab(),
         1 => const OrdersTab(),
         2 => const PaymentsTab(),
-        3 => const ShippingTab(),
+        3 => const ReceiptsTab(),
+        4 => const ShippingTab(),
         _ => const SettingsTab(),
       };
       if (wide) {

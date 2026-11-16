@@ -27,6 +27,11 @@ class AppSettings {
   /// شحن لكل قطعة تحت حد الشحن المجاني.
   final double shippingPerPieceSar;
 
+  /// نظام الطلبات الآجلة (الدفع بالنصف).
+  final bool deferredEnabled;
+  final double deferredThresholdSar;
+  final double deferredUpfrontPercent;
+
   /// 1 دولار أمريكي = usdRateNorth ريال يمني (شمال) / usdRateSouth (جنوب).
   final double usdRateNorth;
   final double usdRateSouth;
@@ -50,6 +55,9 @@ class AppSettings {
     this.codEnabled = false,
     this.serviceFeeSar = 1.22,
     this.shippingPerPieceSar = 1,
+    this.deferredEnabled = true,
+    this.deferredThresholdSar = 150,
+    this.deferredUpfrontPercent = 50,
     this.usdRateNorth = 533,
     this.usdRateSouth = 1570,
     this.deliveryMinDays = 15,
@@ -71,6 +79,9 @@ class AppSettings {
 
   AppSettings copyWith({
     double? rateNorth,
+    bool? deferredEnabled,
+    double? deferredThresholdSar,
+    double? deferredUpfrontPercent,
     double? usdRateNorth,
     double? usdRateSouth,
     double? rateSouth,
@@ -87,6 +98,11 @@ class AppSettings {
   }) =>
       AppSettings(
         rateNorth: rateNorth ?? this.rateNorth,
+        deferredEnabled: deferredEnabled ?? this.deferredEnabled,
+        deferredThresholdSar:
+            deferredThresholdSar ?? this.deferredThresholdSar,
+        deferredUpfrontPercent:
+            deferredUpfrontPercent ?? this.deferredUpfrontPercent,
         usdRateNorth: usdRateNorth ?? this.usdRateNorth,
         usdRateSouth: usdRateSouth ?? this.usdRateSouth,
         rateSouth: rateSouth ?? this.rateSouth,
@@ -108,6 +124,9 @@ class AppSettings {
     double d(dynamic v, double def) => v is num ? v.toDouble() : def;
     return AppSettings(
       rateNorth: d(m['rateNorth'], 140),
+      deferredEnabled: (m['deferredEnabled'] as bool?) ?? true,
+      deferredThresholdSar: d(m['deferredThresholdSar'], 150),
+      deferredUpfrontPercent: d(m['deferredUpfrontPercent'], 50),
       usdRateNorth: d(m['usdRateNorth'], 533),
       usdRateSouth: d(m['usdRateSouth'], 1570),
       rateSouth: d(m['rateSouth'], 413),
@@ -131,6 +150,9 @@ class AppSettings {
   Map<String, dynamic> toMap() => {
         'rateNorth': rateNorth,
         'rateSouth': rateSouth,
+        'deferredEnabled': deferredEnabled,
+        'deferredThresholdSar': deferredThresholdSar,
+        'deferredUpfrontPercent': deferredUpfrontPercent,
         'usdRateNorth': usdRateNorth,
         'usdRateSouth': usdRateSouth,
         'shippingFeeSar': shippingFeeSar,

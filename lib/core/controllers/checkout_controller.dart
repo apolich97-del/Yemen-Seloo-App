@@ -20,15 +20,23 @@ class CheckoutPayload {
   final Address address;
   final PriceEstimate estimate;
 
+  /// 'full' أو 'half_deferred'.
+  final String paymentPlan;
+  final double upfrontPercent;
+
   const CheckoutPayload({
     required this.lines,
     required this.currency,
     required this.address,
     required this.estimate,
+    this.paymentPlan = 'full',
+    this.upfrontPercent = 100,
   });
 }
 
 class CheckoutController extends GetxController {
+  /// الخطة المختارة: كاش أو آجل 50%.
+  final paymentPlan = 'full'.obs;
   final _cart = Get.find<CartRepository>();
   final _settings = Get.find<SettingsService>();
   final _pricing = Get.find<PricingService>();
@@ -207,6 +215,10 @@ class CheckoutController extends GetxController {
         currency: currency.value,
         address: address.value!,
         estimate: estimate.value!,
+        paymentPlan: paymentPlan.value,
+        upfrontPercent: Get.isRegistered<SettingsService>()
+            ? Get.find<SettingsService>().settings.value.deferredUpfrontPercent
+            : 50,
       ),
     );
   }

@@ -38,6 +38,8 @@ class OrderDetailScreen extends StatelessWidget {
               const SizedBox(height: 12),
               _timeline(o),
               const SizedBox(height: 12),
+              if (o.hasRemaining) _balanceCard(o),
+              if (o.hasRemaining) const SizedBox(height: 12),
               _items(o),
               const SizedBox(height: 12),
               _payment(o),
@@ -94,6 +96,20 @@ class OrderDetailScreen extends StatelessWidget {
     );
   }
 
+  Widget _deferredBadge() => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: AppColors.accent.withOpacity(.18),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.accent),
+        ),
+        child: const Text('آجل 50%',
+            style: TextStyle(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF7A5E00))),
+      );
+
   Widget _header(Order o) {
     final c = Color(o.status.colorValue);
     return Card(
@@ -106,6 +122,10 @@ class OrderDetailScreen extends StatelessWidget {
               children: [
                 Text(o.orderNo,
                     style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+                if (o.isDeferred) ...[
+                  const SizedBox(width: 6),
+                  _deferredBadge(),
+                ],
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -260,6 +280,50 @@ class OrderDetailScreen extends StatelessWidget {
           }).toList(),
         ),
       );
+
+  /// بطاقة الرصيد: إجمالي الطلب / المدفوع المؤكد / المتبقي.
+  Widget _balanceCard(Order o) {
+    Widget cell(String label, String value, {Color? color}) => Expanded(
+          child: Column(
+            children: [
+              Text(label,
+                  style: const TextStyle(fontSize: 10.5, color: AppColors.muted)),
+              const SizedBox(height: 3),
+              Text(value,
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w900,
+                      color: color ?? AppColors.ink)),
+            ],
+          ),
+        );
+    return SectionCard(
+      title: o.isDeferred ? 'رصيد الطلب — آجل 50%' : 'رصيد الطلب',
+      child: Column(
+        children: [
+          Row(
+            children: [
+              cell('إجمالي الطلب', formatMoney(o.totalLocal, o.currency)),
+              cell('المؤكد دفعه', formatMoney(o.paidTotalLocal, o.currency),
+                  color: AppColors.success),
+              cell('المتبقي عليك', formatMoney(o.remainingLocal, o.currency),
+                  color: AppColors.danger),
+            ],
+          ),
+          if (o.hasRemaining && o.status == OrderStatus.outForDelivery) ...[
+            const SizedBox(height: 8),
+            Text(
+                '⚠️ طلب آجل — تحصيل متبقٍ عند التسليم: '
+                '${formatMoney(o.remainingLocal, o.currency)}',
+                style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.danger)),
+          ],
+        ],
+      ),
+    );
+  }
 
   Widget _payment(Order o) {
     final p = o.payment;

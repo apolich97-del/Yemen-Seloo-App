@@ -206,7 +206,10 @@ class PaymentController extends GetxController {
       Get.snackbar('المبلغ مطلوب', 'أدخل المبلغ الذي حوّلته فعلاً');
       return;
     }
-    final required = payload.estimate.totalLocal;
+    final required = payload.paymentPlan == 'half_deferred'
+        ? roundMoney(payload.estimate.totalLocal * (payload.upfrontPercent / 100),
+            payload.currency)
+        : payload.estimate.totalLocal;
     if (amount + 0.01 < required) {
       Get.snackbar(
         'المبلغ أقل من المطلوب',
@@ -244,6 +247,8 @@ class PaymentController extends GetxController {
         address: payload.address,
         couponCode: payload.estimate.couponCode,
         estimate: payload.estimate,
+        paymentPlan: payload.paymentPlan,
+        upfrontPercent: payload.upfrontPercent,
         payment: {
           'accountId': acc.id,
           'accountTitleAr': acc.titleAr,
@@ -264,6 +269,8 @@ class PaymentController extends GetxController {
           'note': t.note,
           'proofUrl': t.proofUrl,
           // أي زيادة فوق قيمة الطلب والشحن تُسجَّل رصيداً للعميل.
+          // الفائض فوق إجمالي الطلب فقط يُسجّل رصيداً؛ وما بين الدفعة
+          // الأولى والإجمالي يُخصم من المتبقي.
           'creditLocal': t.amount > payload.estimate.totalLocal
               ? (t.amount - payload.estimate.totalLocal)
               : 0.0,

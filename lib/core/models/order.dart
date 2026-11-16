@@ -289,6 +289,22 @@ class Order {
 
   /// الإجمالي بعملة العميل — محسوب على السيرفر وقت الطلب ومُجمّد.
   final double totalLocal;
+
+  // ═══ نظام السداد: كاش أو آجل 50% ═══
+  /// 'full' أو 'half_deferred'.
+  final String paymentPlan;
+
+  /// المطلوب دفعه مقدماً (الدفعة الأولى) بعملة العميل.
+  final double upfrontDueLocal;
+
+  /// إجمالي المؤكد دفعه حتى الآن.
+  final double paidTotalLocal;
+
+  /// المتبقي على العميل.
+  final double remainingLocal;
+
+  bool get isDeferred => paymentPlan == 'half_deferred';
+  bool get hasRemaining => remainingLocal > 0.5;
   final String couponCode;
   final Address address;
   final OrderStatus status;
@@ -330,6 +346,10 @@ class Order {
     required this.discountSar,
     required this.totalSar,
     required this.totalLocal,
+    this.paymentPlan = 'full',
+    this.upfrontDueLocal = 0,
+    this.paidTotalLocal = 0,
+    this.remainingLocal = 0,
     required this.address,
     required this.status,
     required this.timeline,
