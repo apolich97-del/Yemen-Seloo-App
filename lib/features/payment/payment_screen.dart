@@ -379,38 +379,6 @@ class _TransferSheet extends StatelessWidget {
                       ? 'تم إرفاق صورة الحوالة ✓'
                       : 'إرفاق صورة الحوالة (إلزامي)'),
                 )),
-            Obx(() {
-              if (!controller.ocrDone.value) return const SizedBox.shrink();
-              Widget row(bool ok, String label) => Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Row(
-                      children: [
-                        Icon(ok ? Icons.check_circle : Icons.cancel,
-                            size: 15,
-                            color: ok ? AppColors.success : AppColors.danger),
-                        const SizedBox(width: 6),
-                        Text('$label: ${ok ? 'مطابق' : 'غير مطابق'}',
-                            style: TextStyle(
-                                fontSize: 11.5,
-                                color: ok ? AppColors.success : AppColors.danger)),
-                      ],
-                    ),
-                  );
-              return Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('مطابقة الصورة مع البيانات المدخلة',
-                        style: TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w700)),
-                    row(controller.ocrAmountOk.value, 'المبلغ'),
-                    row(controller.ocrRefOk.value, 'رقم العملية'),
-                    row(controller.ocrDateOk.value, 'تاريخ اليوم'),
-                  ],
-                ),
-              );
-            }),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: controller.saveTransfer,
