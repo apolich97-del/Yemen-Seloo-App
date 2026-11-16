@@ -276,6 +276,36 @@ jobs:
           print(p.read_text())
           PYEOF
 
+      - name: تفعيل desugaring لـ ML Kit (قراءة صورة الحوالة)
+        run: |
+          python3 << 'PYEOF'
+          from pathlib import Path
+          p = Path('android/app/build.gradle')
+          t = p.read_text()
+          # تعطيل التصغير لتفادي فشل R8 مع مكتبات ML Kit
+          t = t.replace('minifyEnabled true', 'minifyEnabled false')
+          t = t.replace('shrinkResources true', 'shrinkResources false')
+          if 'coreLibraryDesugaringEnabled' not in t:
+              t += '''
+          android {
+              compileOptions {
+                  coreLibraryDesugaringEnabled true
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+              defaultConfig { multiDexEnabled true }
+          }
+          dependencies {
+              coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
+          }
+          '''
+              p.write_text(t)
+              print('✓ desugaring مضاف')
+          else:
+              p.write_text(t)
+              print('desugaring موجود مسبقاً')
+          PYEOF
+
       - name: ⭐ توقيع التطبيق بمفتاح ثابت (تحديثات تُثبَّت فوق القديم)
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
