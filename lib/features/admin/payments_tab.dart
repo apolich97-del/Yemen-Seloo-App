@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -63,11 +65,23 @@ class PaymentsTab extends StatelessWidget {
                           padding: const EdgeInsets.only(top: 8),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(10),
-                            child: Image.network(o.payment.proofUrl,
-                                height: 140, fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Text(
-                                    'تعذر تحميل الصورة',
-                                    style: TextStyle(fontSize: 11, color: AppColors.muted))),
+                            child: o.payment.proofUrl.startsWith('data:')
+                                ? Image.memory(
+                                    base64Decode(o.payment.proofUrl
+                                        .substring(o.payment.proofUrl.indexOf(',') + 1)),
+                                    height: 140,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => const Text(
+                                        'تعذر تحميل الصورة',
+                                        style: TextStyle(
+                                            fontSize: 11, color: AppColors.muted)),
+                                  )
+                                : Image.network(o.payment.proofUrl,
+                                    height: 140, fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => const Text(
+                                        'تعذر تحميل الصورة',
+                                        style: TextStyle(
+                                            fontSize: 11, color: AppColors.muted))),
                           ),
                         ),
                       const SizedBox(height: 10),

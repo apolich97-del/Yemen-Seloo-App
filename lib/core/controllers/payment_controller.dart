@@ -1,7 +1,7 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
@@ -87,34 +87,31 @@ class PaymentController extends GetxController {
 
   Future<void> pickProof() async {
     try {
-      final x = await ImagePicker()
-          .pickImage(source: ImageSource.gallery, imageQuality: 70);
+      final x = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 45,
+        maxWidth: 1200,
+        maxHeight: 1200,
+      );
       if (x == null) return;
       uploading.value = true;
-      final uid = _auth.uid ?? 'anon';
-      final ref = FirebaseStorage.instance.ref(
-          'proofs/$uid/${DateTime.now().millisecondsSinceEpoch}_${x.name}');
-      await ref.putFile(File(x.path));
-      _proofUrl = await ref.getDownloadURL();
+      final bytes = await x.readAsBytes();
+      if (bytes.length > 700 * 1024) {
+        Get.snackbar('الصورة كبيرة',
+            'اختر صورة أصغر (أقل من 700 ك.ب) أو أعد تصويرها بجودة أقل');
+        return;
+      }
+      final mime = (x.path.toLowerCase().endsWith('.png')) ? 'image/png' : 'image/jpeg';
+      _proofUrl = 'data:$mime;base64,${base64Encode(bytes)}';
       Get.snackbar('تم', 'تم إرفاق صورة الحوالة');
     } catch (e) {
-      final msg = '$e';
-      String hint = msg;
-      if (msg.contains('permission-denied')) {
-        hint = 'قواعد التخزين تمنع الرفع — يجب نشر storage.rules';
-      } else if (msg.contains('unauthorized') || msg.contains('401')) {
-        hint = 'انتهت صلاحية الجلسة — أعد تسجيل الدخول';
-      } else if (msg.contains('object-not-found') || msg.contains('404')) {
-        hint = 'مسار التخزين غير موجود — تحقق من إعداد Firebase Storage';
-      } else if (msg.contains('retry-limit') || msg.contains('unavailable')) {
-        hint = 'ضعف الاتصال — أعد المحاولة';
-      }
-      debugPrint('PROOF UPLOAD FAILED: $msg');
-      Get.snackbar('تعذر إرفاق الصورة', hint, duration: const Duration(seconds: 6));
+      debugPrint('PROOF ATTACH FAILED: $e');
+      Get.snackbar('تعذر إرفاق الصورة', 'أعد المحاولة');
     } finally {
       uploading.value = false;
     }
   }
+
 
   /// تُفتح عند الضغط على «إدخال بيانات الحوالة».
   void saveTransfer() {
