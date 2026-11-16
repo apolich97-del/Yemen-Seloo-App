@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../features/cart/application/cart_counter.dart';
@@ -84,6 +85,64 @@ class PaymentController extends GetxController {
   void select(PaymentAccount a) => selected.value = a;
 
   String _proofUrl = '';
+  final ocrDone = false.obs;
+  final ocrAmountOk = false.obs;
+  final ocrRefOk = false.obs;
+  final ocrDateOk = false.obs;
+  String _ocrRaw = '';
+  TextRecognizer? _recognizer;
+
+  /// تطبيع الأرقام العربية-الهندية إلى لاتينية ثم إزالة الفواصل.
+  String _normDigits(String t) {
+    const ar = '٠١٢٣٤٥٦٧٨٩';
+    const fa = '۰۱۲۳۴۵۶۷۸۹';
+    final b = StringBuffer();
+    for (final ch in t.split('')) {
+      final i = ar.indexOf(ch);
+      final j = fa.indexOf(ch);
+      if (i >= 0) {
+        b.write(i);
+      } else if (j >= 0) {
+        b.write(j);
+      } else {
+        b.write(ch);
+      }
+    }
+    return b.toString().replaceAll(RegExp(r'[\s,_\-\u200f\u200e]'), '');
+  }
+
+  /// قراءة الصورة ومقارنة المبلغ ورقم العملية والتاريخ ببيانات الحوالة.
+  Future<void> _runOcr(String path) async {
+    ocrDone.value = false;
+    ocrAmountOk.value = false;
+    ocrRefOk.value = false;
+    ocrDateOk.value = false;
+    try {
+      _recognizer ??= TextRecognizer(script: TextRecognitionScript.latin);
+      final res = await _recognizer!
+          .processImage(InputImage.fromFilePath(path));
+      _ocrRaw = res.text;
+      final text = _normDigits(_ocrRaw);
+
+      final amount = amountCtrl.text.replaceAll(RegExp(r'[^0-9.]'), '');
+      final whole = amount.split('.').first;
+      ocrAmountOk.value = whole.isNotEmpty && text.contains(whole);
+
+      final ref = refCtrl.text.replaceAll(RegExp(r'\D'), '');
+      ocrRefOk.value = ref.length >= 4 && text.contains(ref);
+
+      final now = DateTime.now();
+      final dmy = ['${now.day}${now.month}', '${now.month}${now.day}',
+        '${now.day}${now.month}${now.year}', '${now.year}${now.month}${now.day}'];
+      ocrDateOk.value = dmy.any(text.contains);
+
+      ocrDone.value = _ocrRaw.trim().isNotEmpty;
+      debugPrint('OCR text: ${_ocrRaw.replaceAll(RegExp(r'\s+'), ' ')}');
+    } catch (e) {
+      debugPrint('OCR FAILED: $e');
+      ocrDone.value = false;
+    }
+  }
 
   Future<void> pickProof() async {
     try {
@@ -103,7 +162,17 @@ class PaymentController extends GetxController {
       }
       final mime = (x.path.toLowerCase().endsWith('.png')) ? 'image/png' : 'image/jpeg';
       _proofUrl = 'data:$mime;base64,${base64Encode(bytes)}';
-      Get.snackbar('تم', 'تم إرفاق صورة الحوالة');
+      await _runOcr(x.path);
+      if (!ocrDone.value) {
+        Get.snackbar('تم الإرفاق', 'تعذر قراءة نص الصورة — ستُراجع يدوياً',
+            duration: const Duration(seconds: 4));
+      } else if (ocrAmountOk.value && ocrRefOk.value) {
+        Get.snackbar('تم', 'الصورة مطابقة للمبلغ ورقم العملية');
+      } else {
+        Get.snackbar('تحقق من الصورة',
+            'لم تتطابق ${!ocrAmountOk.value ? 'المبلغ ' : ''}${!ocrRefOk.value ? 'رقم العملية' : ''}',
+            duration: const Duration(seconds: 5));
+      }
     } catch (e) {
       debugPrint('PROOF ATTACH FAILED: $e');
       Get.snackbar('تعذر إرفاق الصورة', 'أعد المحاولة');
@@ -143,6 +212,16 @@ class PaymentController extends GetxController {
       Get.snackbar('صورة الحوالة مطلوبة', 'أرفق صورة الإيداع أو الحوالة قبل الإرسال');
       return;
     }
+    if (ocrDone.value && !ocrRefOk.value) {
+      Get.snackbar('رقم العملية لا يطابق الصورة',
+          'الرقم المدخل لا يظهر في صورة الحوالة — راجع الصورة أو الرقم');
+      return;
+    }
+    if (ocrDone.value && !ocrAmountOk.value) {
+      Get.snackbar('المبلغ لا يطابق الصورة',
+          'المبلغ المدخل لا يظهر في صورة الحوالة — راجع المبلغ');
+      return;
+    }
     transfer.value = TransferDraft(
       amount: amount,
       senderName: sender,
@@ -172,7 +251,14 @@ class PaymentController extends GetxController {
           'accountNumber': acc.primaryNumber,
           'amount': t.amount,
           'requiredAmount': payload.estimate.totalLocal,
-          'proofVerified': true,
+          'proofVerified': ocrDone.value && ocrAmountOk.value && ocrRefOk.value,
+          'ocrChecks': <String, dynamic>{
+            'read': ocrDone.value,
+            'amount': ocrAmountOk.value,
+            'ref': ocrRefOk.value,
+            'date': ocrDateOk.value,
+            'raw': _ocrRaw.length > 300 ? _ocrRaw.substring(0, 300) : _ocrRaw,
+          },
           'currency': currency.key,
           'senderName': t.senderName,
           'refNo': t.refNo,
