@@ -223,6 +223,9 @@ class PaymentInfo {
   final String refNo;
   final String note;
   final String proofUrl;
+  /// زيادة دفعها العميل فوق قيمة الطلب والشحن — تُسجَّل رصيداً له.
+  final double creditLocal;
+
   final DateTime? submittedAt;
   final DateTime? confirmedAt;
   final String confirmedByName;
@@ -236,6 +239,7 @@ class PaymentInfo {
     this.refNo = '',
     this.note = '',
     this.proofUrl = '',
+    this.creditLocal = 0,
     this.submittedAt,
     this.confirmedAt,
     this.confirmedByName = '',
@@ -254,6 +258,7 @@ class PaymentInfo {
       refNo: (m['refNo'] ?? '') as String,
       note: (m['note'] ?? '') as String,
       proofUrl: (m['proofUrl'] ?? '') as String,
+        creditLocal: (m['creditLocal'] as num?)?.toDouble() ?? 0,
       submittedAt: _ts(m['submittedAt']),
       confirmedAt: _ts(m['confirmedAt']),
       confirmedByName: (m['confirmedByName'] ?? '') as String,

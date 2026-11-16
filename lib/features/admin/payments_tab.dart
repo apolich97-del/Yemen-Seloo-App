@@ -60,6 +60,9 @@ class PaymentsTab extends StatelessWidget {
                       _kv('المبلغ المُدخل',
                           formatMoney(o.payment.amount, o.currency)),
                       if (o.payment.note.isNotEmpty) _kv('ملاحظة', o.payment.note),
+                      if (o.payment.creditLocal > 0.5)
+                        _kv('زيادة للعميل',
+                            formatMoney(o.payment.creditLocal, o.currency)),
                       if (o.payment.proofUrl.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 8),

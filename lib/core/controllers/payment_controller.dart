@@ -263,6 +263,10 @@ class PaymentController extends GetxController {
           'refNo': t.refNo,
           'note': t.note,
           'proofUrl': t.proofUrl,
+          // أي زيادة فوق قيمة الطلب والشحن تُسجَّل رصيداً للعميل.
+          'creditLocal': t.amount > payload.estimate.totalLocal
+              ? (t.amount - payload.estimate.totalLocal)
+              : 0.0,
         },
         // عمولة المندوب: بند داخلي لا يُضاف إلى إجمالي العميل.
         commission: <String, dynamic>{
