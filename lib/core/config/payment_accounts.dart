@@ -49,10 +49,9 @@ const Color _jaib = Color(0xFF6A1B9A);
 const String _usdRateNorth = '533';
 const String _usdRateSouth = '1570';
 
+/// سعر الدولار يُقرأ من settings/app في الشاشة؛ هذه نسخة احتياطية فقط.
 const String _usdNote =
-    'سعر الدولار المعتمد: 1 دولار = ' + _usdRateNorth + ' ريال (شمال) · ' +
-    _usdRateSouth + ' ريال (جنوب). حوّل ما يعادل إجمالي الطلب بالدولار '
-    'ثم أدخل المبلغ المرسل.';
+    'حوّل ما يعادل إجمالي الطلب بالدولار ثم أدخل المبلغ المرسل.';
 
 /// القائمة المعتمدة (الاسم: عبدالله عبدالعالم عبدالله) — محدثة 2026-11-15.
 const List<PaymentAccount> kPaymentAccounts = [

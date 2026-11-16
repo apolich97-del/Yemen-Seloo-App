@@ -88,10 +88,23 @@ jobs:
               <string name="project_id" translatable="false">yemen-seloo-app</string>
               <string name="google_storage_bucket" translatable="false">yemen-seloo-app.firebasestorage.app</string>
               <string name="firebase_database_url" translatable="false"></string>
-              <string name="default_web_client_id" translatable="false"></string>
+              <string name="default_web_client_id" translatable="false">__WEB_CLIENT_ID__</string>
               <string name="ga_trackingId" translatable="false"></string>
           </resources>
           XML_EOF
+          python3 << 'PYFILL'
+          import json, pathlib
+          gs = json.loads(pathlib.Path('android/app/google-services.json').read_text())
+          web = ''
+          for c in gs.get('client', []):
+              for o in c.get('oauth_client', []):
+                  if o.get('client_type') == 3:
+                      web = o.get('client_id', '')
+          out = pathlib.Path('android/app/src/main/res/values/values.xml')
+          t = out.read_text()
+          out.write_text(t.replace('__WEB_CLIENT_ID__', web))
+          print('default_web_client_id =', web or '(لم يوجد)')
+          PYFILL
           echo "=== محتوى values.xml ==="
           cat android/app/src/main/res/values/values.xml
 

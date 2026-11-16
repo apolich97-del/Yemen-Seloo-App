@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../core/config/payment_accounts.dart';
 import '../../core/controllers/payment_controller.dart';
 import '../../core/models/currency.dart';
+import '../../core/services/settings_service.dart';
 import '../../core/theme/app_theme.dart';
 
 /// المرحلة 2 — «الدفع»: اختيار الحساب وإثبات الحوالة.
@@ -268,7 +269,15 @@ class PaymentScreen extends GetView<PaymentController> {
                   ],
                 ),
               )),
-          Text(a.noteAr, style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
+          Text(
+            a.noteAr +
+                (a.id.contains('usd')
+                    ? '\nسعر الدولار الآن: 1 دولار = '
+                        '${Get.find<SettingsService>().settings.value.usdRateNorth.toStringAsFixed(0)} ريال (شمال) · '
+                        '${Get.find<SettingsService>().settings.value.usdRateSouth.toStringAsFixed(0)} ريال (جنوب)'
+                    : ''),
+            style: const TextStyle(fontSize: 11.5, color: AppColors.muted),
+          ),
           const SizedBox(height: 10),
           Row(
             children: [

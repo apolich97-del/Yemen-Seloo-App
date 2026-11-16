@@ -27,6 +27,10 @@ class AppSettings {
   /// شحن لكل قطعة تحت حد الشحن المجاني.
   final double shippingPerPieceSar;
 
+  /// 1 دولار أمريكي = usdRateNorth ريال يمني (شمال) / usdRateSouth (جنوب).
+  final double usdRateNorth;
+  final double usdRateSouth;
+
   /// مدة التوصيل المتوقعة بالأيام — تُعدَّل من لوحة الإدارة.
   final int deliveryMinDays;
   final int deliveryMaxDays;
@@ -46,6 +50,8 @@ class AppSettings {
     this.codEnabled = false,
     this.serviceFeeSar = 1.22,
     this.shippingPerPieceSar = 1,
+    this.usdRateNorth = 533,
+    this.usdRateSouth = 1570,
     this.deliveryMinDays = 15,
     this.deliveryMaxDays = 20,
   });
@@ -65,6 +71,8 @@ class AppSettings {
 
   AppSettings copyWith({
     double? rateNorth,
+    double? usdRateNorth,
+    double? usdRateSouth,
     double? rateSouth,
     double? shippingFeeSar,
     double? deliveryFeeSar,
@@ -79,6 +87,8 @@ class AppSettings {
   }) =>
       AppSettings(
         rateNorth: rateNorth ?? this.rateNorth,
+        usdRateNorth: usdRateNorth ?? this.usdRateNorth,
+        usdRateSouth: usdRateSouth ?? this.usdRateSouth,
         rateSouth: rateSouth ?? this.rateSouth,
         shippingFeeSar: shippingFeeSar ?? this.shippingFeeSar,
         deliveryFeeSar: deliveryFeeSar ?? this.deliveryFeeSar,
@@ -98,6 +108,8 @@ class AppSettings {
     double d(dynamic v, double def) => v is num ? v.toDouble() : def;
     return AppSettings(
       rateNorth: d(m['rateNorth'], 140),
+      usdRateNorth: d(m['usdRateNorth'], 533),
+      usdRateSouth: d(m['usdRateSouth'], 1570),
       rateSouth: d(m['rateSouth'], 413),
       shippingFeeSar: d(m['shippingFeeSar'], 0),
       deliveryFeeSar: d(m['deliveryFeeSar'], 10),
@@ -119,6 +131,8 @@ class AppSettings {
   Map<String, dynamic> toMap() => {
         'rateNorth': rateNorth,
         'rateSouth': rateSouth,
+        'usdRateNorth': usdRateNorth,
+        'usdRateSouth': usdRateSouth,
         'shippingFeeSar': shippingFeeSar,
         'deliveryFeeSar': deliveryFeeSar,
         'deliveryFeeNorthLocal': deliveryFeeNorthLocal,

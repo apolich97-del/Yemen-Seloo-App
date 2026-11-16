@@ -20,6 +20,8 @@ class _SettingsTabState extends State<SettingsTab> {
   final _db = FirebaseFirestore.instance;
 
   final _rateNorth = TextEditingController();
+  final _usdNorth = TextEditingController();
+  final _usdSouth = TextEditingController();
   final _rateSouth = TextEditingController();
   final _shipping = TextEditingController();
   final _delivery = TextEditingController();
@@ -52,6 +54,8 @@ class _SettingsTabState extends State<SettingsTab> {
   void _fill(AppSettings s) {
     if (_loaded) return;
     _rateNorth.text = s.rateNorth.toStringAsFixed(0);
+    _usdNorth.text = s.usdRateNorth.toStringAsFixed(0);
+    _usdSouth.text = s.usdRateSouth.toStringAsFixed(0);
     _rateSouth.text = s.rateSouth.toStringAsFixed(0);
     _shipping.text = s.shippingFeeSar.toStringAsFixed(2);
     _delivery.text = s.deliveryFeeSar.toStringAsFixed(2);
@@ -70,6 +74,8 @@ class _SettingsTabState extends State<SettingsTab> {
     try {
       final s = AppSettings(
         rateNorth: double.tryParse(_rateNorth.text) ?? 140,
+        usdRateNorth: double.tryParse(_usdNorth.text) ?? 533,
+        usdRateSouth: double.tryParse(_usdSouth.text) ?? 1570,
         rateSouth: double.tryParse(_rateSouth.text) ?? 413,
         shippingFeeSar: double.tryParse(_shipping.text) ?? 0,
         deliveryFeeSar: double.tryParse(_delivery.text) ?? 0,
@@ -140,6 +146,25 @@ class _SettingsTabState extends State<SettingsTab> {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
+                        child: TextField(
+                          controller: _usdNorth,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                              labelText: '1 دولار ← ريال شمالي'),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: 160,
+                        child: TextField(
+                          controller: _usdSouth,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                              labelText: '1 دولار ← ريال جنوبي'),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
                         child: TextField(
                           controller: _rateSouth,
                           keyboardType: TextInputType.number,
