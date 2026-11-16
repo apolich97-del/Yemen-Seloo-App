@@ -1,12 +1,17 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show Uint8List;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import 'package:get/get.dart';
+
 import '../models/currency.dart';
 import '../models/order.dart';
+import 'settings_service.dart';
 
 /// مستندات الطلب بهوية «يمن سيلو»: فاتورة PDF عربية + قالب رسالة واتساب.
 class OrderDocuments {
@@ -16,6 +21,60 @@ class OrderDocuments {
   static const _soft = PdfColor.fromInt(0xFFF7F5FB);
   static const _ink = PdfColor.fromInt(0xFF1B1F1D);
   static const _muted = PdfColor.fromInt(0xFF6B7671);
+
+  /// ينزّل صورة منتج ويحولها لصورة PDF، ويرجع null عند أي فشل.
+  static Future<pw.MemoryImage?> _fetch(String url) async {
+    if (url.isEmpty) return null;
+    try {
+      if (url.startsWith('data:')) {
+        return pw.MemoryImage(base64Decode(url.substring(url.indexOf(',') + 1)));
+      }
+      final client = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 8);
+      final req = await client.getUrl(Uri.parse(url));
+      final res = await req.close().timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) {
+        client.close();
+        return null;
+      }
+      final bytes = await res
+          .fold<List<int>>(<int>[], (a, b) => a..addAll(b))
+          .timeout(const Duration(seconds: 12));
+      client.close();
+      if (bytes.isEmpty) return null;
+      return pw.MemoryImage(Uint8List.fromList(bytes));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static String _deliveryWindow() {
+    try {
+      if (!Get.isRegistered<SettingsService>()) return '';
+      final sf = Get.find<SettingsService>().settings.value;
+      return '${sf.deliveryMinDays}–${sf.deliveryMaxDays} يوماً';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  static String _support() {
+    try {
+      if (!Get.isRegistered<SettingsService>()) return '';
+      final sf = Get.find<SettingsService>().settings.value;
+      return sf.supportWhatsApp.isNotEmpty ? sf.supportWhatsApp : sf.supportPhone;
+    } catch (_) {
+      return '';
+    }
+  }
+
+  static String _variant(OrderItem it) {
+    final parts = <String>[
+      if (it.color.isNotEmpty) 'اللون: ${it.color}',
+      if (it.size.isNotEmpty) 'المقاس: ${it.size}',
+    ];
+    return parts.join(' · ');
+  }
 
   static String _date(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
@@ -90,6 +149,12 @@ class OrderDocuments {
           ),
         );
 
+    // تنزيل صور المنتجات وصورة الحوالة (بالتوازي) مع تجاهل أي فشل.
+    final itemImages = await Future.wait(o.items.map((it) => _fetch(it.imageUrl)));
+    final proofImage = o.payment.proofUrl.isNotEmpty
+        ? await _fetch(o.payment.proofUrl)
+        : null;
+
     final doc = pw.Document(title: 'طلب ${o.orderNo}', author: 'يمن سيلو');
     doc.addPage(
       pw.MultiPage(
@@ -150,17 +215,23 @@ class OrderDocuments {
         ),
         build: (ctx) => [
           pw.SizedBox(height: 14),
-          card('حالة الطلب', [
+          card('بيانات التوصيل', [
             kv('الحالة', o.status.labelAr, strong: true),
+            kv('المستلم', o.address.receiverName),
+            kv('الهاتف', o.address.phone),
             kv('العنوان', o.address.fullAr),
+            kv('نوع العنوان', o.address.label),
+            if (o.trackingNo.isNotEmpty) kv('رقم التتبع', o.trackingNo),
+            if (o.courierName.isNotEmpty) kv('المندوب', o.courierName),
           ]),
           pw.Text('المنتجات', style: t(12.5, b: true, c: _violetDark)),
           pw.SizedBox(height: 6),
           pw.Table(
             columnWidths: {
-              0: const pw.FlexColumnWidth(2),
-              1: const pw.FlexColumnWidth(1),
-              2: const pw.FlexColumnWidth(5),
+              0: const pw.FixedColumnWidth(46),
+              1: const pw.FlexColumnWidth(3),
+              2: const pw.FlexColumnWidth(1),
+              3: const pw.FlexColumnWidth(2),
             },
             border: pw.TableBorder(
               horizontalInside: pw.BorderSide(color: PdfColor.fromInt(0xFFE4DDF5)),
@@ -169,48 +240,131 @@ class OrderDocuments {
               pw.TableRow(
                 decoration: const pw.BoxDecoration(color: _violetDark),
                 children: [
-                  for (final h in ['السعر', 'الكمية', 'المنتج'])
+                  for (final h in ['', 'المنتج', 'الكمية', 'السعر'])
                     pw.Padding(
                       padding: const pw.EdgeInsets.all(6),
                       child: pw.Text(h, style: t(10.5, b: true, c: PdfColors.white)),
                     ),
                 ],
               ),
-              for (final it in o.items)
-                pw.TableRow(children: [
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.all(6),
-                    child: pw.Text(
-                        formatMoney(it.lineTotalSar * o.exchangeRate, o.currency),
-                        style: t(10)),
-                  ),
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.all(6),
-                    child: pw.Text('${it.qty}', style: t(10)),
-                  ),
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.all(6),
-                    child: pw.Text(it.title, style: t(10), maxLines: 2),
-                  ),
-                ]),
+              for (var i = 0; i < o.items.length; i++)
+                pw.TableRow(
+                  verticalAlignment: pw.TableCellVerticalAlignment.middle,
+                  children: [
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(4),
+                      child: itemImages[i] != null
+                          ? pw.Container(
+                              height: 42,
+                              width: 42,
+                              decoration: pw.BoxDecoration(
+                                borderRadius: pw.BorderRadius.circular(6),
+                                image: pw.DecorationImage(
+                                  image: itemImages[i]!,
+                                  fit: pw.BoxFit.cover,
+                                ),
+                              ),
+                            )
+                          : pw.Container(
+                              height: 42,
+                              width: 42,
+                              decoration: pw.BoxDecoration(
+                                color: _soft,
+                                borderRadius: pw.BorderRadius.circular(6),
+                                border: pw.Border.all(
+                                    color: PdfColor.fromInt(0xFFE4DDF5)),
+                              ),
+                              child: pw.Center(
+                                  child: pw.Text('—', style: t(10, c: _muted))),
+                            ),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(6),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(o.items[i].title, style: t(10), maxLines: 2),
+                          if (_variant(o.items[i]).isNotEmpty)
+                            pw.Text(_variant(o.items[i]),
+                                style: t(8.5, c: _muted)),
+                        ],
+                      ),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(6),
+                      child: pw.Text('${o.items[i].qty}', style: t(10)),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(6),
+                      child: pw.Text(
+                          formatMoney(
+                              o.items[i].lineTotalSar * o.exchangeRate, o.currency),
+                          style: t(10)),
+                    ),
+                  ],
+                ),
             ],
           ),
           pw.SizedBox(height: 14),
           card('بيانات الحوالة', [
+            kv('الحساب المستلم', o.payment.accountTitleAr),
+            kv('رقم الحساب', o.payment.accountNumber),
             kv('اسم المرسل', o.payment.senderName),
             kv('رقم العملية', o.payment.refNo),
-            kv('الحساب المستلم', o.payment.accountNumber),
             kv('المبلغ المحوّل', formatMoney(o.payment.amount, o.currency)),
+            kv('حالة التأكيد',
+                o.payment.confirmedAt == null ? 'بانتظار المراجعة' : 'مؤكدة'),
+            if (o.payment.note.isNotEmpty) kv('ملاحظة', o.payment.note),
           ]),
+          if (proofImage != null) ...[
+            pw.Text('صورة الحوالة المرفقة',
+                style: t(12.5, b: true, c: _violetDark)),
+            pw.SizedBox(height: 6),
+            pw.Container(
+              padding: const pw.EdgeInsets.all(6),
+              decoration: pw.BoxDecoration(
+                color: _soft,
+                borderRadius: pw.BorderRadius.circular(10),
+                border: pw.Border.all(color: PdfColor.fromInt(0xFFE4DDF5)),
+              ),
+              child: pw.Center(
+                child: pw.Image(proofImage,
+                    height: 190, fit: pw.BoxFit.contain),
+              ),
+            ),
+            pw.SizedBox(height: 12),
+          ],
           card('الملخص المالي', [
             kv('المنتجات', formatMoney(o.subtotalSar * o.exchangeRate, o.currency)),
             kv('الشحن', o.shippingFeeSar == 0
                 ? 'مجاني'
                 : formatMoney(o.shippingFeeSar * o.exchangeRate, o.currency)),
             kv('التوصيل', formatMoney(o.deliveryFeeSar * o.exchangeRate, o.currency)),
+            if (o.discountSar > 0)
+              kv('الخصم${o.couponCode.isEmpty ? '' : ' (${o.couponCode})'}',
+                  '- ${formatMoney(o.discountSar * o.exchangeRate, o.currency)}'),
             pw.Divider(color: _gold),
             kv('الإجمالي', formatMoney(o.totalLocal, o.currency), strong: true),
           ]),
+          if (_deliveryWindow().isNotEmpty || _support().isNotEmpty)
+            pw.Container(
+              padding: const pw.EdgeInsets.all(10),
+              decoration: pw.BoxDecoration(
+                color: _violet,
+                borderRadius: pw.BorderRadius.circular(10),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  if (_support().isNotEmpty)
+                    pw.Text('الدعم: ${_support()}',
+                        style: t(10, c: PdfColors.white)),
+                  if (_deliveryWindow().isNotEmpty)
+                    pw.Text('مدة التوصيل: ${_deliveryWindow()}',
+                        style: t(10, c: PdfColors.white)),
+                ],
+              ),
+            ),
         ],
       ),
     );
