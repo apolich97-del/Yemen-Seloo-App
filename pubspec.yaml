@@ -59,6 +59,7 @@ flutter:
     - assets/js/
     - assets/images/
     - assets/images/payments/
+    - assets/fonts/
 
 # ⭐ إعدادات أيقونة التطبيق — تُولَّد من logo.png
 flutter_launcher_icons:

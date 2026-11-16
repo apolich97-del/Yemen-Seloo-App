@@ -1,16 +1,13 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/models/currency.dart';
 import '../../core/models/order.dart';
+import '../../core/services/order_documents.dart';
 import '../../core/services/order_service.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -337,89 +334,23 @@ class OrderDetailScreen extends StatelessWidget {
             child: Center(child: Text('تعذر تحميل صورة الحوالة'))));
   }
 
-  /// مشاركة ملخص الطلب على واتساب.
+  /// مشاركة ملخص الطلب على واتساب بقالب يمن سيلو.
   Future<void> _shareWhatsApp(Order o) async {
-    final text = _summaryText(o);
+    final text = OrderDocuments.whatsappText(o);
     final uri = Uri.parse('https://wa.me/?text=${Uri.encodeComponent(text)}');
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       await Share.share(text);
     }
   }
 
-  /// تنزيل/مشاركة الملخص بصيغة PDF.
+  /// فاتورة PDF عربية بهوية يمن سيلو.
   Future<void> _sharePdf(Order o) async {
     try {
-      final doc = pw.Document();
-      pw.TextStyle arabic(double size, {bool bold = false}) => pw.TextStyle(
-          fontSize: size,
-          fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal);
-      doc.addPage(pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        textDirection: pw.TextDirection.rtl,
-        build: (ctx) => [
-          pw.Header(level: 0, text: 'ملخص الطلب ${o.orderNo}'),
-          pw.Text('التاريخ: ${_fmtDate(o.createdAt)} · الحالة: ${o.status.labelAr}',
-              style: arabic(11)),
-          pw.SizedBox(height: 10),
-          pw.Text('الموقع: ${o.address.fullAr}', style: arabic(11)),
-          pw.SizedBox(height: 10),
-          pw.Text('المنتجات', style: arabic(13, bold: true)),
-          pw.SizedBox(height: 4),
-          ...o.items.map((it) => pw.Bullet(
-              text: '${it.title} × ${it.qty} — ${formatMoney(it.lineTotalSar * o.exchangeRate, o.currency)}',
-              style: arabic(11))),
-          pw.SizedBox(height: 10),
-          pw.Text('بيانات الحوالة', style: arabic(13, bold: true)),
-          pw.Text('اسم المرسل: ${o.payment.senderName}', style: arabic(11)),
-          pw.Text('رقم العملية: ${o.payment.refNo}', style: arabic(11)),
-          pw.Text('الحساب المستلم: ${o.payment.accountNumber}', style: arabic(11)),
-          pw.Text('المبلغ المحوّل: ${formatMoney(o.payment.amount, o.currency)}',
-              style: arabic(11)),
-          pw.SizedBox(height: 10),
-          pw.Text('الملخص المالي', style: arabic(13, bold: true)),
-          pw.Text('المنتجات: ${formatMoney(o.subtotalSar * o.exchangeRate, o.currency)}',
-              style: arabic(11)),
-          pw.Text('الشحن: ${o.shippingFeeSar == 0 ? 'مجاني' : formatMoney(o.shippingFeeSar * o.exchangeRate, o.currency)}',
-              style: arabic(11)),
-          pw.Text('التوصيل: ${formatMoney(o.deliveryFeeSar * o.exchangeRate, o.currency)}',
-              style: arabic(11)),
-          pw.Divider(),
-          pw.Text('الإجمالي: ${formatMoney(o.totalLocal, o.currency)}',
-              style: arabic(13, bold: true)),
-          pw.SizedBox(height: 14),
-          pw.Text('يمن سيلو — وسيطك الموثوق للتسوق العالمي', style: arabic(10)),
-        ],
-      ));
-      final dir = await getTemporaryDirectory();
-      final f = File('${dir.path}/order_${o.orderNo}.pdf');
-      await f.writeAsBytes(await doc.save());
-      await Share.shareXFiles([XFile(f.path)],
-          text: 'ملخص الطلب ${o.orderNo}');
+      final f = await OrderDocuments.buildPdf(o);
+      await Share.shareXFiles([XFile(f.path)], text: 'فاتورة الطلب ${o.orderNo} — يمن سيلو');
     } catch (e) {
       Get.snackbar('تعذر إنشاء PDF', '$e');
     }
-  }
-
-  String _fmtDate(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
-
-  String _summaryText(Order o) {
-    final b = StringBuffer()
-      ..writeln('ملخص الطلب ${o.orderNo}')
-      ..writeln('الحالة: ${o.status.labelAr}')
-      ..writeln('الموقع: ${o.address.fullAr}')
-      ..writeln('— المنتجات —');
-    for (final it in o.items) {
-      b.writeln('• ${it.title} × ${it.qty}');
-    }
-    b
-      ..writeln('— الحوالة —')
-      ..writeln('المرسل: ${o.payment.senderName}')
-      ..writeln('رقم العملية: ${o.payment.refNo}')
-      ..writeln('المبلغ المحوّل: ${formatMoney(o.payment.amount, o.currency)}')
-      ..writeln('— الإجمالي: ${formatMoney(o.totalLocal, o.currency)} —')
-      ..writeln('يمن سيلو');
-    return b.toString();
   }
 
   Widget _proof(Order o) => SectionCard(
