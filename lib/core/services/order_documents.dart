@@ -13,6 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/currency.dart';
 import '../models/order.dart';
+import '../models/receipt.dart';
 import 'settings_service.dart';
 
 /// مستندات الطلب بهوية «يمن سيلو»: فاتورة PDF عربية + قالب رسالة واتساب.
@@ -25,6 +26,8 @@ class OrderDocuments {
   static const _muted = PdfColor.fromInt(0xFF6B7671);
 
   /// ينزّل صورة منتج ويحولها لصورة PDF، ويرجع null عند أي فشل.
+  static Future<pw.MemoryImage?> fetchImage(String url) async => _fetch(url);
+
   static Future<pw.MemoryImage?> _fetch(String url) async {
     if (url.isEmpty) return null;
     try {
@@ -380,6 +383,204 @@ class OrderDocuments {
 
     final dir = await getTemporaryDirectory();
     final f = File('${dir.path}/Yemen-Seloo-${o.orderNo}.pdf');
+    await f.writeAsBytes(await doc.save());
+    return f;
+  }
+}
+
+
+extension ReceiptDocuments on OrderDocuments {
+  static Future<File> buildReceiptPdf(Order o, Receipt r) async {
+    final reg = pw.Font.ttf(await rootBundle.load('assets/fonts/Tajawal-Regular.ttf'));
+    final bold = pw.Font.ttf(await rootBundle.load('assets/fonts/Tajawal-Bold.ttf'));
+    final logo = pw.MemoryImage(
+        (await rootBundle.load('assets/images/logo.png')).buffer.asUint8List());
+
+    final violet = PdfColor.fromInt(0xFF7C3AED);
+    final violetDark = PdfColor.fromInt(0xFF5B21B6);
+    final gold = PdfColor.fromInt(0xFFC9A227);
+    final soft = PdfColor.fromInt(0xFFF7F5FB);
+    final ink = PdfColor.fromInt(0xFF1B1F1D);
+    final muted = PdfColor.fromInt(0xFF6B7671);
+
+    pw.TextStyle t(double size, {bool b = false, PdfColor? c}) => pw.TextStyle(
+        font: b ? bold : reg, fontSize: size, color: c ?? ink);
+
+    pw.Widget kv(String k, String v, {bool strong = false}) => pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(vertical: 2.5),
+          child: pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [pw.Text(v, style: t(10.5, b: strong)), pw.Text(k, style: t(10.5, c: muted))],
+          ),
+        );
+
+    pw.Widget box(String title, List<pw.Widget> kids) => pw.Container(
+          margin: const pw.EdgeInsets.only(top: 10),
+          padding: const pw.EdgeInsets.all(11),
+          decoration: pw.BoxDecoration(
+            color: soft,
+            borderRadius: pw.BorderRadius.circular(10),
+            border: pw.Border.all(color: PdfColor.fromInt(0xFFE4DDF5)),
+          ),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: [
+              pw.Text(title, style: t(12, b: true, c: violetDark)),
+              pw.SizedBox(height: 5),
+              ...kids,
+            ],
+          ),
+        );
+
+    final proof = r.proofUrl.isNotEmpty ? await OrderDocuments.fetchImage(r.proofUrl) : null;
+    final doc = pw.Document(title: 'إيصال ${r.receiptNo}', author: 'يمن سيلو');
+    final remaining = r.remainingAfterLocal;
+
+    doc.addPage(pw.Page(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(26),
+      textDirection: pw.TextDirection.rtl,
+      theme: pw.ThemeData.withFont(base: reg, bold: bold),
+      build: (ctx) => pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          pw.Container(
+            padding: const pw.EdgeInsets.all(16),
+            decoration: pw.BoxDecoration(
+                color: violet, borderRadius: pw.BorderRadius.circular(12)),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                  pw.Text(r.statusAr, style: t(11, b: true, c: PdfColors.white)),
+                  pw.SizedBox(height: 4),
+                  pw.Text('إيصال قبض رسمي', style: t(9.5, c: gold)),
+                ]),
+                pw.Row(children: [
+                  pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
+                    pw.Text('يمن سيلو', style: t(18, b: true, c: PdfColors.white)),
+                    pw.Text('وسيطك الموثوق للتسوق العالمي', style: t(9, c: gold)),
+                  ]),
+                  pw.SizedBox(width: 10),
+                  pw.ClipRRect(
+                      horizontalRadius: 8,
+                      verticalRadius: 8,
+                      child: pw.Image(logo, width: 42, height: 42)),
+                ]),
+              ],
+            ),
+          ),
+          pw.SizedBox(height: 12),
+          pw.Container(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: pw.BoxDecoration(
+              color: violetDark,
+              borderRadius: pw.BorderRadius.circular(8),
+            ),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text('الإيصال: ${r.receiptNo}', style: t(10.5, c: PdfColors.white)),
+                pw.Text('الطلب: ${r.orderNo}', style: t(10.5, c: PdfColors.white)),
+                pw.Text(
+                    'التاريخ: ${(r.createdAt ?? DateTime.now()).toString().substring(0, 10)}',
+                    style: t(10.5, c: PdfColors.white)),
+                pw.Text(o.isDeferred ? 'آجل 50%' : 'كاش',
+                    style: t(10.5, c: gold)),
+              ],
+            ),
+          ),
+          pw.SizedBox(height: 14),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(14),
+            decoration: pw.BoxDecoration(
+              color: PdfColors.white,
+              borderRadius: pw.BorderRadius.circular(12),
+              border: pw.Border.all(color: gold, width: 1.4),
+            ),
+            child: pw.Column(children: [
+              pw.Text('المبلغ المستلم', style: t(10.5, c: muted)),
+              pw.SizedBox(height: 4),
+              pw.Text(formatMoney(r.amountLocal, o.currency),
+                  style: t(26, b: true, c: violetDark)),
+              pw.SizedBox(height: 4),
+              pw.Text(
+                  remaining <= 0.5
+                      ? 'تم سداد كامل المبلغ المستحق ✓'
+                      : 'المتبقي على العميل: ${formatMoney(remaining, o.currency)}',
+                  style: t(10.5, b: true, c: remaining <= 0.5
+                      ? PdfColor.fromInt(0xFF15803D)
+                      : PdfColor.fromInt(0xFFB3261E))),
+            ]),
+          ),
+          pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Expanded(
+                child: box('بيانات العميل والتوصيل', [
+                  kv('الاسم', o.address.receiverName),
+                  kv('الهاتف', o.address.phone),
+                  kv('العنوان', o.address.fullAr),
+                ]),
+              ),
+              pw.SizedBox(width: 10),
+              pw.Expanded(
+                child: box('تفاصيل الحوالة والاعتماد', [
+                  kv('اسم المحوِّل', r.senderName),
+                  kv('رقم العملية', r.refNo.isEmpty ? '—' : r.refNo),
+                  kv('المصدر', r.source == 'admin' ? 'إدارة' : 'العميل'),
+                  kv('المراجع', r.reviewedBy.isEmpty ? '—' : r.reviewedBy),
+                ]),
+              ),
+            ],
+          ),
+          box('البيان المالي للطلب', [
+            kv('إجمالي الطلب', formatMoney(o.totalLocal, o.currency)),
+            kv('هذا الإيصال', formatMoney(r.amountLocal, o.currency)),
+            kv('الرصيد المتبقي بعد الإيصال', formatMoney(remaining, o.currency), strong: true),
+          ]),
+          if (proof != null) ...[
+            pw.SizedBox(height: 10),
+            pw.Text('صورة إشعار الحوالة', style: t(11, b: true, c: violetDark)),
+            pw.SizedBox(height: 5),
+            pw.Center(child: pw.Image(proof, height: 170, fit: pw.BoxFit.contain)),
+          ],
+          pw.SizedBox(height: 12),
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: pw.CrossAxisAlignment.end,
+            children: [
+              pw.Text(
+                  'هذا الإيصال صادر إلكترونياً من تطبيق يمن سيلو\n'
+                  'ويعتبر سنداً للمبالغ الموضحة أعلاه.',
+                  style: t(9, c: muted)),
+              pw.Container(
+                width: 92,
+                height: 92,
+                decoration: pw.BoxDecoration(
+                  shape: pw.BoxShape.circle,
+                  border: pw.Border.all(color: violet, width: 2),
+                ),
+                child: pw.Column(
+                  mainAxisAlignment: pw.MainAxisAlignment.center,
+                  children: [
+                    pw.Text('يمن سيلو', style: t(10, b: true, c: violetDark)),
+                    pw.Text('إيصال معتمد', style: t(8, c: muted)),
+                    pw.Text(r.receiptNo, style: t(8, b: true, c: violet)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          pw.Divider(color: gold),
+          pw.Text('خدمة العملاء: يمن سيلو · yemenseloo.shop',
+              style: t(9, c: muted), textAlign: pw.TextAlign.center),
+        ],
+      ),
+    ));
+
+    final dir = await getTemporaryDirectory();
+    final f = File('${dir.path}/Receipt-${r.receiptNo}.pdf');
     await f.writeAsBytes(await doc.save());
     return f;
   }

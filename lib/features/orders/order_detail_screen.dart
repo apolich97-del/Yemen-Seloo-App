@@ -2,11 +2,14 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/models/currency.dart';
 import '../../core/models/order.dart';
+import '../../core/models/receipt.dart';
+import '../../core/services/receipt_service.dart';
 import '../../core/services/order_documents.dart';
 import '../../core/services/order_service.dart';
 import '../../core/theme/app_theme.dart';
@@ -310,6 +313,24 @@ class OrderDetailScreen extends StatelessWidget {
                   color: AppColors.danger),
             ],
           ),
+          if (o.hasRemaining && o.status != OrderStatus.unpaid) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => Get.bottomSheet(
+                  _UploadReceiptSheet(order: o),
+                  isScrollControlled: true,
+                  backgroundColor: Colors.white,
+                  shape: const RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(20))),
+                ),
+                icon: const Icon(Icons.upload_file_outlined, size: 18),
+                label: const Text('رفع إيصال سداد'),
+              ),
+            ),
+          ],
           if (o.hasRemaining && o.status == OrderStatus.outForDelivery) ...[
             const SizedBox(height: 8),
             Text(
@@ -465,6 +486,159 @@ class OrderDetailScreen extends StatelessWidget {
             bold: true,
           ),
         ],
+      ),
+    );
+  }
+}
+
+
+/// نافذة رفع إيصال سداد من العميل (يُحفظ بحالة pending للمراجعة).
+class _UploadReceiptSheet extends StatefulWidget {
+  const _UploadReceiptSheet({required this.order});
+
+  final Order order;
+
+  @override
+  State<_UploadReceiptSheet> createState() => _UploadReceiptSheetState();
+}
+
+class _UploadReceiptSheetState extends State<_UploadReceiptSheet> {
+  final _amount = TextEditingController();
+  final _ref = TextEditingController();
+  final _sender = TextEditingController();
+  final _note = TextEditingController();
+  String _proof = '';
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _amount.dispose();
+    _ref.dispose();
+    _sender.dispose();
+    _note.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pick() async {
+    final x = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 35,
+        maxWidth: 900,
+        maxHeight: 900);
+    if (x == null) return;
+    final bytes = await x.readAsBytes();
+    if (bytes.length > 450 * 1024) {
+      Get.snackbar('الصورة كبيرة', 'اختر صورة أصغر من 450 ك.ب');
+      return;
+    }
+    final mime = x.path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+    setState(() => _proof = 'data:$mime;base64,${base64Encode(bytes)}');
+  }
+
+  Future<void> _save() async {
+    final amount = double.tryParse(_amount.text.replaceAll(',', '').trim()) ?? 0;
+    if (amount <= 0) {
+      Get.snackbar('المبلغ مطلوب', 'أدخل المبلغ الذي حوّلته');
+      return;
+    }
+    if (_proof.isEmpty) {
+      Get.snackbar('الصورة مطلوبة', 'أرفق صورة إشعار الحوالة');
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final no = await Get.find<ReceiptService>().create(
+        order: widget.order,
+        amountLocal: amount,
+        refNo: _ref.text.trim(),
+        senderName: _sender.text.trim().isEmpty
+            ? widget.order.address.receiverName
+            : _sender.text.trim(),
+        note: _note.text.trim(),
+        proofUrl: _proof,
+        source: 'customer',
+      );
+      Get.back();
+      Get.snackbar('تم الإرسال',
+          'أُرسل الإيصال $no للمحاسبة وسيُخصم من المتبقي بعد الاعتماد',
+          duration: const Duration(seconds: 5));
+    } catch (e) {
+      Get.snackbar('تعذر الإرسال', '$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final o = widget.order;
+    return Padding(
+      padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          left: 16,
+          right: 16,
+          top: 16),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                const Text('رفع إيصال سداد',
+                    style:
+                        TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+                const Spacer(),
+                IconButton(
+                    onPressed: Get.back, icon: const Icon(Icons.close, size: 18)),
+              ],
+            ),
+            Text('المتبقي عليك: ${formatMoney(o.remainingLocal, o.currency)}',
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.danger)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _amount,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'المبلغ المحوّل'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _sender,
+              decoration:
+                  const InputDecoration(labelText: 'اسم المرسل (اختياري)'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _ref,
+              decoration: const InputDecoration(
+                  labelText: 'رقم العملية (اختياري)'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _note,
+              decoration: const InputDecoration(labelText: 'ملاحظة (اختياري)'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _pick,
+              icon: const Icon(Icons.image_outlined, size: 18),
+              label: Text(_proof.isEmpty
+                  ? 'إرفاق صورة الإشعار'
+                  : 'تم إرفاق صورة الإشعار ✓'),
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _busy ? null : _save,
+                child: Text(_busy ? 'جارٍ الإرسال…' : 'إرسال للمحاسبة'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/models/currency.dart';
 import '../../core/models/order.dart';
@@ -227,13 +228,30 @@ class _ReceiptsTabState extends State<ReceiptsTab> {
                     '${formatMoney(r.amountLocal, AppCurrency.north)} · متبقٍ ${formatMoney(r.remainingAfterLocal, AppCurrency.north)}',
                     style:
                         const TextStyle(fontSize: 11, color: AppColors.muted)),
-                trailing: IconButton(
-                  icon: const Icon(Icons.share_outlined, size: 18),
-                  onPressed: () async {
-                    final order = await _orders.fetchOrder(r.orderId);
-                    if (order == null) return;
-                    await OrderDocuments.shareWhatsApp(order);
-                  },
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'إيصال PDF',
+                      icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                      onPressed: () async {
+                        final order = await _orders.fetchOrder(r.orderId);
+                        if (order == null) return;
+                        final f = await ReceiptDocuments.buildReceiptPdf(order, r);
+                        await Share.shareXFiles([XFile(f.path)],
+                            text: 'إيصال ${r.receiptNo} — يمن سيلو');
+                      },
+                    ),
+                    IconButton(
+                      tooltip: 'مشاركة واتساب',
+                      icon: const Icon(Icons.share_outlined, size: 18),
+                      onPressed: () async {
+                        final order = await _orders.fetchOrder(r.orderId);
+                        if (order == null) return;
+                        await OrderDocuments.shareWhatsApp(order);
+                      },
+                    ),
+                  ],
                 ),
               );
             }).toList(),
