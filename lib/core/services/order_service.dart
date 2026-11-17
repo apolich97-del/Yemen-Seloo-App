@@ -22,11 +22,40 @@ class OrderService extends GetxService {
 
   String get _email => _auth.currentUser?.email ?? '';
 
-  String _no(String id) {
-    final d = DateTime.now();
-    String t(int v) => v.toString().padLeft(2, '0');
-    final c = id.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
-    return 'YS${t(d.year % 100)}${t(d.month)}${t(d.day)}-${c.substring(c.length - 4)}';
+  /// رقم الطلب بنفس خوارزمية الجدول المعتمدة:
+  /// YS + آخر رقمين من السنة + رمز الشهر + رقم الأسبوع داخل الشهر
+  /// + "-" + حرف يتغيّر كل 26 طلباً + رقم متسلسل من 001 إلى 999.
+  /// مثال: YS26AU3-Q173
+  static const _monthCodes = [
+    'JA', 'FE', 'MR', 'AP', 'MY', 'JN',
+    'JL', 'AU', 'SE', 'OC', 'NV', 'DE',
+  ];
+
+  Future<String> _nextOrderNo() async {
+    final counter = _db.collection('counters').doc('orders');
+    int n;
+    try {
+      n = await _db.runTransaction<int>((tx) async {
+        final snap = await tx.get(counter);
+        final v = ((snap.data()?['value'] as num?)?.toInt() ?? 0) + 1;
+        tx.set(counter, {'value': v}, SetOptions(merge: true));
+        return v;
+      });
+    } catch (_) {
+      // احتياط: إن تعذّر العدّاد (قواعد غير منشورة) نستخدم عدّاداً زمنياً
+      // حتى لا يتوقف إنشاء الطلبات.
+      n = DateTime.now().millisecondsSinceEpoch % 26000;
+    }
+
+    final now = DateTime.now();
+    final idx = n - 1; // ROW()-ROW($A$2)
+    final week = ((now.day - 1) ~/ 7) + 1;
+    final letter = String.fromCharCode(65 + (idx % 26));
+    final seq = (idx % 1000) + 1;
+
+    return 'YS${(now.year % 100).toString().padLeft(2, '0')}'
+        '${_monthCodes[now.month - 1]}$week-'
+        '$letter${seq.toString().padLeft(3, '0')}';
   }
 
   Future<String> submitOrder({
@@ -44,6 +73,7 @@ class OrderService extends GetxService {
     if (estimate == null) throw 'أعد فتح شاشة الملخص لحساب الإجمالي';
     final e = estimate;
     final ref = _db.collection('orders').doc();
+    final orderNo = await _nextOrderNo();
     final st = payment != null ? 'verifying' : 'unpaid';
     final pieces = lines.fold<int>(0, (s, l) => s + l.qty);
     final perPiece = (commission?['perPieceSar'] as num?)?.toDouble() ?? 0;
@@ -56,7 +86,7 @@ class OrderService extends GetxService {
     final remainingLocal = payment == null ? e.totalLocal : (e.totalLocal - paidLocal);
 
     await ref.set({
-      'orderNo': _no(ref.id),
+      'orderNo': orderNo,
       'userId': _uid,
       'customerEmail': _email,
       'customerName': address.receiverName,
