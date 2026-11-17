@@ -92,6 +92,18 @@ class AuthService extends GetxService {
       final token = await u.getIdTokenResult(true);
       final claimRole = token.claims?['role'];
       if (claimRole is String && claimRole.isNotEmpty) role = claimRole;
+
+      // بريد الفريق يفتح لوحة الإدارة حتى لو لم يُضبط claim الدور بعد
+      // (نفس القائمة المعتمدة في firestore.rules).
+      const staffEmails = [
+        'apolich97@gmail.com',
+        'abode212k@gmail.com',
+        'yemenseloo.shop@gmail.com',
+      ];
+      final email = (u.email ?? '').toLowerCase();
+      if (role == 'customer' && staffEmails.contains(email)) {
+        role = 'manager';
+      }
       user.value = AppUser(
         uid: u.uid,
         email: u.email,
