@@ -7,8 +7,12 @@ service cloud.firestore {
     function proofOk(p, minAmount) {
       return p.proofUrl is string && p.proofUrl.size() > 0
         && p.amount is number && p.amount >= minAmount
-        && p.refNo is string && p.refNo.size() >= 4
         && p.senderName is string && p.senderName.size() >= 3;
+    }
+    // المبلغ المطلوب: الدفعة الأولى في الطلب الآجل، وإلا الإجمالي
+    function dueOf(d) {
+      return d.upfrontDueLocal is number && d.upfrontDueLocal > 0
+        ? d.upfrontDueLocal : d.totalLocal;
     }
 
     match /users/{uid} {
@@ -29,14 +33,14 @@ service cloud.firestore {
         && request.resource.data.items.size() <= 60
         && request.resource.data.totalSar is number
         && (request.resource.data.status != 'verifying'
-            || proofOk(request.resource.data.payment, request.resource.data.totalLocal));
+            || proofOk(request.resource.data.payment, dueOf(request.resource.data)));
       allow update: if auth() && resource.data.userId == me()
         && resource.data.status in ['unpaid','verifying']
         && request.resource.data.status in ['unpaid','verifying','cancelled']
         && request.resource.data.userId == resource.data.userId
         && request.resource.data.totalSar == resource.data.totalSar
         && (request.resource.data.status != 'verifying'
-            || proofOk(request.resource.data.payment, resource.data.totalLocal));
+            || proofOk(request.resource.data.payment, dueOf(resource.data)));
       allow update: if staff();
       allow delete: if false;
       match /events/{e} {
