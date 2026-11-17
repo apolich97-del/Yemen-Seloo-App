@@ -93,6 +93,12 @@ class AuthService extends GetxService {
       final claimRole = token.claims?['role'];
       if (claimRole is String && claimRole.isNotEmpty) role = claimRole;
 
+      // الدور قد يُضبط في users/{uid}.role من لوحة Firebase
+      final docRole = (d['role'] as String?) ?? '';
+      if (claimRole is! String || claimRole.isEmpty) {
+        if (docRole.isNotEmpty && docRole != 'customer') role = docRole;
+      }
+
       // بريد الفريق يفتح لوحة الإدارة حتى لو لم يُضبط claim الدور بعد
       // (نفس القائمة المعتمدة في firestore.rules).
       const staffEmails = [

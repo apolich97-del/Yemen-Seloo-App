@@ -41,6 +41,7 @@ class OrderDetailScreen extends StatelessWidget {
               const SizedBox(height: 12),
               _timeline(o),
               const SizedBox(height: 12),
+              _receiptsCard(o),
               if (o.hasRemaining) _balanceCard(o),
               if (o.hasRemaining) const SizedBox(height: 12),
               _items(o),
@@ -345,6 +346,73 @@ class OrderDetailScreen extends StatelessWidget {
       ),
     );
   }
+
+  /// إيصالات السداد الخاصة بالعميل مع حالتها.
+  Widget _receiptsCard(Order o) => StreamBuilder<List<Receipt>>(
+        stream: Get.find<ReceiptService>().forOrder(o.id),
+        builder: (context, snap) {
+          final list = snap.data ?? const <Receipt>[];
+          if (list.isEmpty) return const SizedBox.shrink();
+          Widget statusChip(Receipt r) {
+            final color = r.isApproved
+                ? AppColors.success
+                : r.isRejected
+                    ? AppColors.danger
+                    : const Color(0xFFB26A00);
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: color.withOpacity(.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(r.statusAr,
+                  style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      color: color)),
+            );
+          }
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: SectionCard(
+              title: 'إيصالات السداد (${list.length})',
+              child: Column(
+                children: list.map((r) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(r.receiptNo,
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800)),
+                              if (r.note.isNotEmpty)
+                                Text(r.note,
+                                    style: const TextStyle(
+                                        fontSize: 10.5,
+                                        color: AppColors.muted)),
+                            ],
+                          ),
+                        ),
+                        Text(formatMoney(r.amountLocal, o.currency),
+                            style: const TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w900)),
+                        const SizedBox(width: 6),
+                        statusChip(r),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          );
+        },
+      );
 
   Widget _payment(Order o) {
     final p = o.payment;

@@ -22,14 +22,26 @@ class AdminShell extends StatefulWidget {
 class _AdminShellState extends State<AdminShell> {
   int _index = 0;
 
-  static const _tabs = [
-    _TabDef('لوحة المعلومات', Icons.dashboard_outlined),
-    _TabDef('الطلبات', Icons.receipt_long_outlined),
-    _TabDef('المدفوعات', Icons.account_balance_wallet_outlined),
-    _TabDef('إيصال', Icons.qr_code_2_outlined),
-    _TabDef('الشحن', Icons.local_shipping_outlined),
-    _TabDef('الإعدادات', Icons.settings_outlined),
-  ];
+  /// تبويبات كل دور: المحاسب، الشحن، خدمة العملاء، المدير.
+  static List<_TabDef> _tabsFor(String role) {
+    const dash = _TabDef('لوحة المعلومات', Icons.dashboard_outlined);
+    const orders = _TabDef('الطلبات', Icons.receipt_long_outlined);
+    const pays = _TabDef('المدفوعات', Icons.account_balance_wallet_outlined);
+    const receipts = _TabDef('إيصال', Icons.qr_code_2_outlined);
+    const ship = _TabDef('الشحن', Icons.local_shipping_outlined);
+    const settings = _TabDef('الإعدادات', Icons.settings_outlined);
+    switch (role) {
+      case 'accounting':
+        return [pays, receipts, orders];
+      case 'shipping':
+      case 'courier':
+        return [ship, orders];
+      case 'support':
+        return [orders, receipts];
+      default:
+        return [dash, orders, pays, receipts, ship, settings];
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,12 +57,14 @@ class _AdminShellState extends State<AdminShell> {
         );
       }
       final wide = MediaQuery.of(context).size.width >= 900;
-      final body = switch (_index) {
-        0 => const DashboardTab(),
-        1 => const OrdersTab(),
-        2 => const PaymentsTab(),
-        3 => const ReceiptsTab(),
-        4 => const ShippingTab(),
+      final tabs = _tabsFor(auth.role);
+      final idx = _index.clamp(0, tabs.length - 1);
+      final body = switch (tabs[idx].label) {
+        'لوحة المعلومات' => const DashboardTab(),
+        'الطلبات' => const OrdersTab(),
+        'المدفوعات' => const PaymentsTab(),
+        'إيصال' => const ReceiptsTab(),
+        'الشحن' => const ShippingTab(),
         _ => const SettingsTab(),
       };
       if (wide) {
@@ -59,7 +73,7 @@ class _AdminShellState extends State<AdminShell> {
             children: [
               NavigationRail(
                 extended: true,
-                selectedIndex: _index,
+                selectedIndex: idx,
                 backgroundColor: Colors.white,
                 indicatorColor: AppColors.primary.withOpacity(.12),
                 onDestinationSelected: (i) => setState(() => _index = i),
@@ -68,7 +82,7 @@ class _AdminShellState extends State<AdminShell> {
                   child: Text('يمن سيلو · إدارة',
                       style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
                 ),
-                destinations: _tabs
+                destinations: tabs
                     .map((t) => NavigationRailDestination(
                           icon: Icon(t.icon),
                           label: Text(t.label),
@@ -83,7 +97,7 @@ class _AdminShellState extends State<AdminShell> {
       }
       return Scaffold(
         appBar: AppBar(
-          title: Text(_tabs[_index].label),
+          title: Text(tabs[idx].label),
           actions: [
             Padding(
               padding: const EdgeInsets.only(left: 12),
@@ -96,9 +110,9 @@ class _AdminShellState extends State<AdminShell> {
         ),
         body: body,
         bottomNavigationBar: NavigationBar(
-          selectedIndex: _index,
+          selectedIndex: idx,
           onDestinationSelected: (i) => setState(() => _index = i),
-          destinations: _tabs
+          destinations: tabs
               .map((t) => NavigationDestination(icon: Icon(t.icon), label: t.label))
               .toList(),
         ),
