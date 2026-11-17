@@ -58,6 +58,8 @@ class DashboardTab extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
+              _salesReport(docs),
+              const SizedBox(height: 16),
               const Card(
                 child: Padding(
                   padding: EdgeInsets.all(16),
@@ -74,6 +76,110 @@ class DashboardTab extends StatelessWidget {
       ),
     );
   }
+}
+
+/// تقرير مبيعات: اليوم / الأسبوع / الشهر + المحصّل والمتبقي الآجل.
+Widget _salesReport(List<QueryDocumentSnapshot> docs) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final weekAgo = today.subtract(const Duration(days: 7));
+  final monthAgo = DateTime(now.year, now.month, 1);
+
+  double sumSar(Iterable<Order> list) => list.fold(0.0, (a, o) => a + o.totalSar);
+  double collected(Iterable<Order> list) => list.fold(
+      0.0,
+      (a, o) =>
+          a + (o.exchangeRate == 0 ? 0 : o.paidTotalLocal / o.exchangeRate));
+  double outstanding(Iterable<Order> list) => list.fold(
+      0.0,
+      (a, o) =>
+          a + (o.exchangeRate == 0 ? 0 : o.remainingLocal / o.exchangeRate));
+
+  final orders = docs
+      .map((d) => Order.fromDoc(d.id, d.data() as Map<String, dynamic>))
+      .where((o) => o.status != OrderStatus.cancelled)
+      .toList();
+
+  final todayOrders =
+      orders.where((o) => !o.createdAt.isBefore(today)).toList();
+  final weekOrders = orders.where((o) => !o.createdAt.isBefore(weekAgo)).toList();
+  final monthOrders =
+      orders.where((o) => !o.createdAt.isBefore(monthAgo)).toList();
+
+  Widget row(String label, int count, double sales) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Row(
+          children: [
+            SizedBox(
+                width: 70,
+                child: Text(label,
+                    style: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w800))),
+            Text('$count طلب',
+                style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
+            const Spacer(),
+            Text(formatMoney(sales, AppCurrency.sar),
+                style: const TextStyle(
+                    fontSize: 12.5, fontWeight: FontWeight.w900)),
+          ],
+        ),
+      );
+
+  return Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: const Color(0xFFE9E4F5)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('تقرير المبيعات',
+            style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                color: AppColors.primaryDark)),
+        const SizedBox(height: 6),
+        row('اليوم', todayOrders.length, sumSar(todayOrders)),
+        row('الأسبوع', weekOrders.length, sumSar(weekOrders)),
+        row('الشهر', monthOrders.length, sumSar(monthOrders)),
+        const Divider(height: 18),
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('المحصّل المؤكد',
+                      style: TextStyle(fontSize: 10.5, color: AppColors.muted)),
+                  Text(formatMoney(collected(orders), AppCurrency.sar),
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.success)),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('متبقٍ على العملاء (آجل)',
+                      style: TextStyle(fontSize: 10.5, color: AppColors.muted)),
+                  Text(formatMoney(outstanding(orders), AppCurrency.sar),
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.danger)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
 }
 
 class _Kpi extends StatelessWidget {

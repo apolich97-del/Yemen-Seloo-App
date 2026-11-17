@@ -17,6 +17,7 @@ class OrdersTab extends StatefulWidget {
 
 class _OrdersTabState extends State<OrdersTab> {
   OrderStatus? _filter;
+  String _query = '';
   final _orders = Get.find<OrderService>();
 
   @override
@@ -25,6 +26,16 @@ class _OrdersTabState extends State<OrdersTab> {
       allow: ['support', 'shipping', 'courier'],
       child: Column(
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: TextField(
+              decoration: const InputDecoration(
+                hintText: 'ابحث برقم الطلب أو الهاتف',
+                prefixIcon: Icon(Icons.search, size: 18),
+              ),
+              onChanged: (v) => setState(() => _query = v.trim()),
+            ),
+          ),
           SizedBox(
             height: 50,
             child: ListView(
@@ -43,7 +54,16 @@ class _OrdersTabState extends State<OrdersTab> {
                 if (!snap.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                final list = snap.data!;
+                var list = snap.data!;
+                if (_query.isNotEmpty) {
+                  final q = _query.toLowerCase();
+                  list = list
+                      .where((o) =>
+                          o.orderNo.toLowerCase().contains(q) ||
+                          o.address.phone.contains(q) ||
+                          o.address.receiverName.contains(q))
+                      .toList();
+                }
                 if (list.isEmpty) {
                   return const Center(child: Text('لا توجد طلبات'));
                 }
@@ -84,6 +104,23 @@ class _OrdersTabState extends State<OrdersTab> {
                 children: [
                   Text(o.orderNo,
                       style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+                  if (o.isDeferred) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.accent.withOpacity(.2),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.accent),
+                      ),
+                      child: const Text('آجل 50%',
+                          style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF7A5E00))),
+                    ),
+                  ],
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
