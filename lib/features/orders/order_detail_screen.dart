@@ -354,42 +354,15 @@ class OrderDetailScreen extends StatelessWidget {
       child: Column(
         children: [
           MoneyRow(label: 'اسم المرسل', value: p.senderName),
-          MoneyRow(label: 'رقم العملية', value: p.refNo),
+          if (p.refNo.isNotEmpty)
+            MoneyRow(label: 'رقم العملية', value: p.refNo),
           MoneyRow(label: 'الحساب المستلم', value: p.accountNumber),
           MoneyRow(
             label: 'حالة التأكيد',
             value: p.confirmedAt == null ? 'بانتظار مراجعة المحاسبة' : 'مؤكدة',
             free: p.confirmedAt != null,
           ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                p.proofUrl.isEmpty
-                    ? 'لا توجد صورة حوالة مرفقة مع هذا الطلب'
-                    : 'صورة محفوظة (${(p.proofUrl.length / 1024).round()} ك.ب)',
-                style: TextStyle(
-                    fontSize: 11.5,
-                    color: p.proofUrl.isEmpty
-                        ? AppColors.danger
-                        : AppColors.success),
-              ),
-            ),
-          ),
-          if (p.proofUrl.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            const Align(
-              alignment: Alignment.centerRight,
-              child: Text('صورة الحوالة المرفقة',
-                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
-            ),
-            const SizedBox(height: 6),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: _proofImage(p.proofUrl),
-            ),
-          ],
+          _ProofSection(order: o, direct: p.proofUrl),
         ],
       ),
     );
@@ -640,6 +613,89 @@ class _UploadReceiptSheetState extends State<_UploadReceiptSheet> {
           ],
         ),
       ),
+    );
+  }
+}
+
+
+/// يعرض صورة الحوالة: من بيانات الطلب أو من آخر إيصال مرفوع.
+class _ProofSection extends StatelessWidget {
+  const _ProofSection({required this.order, required this.direct});
+
+  final Order order;
+  final String direct;
+
+  Widget _image(String src) {
+    try {
+      if (src.startsWith('data:')) {
+        return Image.memory(base64Decode(src.substring(src.indexOf(',') + 1)),
+            height: 230,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => const SizedBox(
+                height: 60,
+                child: Center(child: Text('تعذر عرض صورة الحوالة'))));
+      }
+      return Image.network(src,
+          height: 230,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => const SizedBox(
+              height: 60,
+              child: Center(child: Text('تعذر تحميل صورة الحوالة'))));
+    } catch (_) {
+      return const SizedBox(
+          height: 60, child: Center(child: Text('تعذر عرض صورة الحوالة')));
+    }
+  }
+
+  Widget _label(String text, Color color) => Align(
+        alignment: Alignment.centerRight,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text(text,
+              style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: color)),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    if (direct.isNotEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _label('صورة الحوالة المرفقة', AppColors.success),
+          const SizedBox(height: 6),
+          ClipRRect(
+              borderRadius: BorderRadius.circular(12), child: _image(direct)),
+        ],
+      );
+    }
+    return StreamBuilder<List<Receipt>>(
+      stream: Get.find<ReceiptService>().forOrder(order.id),
+      builder: (context, snap) {
+        final list = snap.data ?? const <Receipt>[];
+        final withProof = list.where((r) => r.proofUrl.isNotEmpty).toList();
+        if (withProof.isEmpty) {
+          return _label(
+              snap.hasError
+                  ? 'تعذر تحميل الإيصالات'
+                  : 'لا توجد صورة حوالة مرفقة مع هذا الطلب',
+              AppColors.danger);
+        }
+        final r = withProof.first;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _label('صورة الحوالة المرفقة (${r.receiptNo})', AppColors.success),
+            const SizedBox(height: 6),
+            ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: _image(r.proofUrl)),
+          ],
+        );
+      },
     );
   }
 }

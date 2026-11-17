@@ -21,6 +21,9 @@ class _SettingsTabState extends State<SettingsTab> {
 
   final _rateNorth = TextEditingController();
   final _usdNorth = TextEditingController();
+  final _defThreshold = TextEditingController();
+  final _defPercent = TextEditingController();
+  bool _defEnabled = true;
   final _usdSouth = TextEditingController();
   final _rateSouth = TextEditingController();
   final _shipping = TextEditingController();
@@ -55,6 +58,9 @@ class _SettingsTabState extends State<SettingsTab> {
     if (_loaded) return;
     _rateNorth.text = s.rateNorth.toStringAsFixed(0);
     _usdNorth.text = s.usdRateNorth.toStringAsFixed(0);
+    _defEnabled = s.deferredEnabled;
+    _defThreshold.text = s.deferredThresholdSar.toStringAsFixed(0);
+    _defPercent.text = s.deferredUpfrontPercent.toStringAsFixed(0);
     _usdSouth.text = s.usdRateSouth.toStringAsFixed(0);
     _rateSouth.text = s.rateSouth.toStringAsFixed(0);
     _shipping.text = s.shippingFeeSar.toStringAsFixed(2);
@@ -74,6 +80,9 @@ class _SettingsTabState extends State<SettingsTab> {
     try {
       final s = AppSettings(
         rateNorth: double.tryParse(_rateNorth.text) ?? 140,
+        deferredEnabled: _defEnabled,
+        deferredThresholdSar: double.tryParse(_defThreshold.text) ?? 150,
+        deferredUpfrontPercent: double.tryParse(_defPercent.text) ?? 50,
         usdRateNorth: double.tryParse(_usdNorth.text) ?? 533,
         usdRateSouth: double.tryParse(_usdSouth.text) ?? 1570,
         rateSouth: double.tryParse(_rateSouth.text) ?? 413,
@@ -146,6 +155,48 @@ class _SettingsTabState extends State<SettingsTab> {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('الطلبات الآجلة (الدفع بالنصف)',
+                                style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w800)),
+                            SwitchListTile(
+                              contentPadding: EdgeInsets.zero,
+                              value: _defEnabled,
+                              title: const Text('تفعيل نظام الآجل',
+                                  style: TextStyle(fontSize: 12)),
+                              onChanged: (v) => setState(() => _defEnabled = v),
+                            ),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _defThreshold,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                        labelText: 'الحد الأدنى (ر.س)'),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: TextField(
+                                    controller: _defPercent,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                        labelText: 'نسبة المقدمة %'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: 160,
                         child: TextField(
                           controller: _usdNorth,
                           keyboardType: TextInputType.number,
