@@ -200,8 +200,7 @@ void adminGo(String label) {
     'الشحن',
     'الإعدادات',
   ];
-  final i = order.indexOf(label);
-  if (i >= 0) Get.find<AdminNav>().go(i);
+  if (order.contains(label)) Get.find<AdminNav>().goTo(label);
 }
 
 class _Kpi extends StatelessWidget {
