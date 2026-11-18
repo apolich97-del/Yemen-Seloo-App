@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
+import '../../../core/theme/app_theme.dart';
 
 const Color _purple = Color(0xFF7C3AED);
 const Color _green = Color(0xFF25D366);
@@ -13,7 +14,7 @@ class OrdersTab extends StatelessWidget {
         GetStorage().read<List<dynamic>>('seloo_orders') ?? <dynamic>[];
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: T.card,
       body: orders.isEmpty
           ? const Center(
               child: Column(
@@ -54,9 +55,9 @@ class OrdersTab extends StatelessWidget {
                   margin: const EdgeInsets.only(bottom: 10),
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: T.card,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFE9D5FF)),
+                    border: Border.all(color: T.softBorder),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

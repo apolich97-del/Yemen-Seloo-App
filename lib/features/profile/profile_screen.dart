@@ -295,7 +295,7 @@ Widget _appSettingsCard() {
     decoration: BoxDecoration(
       color: Get.isDarkMode ? const Color(0xFF130F24) : Colors.white,
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: Get.isDarkMode ? const Color(0xFF2D2354) : const Color(0xFFE9E4F5)),
+      border: Border.all(color: Get.isDarkMode ? const Color(0xFF2D2354) : T.border),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,

@@ -185,9 +185,9 @@ class _SupportScreenState extends State<SupportScreen> {
   Widget _entryTile(GuideEntry e) => Container(
         margin: const EdgeInsets.only(bottom: 6),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: T.card,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE9E4F5)),
+          border: Border.all(color: T.border),
         ),
         child: ExpansionTile(
           shape: const Border(),
@@ -363,8 +363,8 @@ class _ChatViewState extends State<_ChatView> {
           top: false,
           child: Container(
             padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(
+              color: T.card,
               border: Border(top: BorderSide(color: Color(0xFFE9E4F5))),
             ),
             child: Column(
@@ -434,7 +434,7 @@ class _ChatViewState extends State<_ChatView> {
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE9E4F5)),
+          border: Border.all(color: T.border),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

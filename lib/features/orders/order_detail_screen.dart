@@ -350,7 +350,7 @@ class OrderDetailScreen extends StatelessWidget {
                   Get.bottomSheet(
                           _UploadReceiptSheet(order: o),
                   isScrollControlled: true,
-                  backgroundColor: Colors.white,
+                  backgroundColor: T.card,
                           shape: const RoundedRectangleBorder(
                               borderRadius: BorderRadius.vertical(
                                   top: Radius.circular(20))),

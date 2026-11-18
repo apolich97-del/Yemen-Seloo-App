@@ -119,6 +119,97 @@ class OrderDocuments {
     );
   }
 
+  /// ترويسة موحّدة للـ PDF: تدرّج + دوائر + شعار في مربع أبيض + شارة حالة.
+  static pw.Widget _decorHeader({
+    required pw.MemoryImage logo,
+    required String title,
+    required String subtitle,
+    required String badge,
+    required pw.TextStyle Function(double, bool, PdfColor?) t,
+  }) {
+    return pw.Stack(
+      children: [
+        pw.Container(
+          height: 110,
+          decoration: pw.BoxDecoration(
+            gradient: const pw.LinearGradient(
+              colors: [PdfColor.fromInt(0xFF5B21B6), PdfColor.fromInt(0xFF7C3AED)],
+              begin: pw.Alignment.centerLeft,
+              end: pw.Alignment.centerRight,
+            ),
+            borderRadius: pw.BorderRadius.circular(14),
+          ),
+        ),
+        // دوائر زخرفية شفافة
+        pw.Positioned(
+          right: -20,
+          top: -30,
+          child: pw.Opacity(
+            opacity: 0.08,
+            child: pw.Container(
+              width: 120,
+              height: 120,
+              decoration: const pw.BoxDecoration(
+                shape: pw.BoxShape.circle,
+                color: PdfColors.white,
+              ),
+            ),
+          ),
+        ),
+        pw.Positioned(
+          right: 70,
+          bottom: -40,
+          child: pw.Opacity(
+            opacity: 0.06,
+            child: pw.Container(
+              width: 90,
+              height: 90,
+              decoration: const pw.BoxDecoration(
+                shape: pw.BoxShape.circle,
+                color: PdfColors.white,
+              ),
+            ),
+          ),
+        ),
+        pw.Padding(
+          padding: const pw.EdgeInsets.all(14),
+          child: pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            children: [
+              // الشارة (Pill)
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.white,
+                  borderRadius: pw.BorderRadius.circular(20),
+                ),
+                child: pw.Text(badge,
+                    style: t(9, true, PdfColor.fromInt(0xFF5B21B6))),
+              ),
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.end,
+                children: [
+                  pw.Text(title, style: t(17, true, PdfColors.white)),
+                  pw.Text(subtitle, style: t(9, false, PdfColors.white)),
+                ],
+              ),
+              // الشعار في مربع أبيض
+              pw.Container(
+                padding: const pw.EdgeInsets.all(6),
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.white,
+                  borderRadius: pw.BorderRadius.circular(10),
+                ),
+                child: pw.Image(logo, width: 40, height: 40),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   static String _variant(OrderItem it) {
     final parts = <String>[
       if (it.color.isNotEmpty) 'اللون: ${it.color}',

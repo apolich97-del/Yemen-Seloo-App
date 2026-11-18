@@ -89,7 +89,7 @@ class GuideCard extends StatelessWidget {
         color: bg,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-            color: dark ? AppDark.borderSoft : const Color(0xFFE9E4F5)),
+            color: dark ? AppDark.borderSoft : T.border),
         boxShadow: const <BoxShadow>[
           BoxShadow(color: Colors.black26, blurRadius: 18, offset: Offset(0, 6)),
         ],

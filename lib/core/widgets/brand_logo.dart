@@ -23,7 +23,10 @@ class BrandLogo extends StatelessWidget {
     return Image.asset(
       'assets/images/logo_dark.png',
       height: height,
-      errorBuilder: (_, __, ___) => Container(
+      errorBuilder: (_, __, ___) => Image.asset(
+        'assets/images/logo_dark.jpg',
+        height: height,
+        errorBuilder: (_, __, ___) => Container(
         height: height,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
@@ -44,6 +47,7 @@ class BrandLogo extends StatelessWidget {
                     fontWeight: FontWeight.w900,
                     color: AppDark.text)),
           ],
+        ),
         ),
       ),
     );

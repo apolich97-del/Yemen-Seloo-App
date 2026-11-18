@@ -17,6 +17,7 @@ import '../../../core/services/catalog_service.dart';
 import '../../../core/services/cart_share.dart';
 import '../../guide/interactive_guide.dart';
 import '../domain/cart_item.dart';
+import '../../../core/theme/app_theme.dart';
 
 const Color _purple = Color(0xFF7C3AED);
 const Color _purpleLight = Color(0xFFFAF7FF);
@@ -720,7 +721,7 @@ class _CartScreenState extends State<CartScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: T.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(20),
@@ -1000,11 +1001,11 @@ class _CartScreenState extends State<CartScreen> {
             TextField(
               controller: _shareCartController,
               style: const TextStyle(fontSize: 12),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'https://m.shein.com/ar/cart/share/landing?...',
                 isDense: true,
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: T.elevated,
                 border: OutlineInputBorder(),
               ),
             ),
@@ -1042,7 +1043,7 @@ class _CartScreenState extends State<CartScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: T.card,
         body: SafeArea(
           child: Obx(() {
             if (_cart.items.isEmpty) {
@@ -1280,8 +1281,8 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: T.card,
         border: Border(
           bottom: BorderSide(color: Color(0xFFF3F4F6)),
         ),
@@ -1456,7 +1457,7 @@ class _CartLineTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: T.card,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _border, width: 1.2),
       ),

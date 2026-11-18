@@ -302,7 +302,7 @@ class PaymentScreen extends GetView<PaymentController> {
     Get.bottomSheet(
       _TransferSheet(controller: controller),
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: T.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),

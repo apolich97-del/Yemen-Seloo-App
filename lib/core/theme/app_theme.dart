@@ -1,4 +1,6 @@
+import 'package:get/get.dart';
 import 'package:flutter/material.dart';
+import '../../core/theme/app_theme.dart';
 
 /// هوية «يمن سيلو» — أخضر يمَني غامق + ذهبي، واجهة RTL بالكامل.
 class AppColors {
@@ -10,6 +12,40 @@ class AppColors {
   static const muted = Color(0xFF6B7671);
   static const danger = Color(0xFFB3261E);
   static const success = Color(0xFF15803D);
+}
+
+/// ألوان مستجيبة للثيم — تُستخدم بدل الألوان الصريحة.
+class T {
+  static bool get dark => Get.isDarkMode;
+
+  /// خلفية الشاشة.
+  static Color get bg => dark ? AppDark.bg : const Color(0xFFF7F5FB);
+
+  /// سطح البطاقات.
+  static Color get card => dark ? AppDark.card : const Color(0xFFFFFFFF);
+
+  /// حاوية مميزة (بنفسجي ناعم).
+  static Color get soft => dark ? const Color(0xFF16102E) : const Color(0xFFFAF7FF);
+
+  static Color get softBorder =>
+      dark ? const Color(0xFF342370) : T.softBorder;
+
+  static Color get border =>
+      dark ? const Color(0xFF2D2354) : T.border;
+
+  static Color get text => dark ? AppDark.text : AppColors.ink;
+
+  static Color get muted => dark ? const Color(0xFFA79CC8) : AppColors.muted;
+
+  static Color get primary =>
+      dark ? const Color(0xFFC4B5FD) : AppColors.primary;
+
+  static Color get accent =>
+      dark ? const Color(0xFFE0C264) : AppColors.accent;
+
+  /// سطح أعلى قليلاً (حقول، قوائم).
+  static Color get elevated =>
+      dark ? const Color(0xFF1B1536) : const Color(0xFFFFFFFF);
 }
 
 class AppDark {
@@ -38,9 +74,9 @@ class AppTheme {
       colorScheme: scheme,
       scaffoldBackgroundColor: AppColors.surface,
       fontFamily: 'Tajawal',
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         centerTitle: true,
-        backgroundColor: Colors.white,
+        backgroundColor: T.card,
         foregroundColor: AppColors.ink,
         elevation: 0,
         scrolledUnderElevation: 1,
@@ -52,7 +88,7 @@ class AppTheme {
       ),
       cardTheme: CardTheme(
         elevation: 0,
-        color: Colors.white,
+        color: T.card,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: radius,
@@ -61,7 +97,7 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white,
+        fillColor: T.elevated,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

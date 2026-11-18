@@ -350,7 +350,7 @@ class CheckoutScreen extends GetView<CheckoutController> {
               color: selected ? AppColors.primary.withOpacity(.08) : Colors.white,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                  color: selected ? AppColors.primary : const Color(0xFFE4DDF5),
+                  color: selected ? AppColors.primary : T.border,
                   width: selected ? 1.6 : 1),
             ),
             child: Row(
@@ -391,9 +391,9 @@ class CheckoutScreen extends GetView<CheckoutController> {
       return Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: T.card,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE9E4F5)),
+          border: Border.all(color: T.border),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

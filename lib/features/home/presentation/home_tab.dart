@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/brand_logo.dart';
 
 const Color _purple = Color(0xFF7C3AED);
 
@@ -8,31 +10,41 @@ class HomeTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: T.card,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             children: <Widget>[
-              const SizedBox(height: 20),
-              Image.asset(
-                'assets/images/logo.png',
-                width: 140,
-                height: 140,
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => Container(
-                  width: 140,
-                  height: 140,
+              const SizedBox(height: 16),
+              // شعار في المنتصف: نهاري دائري 128، ليلي بحواف 24 وتوهج بنفسجي
+              Builder(builder: (context) {
+                final bool dark =
+                    Theme.of(context).brightness == Brightness.dark;
+                final double size = dark ? 144 : 128;
+                return Container(
+                  width: size,
+                  height: size,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFAF7FF),
-                    shape: BoxShape.circle,
-                    border:
-                        Border.all(color: const Color(0xFFE9D5FF), width: 2),
+                    color: dark ? const Color(0xFF16102E) : T.soft,
+                    borderRadius: BorderRadius.circular(dark ? 24 : 999),
+                    border: Border.all(
+                        color: dark ? const Color(0xFF43337D) : T.softBorder,
+                        width: dark ? 1.5 : 2),
+                    boxShadow: dark
+                        ? <BoxShadow>[
+                            BoxShadow(
+                              color: const Color(0xFF5B2EFF).withOpacity(.55),
+                              blurRadius: 24,
+                              spreadRadius: 1,
+                            ),
+                          ]
+                        : null,
                   ),
-                  child:
-                      const Icon(Icons.storefront, color: _purple, size: 60),
-                ),
-              ),
+                  padding: EdgeInsets.all(dark ? 18 : 10),
+                  child: BrandLogo(height: size - (dark ? 36 : 20)),
+                );
+              }),
               const SizedBox(height: 20),
               const Text(
                 'شركة يمن سيلو',
@@ -47,7 +59,7 @@ class HomeTab extends StatelessWidget {
                 'YEMEN SELOO',
                 style: TextStyle(
                   fontSize: 11,
-                  letterSpacing: 4,
+                  letterSpacing: 3.5,
                   color: _purple,
                   fontWeight: FontWeight.w600,
                 ),
@@ -61,9 +73,9 @@ class HomeTab extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFAF7FF),
+                  color: T.soft,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFE9D5FF)),
+                  border: Border.all(color: T.softBorder),
                 ),
                 child: const Column(
                   children: <Widget>[
@@ -156,9 +168,9 @@ class _ServiceItem extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: const Color(0xFFFAF7FF),
+              color: T.soft,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFE9D5FF)),
+              border: Border.all(color: T.softBorder),
             ),
             child: Icon(icon, color: _purple, size: 22),
           ),

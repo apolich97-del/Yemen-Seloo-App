@@ -330,7 +330,7 @@ class _AgentChatScreenState extends State<_AgentChatScreen> {
                           color: mine ? AppColors.primary : Colors.white,
                           borderRadius: BorderRadius.circular(12),
                           border:
-                              Border.all(color: const Color(0xFFE9E4F5)),
+                              Border.all(color: T.border),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,

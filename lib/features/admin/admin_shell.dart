@@ -77,7 +77,7 @@ class _AdminShellState extends State<AdminShell> {
               NavigationRail(
                 extended: true,
                 selectedIndex: idx,
-                backgroundColor: Colors.white,
+                backgroundColor: T.card,
                 indicatorColor: AppColors.primary.withOpacity(.12),
                 onDestinationSelected: (i) => setState(() => _index = i),
                 leading: const Padding(

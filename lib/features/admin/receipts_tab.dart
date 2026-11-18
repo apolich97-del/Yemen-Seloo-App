@@ -56,9 +56,9 @@ class _ReceiptsTabState extends State<ReceiptsTab> {
   Widget _card(String title, Widget child) => Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: T.card,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE9E4F5)),
+          border: Border.all(color: T.border),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -128,9 +128,9 @@ Widget _salesReport(List<QueryDocumentSnapshot> docs) {
   return Container(
     padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: T.card,
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: const Color(0xFFE9E4F5)),
+      border: Border.all(color: T.border),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -195,7 +195,7 @@ class _Kpi extends StatelessWidget {
       width: 180,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: T.card,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFE6EAE8)),
       ),

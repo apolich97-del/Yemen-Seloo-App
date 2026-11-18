@@ -12,6 +12,7 @@ import 'orders_tab.dart';
 import 'support_tab.dart';
 import '../../cart/presentation/cart_screen.dart';
 import '../../shein/presentation/shein_web_screen.dart';
+import '../../../core/theme/app_theme.dart';
 
 const Color _purple = Color(0xFF7C3AED);
 
@@ -191,7 +192,7 @@ class _MainShellState extends State<MainShell> {
         textDirection: TextDirection.rtl,
         child: Obx(
           () => Scaffold(
-            backgroundColor: Colors.white,
+            backgroundColor: T.card,
             appBar: AppBar(
               backgroundColor: _purple,
               foregroundColor: Colors.white,
@@ -246,7 +247,7 @@ class _MainShellState extends State<MainShell> {
                   _guideTab(i);
                 },
                 type: BottomNavigationBarType.fixed,
-                backgroundColor: Colors.white,
+                backgroundColor: T.card,
                 selectedItemColor: _purple,
                 unselectedItemColor: const Color(0xFF9CA3AF),
                 selectedFontSize: 11,
