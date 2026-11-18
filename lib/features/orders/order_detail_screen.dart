@@ -13,6 +13,7 @@ import '../../core/services/cart_share.dart';
 import '../../core/services/receipt_service.dart';
 import '../cart/presentation/cart_share_card.dart';
 import '../../core/widgets/order_stage_bar.dart';
+import '../receipts/presentation/my_receipts_screen.dart';
 import '../guide/interactive_guide.dart';
 import '../support/presentation/support_screen.dart';
 import '../../core/services/order_documents.dart';
@@ -55,6 +56,15 @@ class OrderDetailScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => Get.to(() => const MyReceiptsScreen()),
+                  icon: const Icon(Icons.receipt_long_outlined, size: 18),
+                  label: const Text('إيصالات السداد الخاصة بي'),
+                ),
+              ),
+              const SizedBox(height: 12),
               CartShareCard(url: CartShare.fromOrderItems(o)),
               const SizedBox(height: 12),
               Padding(
@@ -65,7 +75,7 @@ class OrderDetailScreen extends StatelessWidget {
                 ),
               ),
               _receiptsCard(o),
-              if (o.hasRemaining) _balanceCard(o),
+              _balanceCard(o),
               if (o.hasRemaining) const SizedBox(height: 12),
               _items(o),
               const SizedBox(height: 12),
@@ -313,14 +323,13 @@ class OrderDetailScreen extends StatelessWidget {
     Widget cell(String label, String value, {Color? color}) => Expanded(
           child: Column(
             children: [
-              Text(label,
-                  style: const TextStyle(fontSize: 10.5, color: AppColors.muted)),
+              Text(label, style: TextStyle(fontSize: 10.5, color: T.muted)),
               const SizedBox(height: 3),
               Text(value,
                   style: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w900,
-                      color: color ?? AppColors.ink)),
+                      color: color ?? T.text)),
             ],
           ),
         );
@@ -337,6 +346,23 @@ class OrderDetailScreen extends StatelessWidget {
                   color: AppColors.danger),
             ],
           ),
+          if (!o.hasRemaining) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Icon(Icons.verified_outlined,
+                    size: 16, color: AppColors.success),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'تم سداد كامل قيمة هذا الطلب — يمكنك تنزيل إيصالاتك من زر '
+                    '«إيصالات السداد الخاصة بي».',
+                    style: TextStyle(fontSize: 10.5, height: 1.5, color: T.muted),
+                  ),
+                ),
+              ],
+            ),
+          ],
           if (o.hasRemaining && o.status != OrderStatus.unpaid) ...[
             const SizedBox(height: 10),
             SizedBox(

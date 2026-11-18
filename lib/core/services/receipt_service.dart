@@ -29,6 +29,18 @@ class ReceiptService extends GetxService {
           .map((d) => Receipt.fromDoc(d.id, d.data()))
           .toList());
 
+  /// كل إيصالات عميل معيّن (شاشة «إيصالاتي») — بلا فهرس مركّب.
+  Stream<List<Receipt>> byCustomer(String uid) => _db
+      .collectionGroup('receipts')
+      .where('customerId', isEqualTo: uid)
+      .limit(100)
+      .snapshots()
+      .map((s) => s.docs
+          .map((d) => Receipt.fromDoc(d.id, d.data()))
+          .toList()
+        ..sort((a, b) => (b.createdAt ?? DateTime(2000))
+            .compareTo(a.createdAt ?? DateTime(2000))));
+
   /// آخر الإيصالات بانتظار المراجعة (لوحة المحاسبة).
   Stream<List<Receipt>> pending() => _db
       .collectionGroup('receipts')
@@ -69,6 +81,7 @@ class ReceiptService extends GetxService {
         'receiptNo': no,
         'orderId': order.id,
         'orderNo': order.orderNo,
+        'customerId': order.userId,
         'status': source == 'admin' ? 'approved' : 'pending',
         'source': source,
         'amountLocal': amountLocal,

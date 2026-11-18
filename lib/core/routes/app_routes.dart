@@ -8,6 +8,7 @@ import '../../features/orders/order_detail_screen.dart';
 import '../../features/payment/payment_screen.dart';
 import '../../features/profile/address_form_screen.dart';
 import '../../features/profile/profile_screen.dart';
+import '../../features/receipts/presentation/my_receipts_screen.dart';
 import '../../features/admin/admin_shell.dart';
 import '../controllers/checkout_controller.dart';
 import '../controllers/orders_controller.dart';
@@ -32,6 +33,7 @@ class AppRoutes {
   static const profile = '/profile';
   static const addressForm = '/address-form';
   static const login = '/login';
+  static const myReceipts = '/my-receipts';
   static const admin = '/admin';
 }
 
@@ -77,6 +79,10 @@ class AppPages {
     ),
     GetPage(name: AppRoutes.addressForm, page: () => const AddressFormScreen()),
     GetPage(name: AppRoutes.login, page: () => const LoginScreen()),
+    GetPage(
+      name: AppRoutes.myReceipts,
+      page: () => const MyReceiptsScreen(),
+    ),
     GetPage(name: AppRoutes.admin, page: () => const AdminShell()),
   ];
 }

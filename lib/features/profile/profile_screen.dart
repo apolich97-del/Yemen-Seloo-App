@@ -225,6 +225,8 @@ class ProfileScreen extends GetView<ProfileController> {
               Get.snackbar('المفضلة', 'الشاشة مرتبطة بـ WishlistController في مشروعك');
             }),
             _tile(Icons.receipt_long_outlined, 'طلباتي', () => Get.toNamed(AppRoutes.orders)),
+            _tile(Icons.request_quote_outlined, 'إيصالات السداد',
+                () => Get.toNamed(AppRoutes.myReceipts)),
             _tile(Icons.headset_mic_outlined, 'خدمة العملاء', () {
               Get.snackbar('خدمة العملاء', 'افتح واتساب على رقم الدعم من الإعدادات');
             }),
