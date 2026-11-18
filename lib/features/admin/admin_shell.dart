@@ -7,6 +7,7 @@ import 'dashboard_tab.dart';
 import 'orders_tab.dart';
 import 'payments_tab.dart';
 import 'receipts_tab.dart';
+import 'support_tab.dart';
 import 'settings_tab.dart';
 import 'shipping_tab.dart';
 
@@ -28,6 +29,7 @@ class _AdminShellState extends State<AdminShell> {
     const orders = _TabDef('الطلبات', Icons.receipt_long_outlined);
     const pays = _TabDef('المدفوعات', Icons.account_balance_wallet_outlined);
     const receipts = _TabDef('إيصال', Icons.qr_code_2_outlined);
+    const support = _TabDef('دعم العملاء', Icons.support_agent);
     const ship = _TabDef('الشحن', Icons.local_shipping_outlined);
     const settings = _TabDef('الإعدادات', Icons.settings_outlined);
     switch (role) {
@@ -37,9 +39,9 @@ class _AdminShellState extends State<AdminShell> {
       case 'courier':
         return [ship, orders];
       case 'support':
-        return [orders, receipts];
+        return [support, orders, receipts];
       default:
-        return [dash, orders, pays, receipts, ship, settings];
+        return [dash, orders, pays, receipts, support, ship, settings];
     }
   }
 
@@ -64,6 +66,7 @@ class _AdminShellState extends State<AdminShell> {
         'الطلبات' => const OrdersTab(),
         'المدفوعات' => const PaymentsTab(),
         'إيصال' => const ReceiptsTab(),
+        'دعم العملاء' => const AdminSupportTab(),
         'الشحن' => const ShippingTab(),
         _ => const SettingsTab(),
       };

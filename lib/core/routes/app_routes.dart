@@ -17,6 +17,7 @@ import '../services/auth_service.dart';
 import '../models/cart.dart';
 import '../services/order_service.dart';
 import '../services/receipt_service.dart';
+import '../../features/support/data/support_service.dart';
 import '../services/pricing_service.dart';
 import '../services/settings_service.dart';
 
@@ -41,6 +42,7 @@ class InitialBinding extends Bindings {
     Get.put<AuthService>(AuthService(), permanent: true);
     Get.put<OrderService>(OrderService(), permanent: true);
     Get.put<ReceiptService>(ReceiptService(), permanent: true);
+    Get.put<SupportService>(SupportService(), permanent: true);
   }
 }
 

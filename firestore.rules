@@ -67,6 +67,28 @@ service cloud.firestore {
       }
     }
 
+    // ═══ الدعم: محادثات العملاء + سجل الأسئلة + الدليل المعتمد ═══
+    match /support_threads/{t} {
+      allow read: if auth() && (resource.data.userId == me() || staff());
+      allow create: if auth() && request.resource.data.userId == me();
+      allow update: if auth() && (resource.data.userId == me() || staff());
+      allow delete: if false;
+      match /messages/{m} {
+        allow read: if auth() && (get(/databases/$(database)/documents/support_threads/$(t)).data.userId == me() || staff());
+        allow create: if auth() && (get(/databases/$(database)/documents/support_threads/$(t)).data.userId == me() || staff());
+        allow update, delete: if false;
+      }
+    }
+    match /support_query_logs/{q} {
+      allow create: if auth();
+      allow read, update, delete: if staff();
+    }
+    match /support_guide/{g} {
+      allow read: if auth();
+      allow write: if staff();
+    }
+    match /support_faq_ignored/{f} { allow read, write: if staff(); }
+
     match /products/{g} { allow read: if true; allow write: if staff(); }
     match /coupons/{c} { allow read: if auth(); allow write: if staff(); }
     match /settings/{s} { allow read: if auth(); allow write: if staff(); }
