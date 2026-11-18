@@ -366,8 +366,8 @@ class _TransferSheet extends StatelessWidget {
               controller: controller.refCtrl,
               textInputAction: TextInputAction.next,
               decoration: const InputDecoration(
-                labelText: 'رقم العملية',
-                hintText: 'رقم الحوالة / المرجع',
+                labelText: 'رقم العملية (اختياري)',
+                hintText: 'إن لم يكن موجوداً اتركه فارغاً',
               ),
             ),
             const SizedBox(height: 12),

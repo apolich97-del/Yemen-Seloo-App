@@ -577,13 +577,13 @@ class _UploadReceiptSheetState extends State<_UploadReceiptSheet> {
   Future<void> _pick() async {
     final x = await ImagePicker().pickImage(
         source: ImageSource.gallery,
-        imageQuality: 35,
-        maxWidth: 900,
-        maxHeight: 900);
+        imageQuality: 25,
+        maxWidth: 720,
+        maxHeight: 720);
     if (x == null) return;
     final bytes = await x.readAsBytes();
-    if (bytes.length > 450 * 1024) {
-      Get.snackbar('الصورة كبيرة', 'اختر صورة أصغر من 450 ك.ب');
+    if (bytes.length > 300 * 1024) {
+      Get.snackbar('الصورة كبيرة', 'اختر صورة أصغر من 300 ك.ب');
       return;
     }
     final mime = x.path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';

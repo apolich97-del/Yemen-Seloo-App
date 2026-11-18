@@ -74,10 +74,10 @@ class PaymentController extends GetxController {
 
   AppCurrency get currency => payload.currency;
   String get totalLabel => formatMoney(payload.estimate.totalLocal, currency);
-  bool get proofAttached => _proofUrl.isNotEmpty;
+  bool get proofAttached => proofImage.value.isNotEmpty;
 
   /// صورة الحوالة كـ data URI لعرضها للمستخدم قبل الإرسال.
-  String get proofDataUri => _proofUrl;
+  String get proofDataUri => proofImage.value;
 
   bool get canConfirm =>
       transfer.value != null &&
@@ -87,7 +87,7 @@ class PaymentController extends GetxController {
 
   void select(PaymentAccount a) => selected.value = a;
 
-  String _proofUrl = '';
+  final proofImage = ''.obs;
   final ocrDone = false.obs;
   final ocrAmountOk = false.obs;
   final ocrRefOk = false.obs;
@@ -158,20 +158,20 @@ class PaymentController extends GetxController {
     try {
       final x = await ImagePicker().pickImage(
         source: ImageSource.gallery,
-        imageQuality: 35,
-        maxWidth: 900,
-        maxHeight: 900,
+        imageQuality: 25,
+        maxWidth: 720,
+        maxHeight: 720,
       );
       if (x == null) return;
       uploading.value = true;
       final bytes = await x.readAsBytes();
-      if (bytes.length > 450 * 1024) {
+      if (bytes.length > 300 * 1024) {
         Get.snackbar('الصورة كبيرة',
-            'اختر صورة أصغر (أقل من 450 ك.ب) أو أعد تصويرها بجودة أقل');
+            'اختر صورة أصغر (أقل من 300 ك.ب) أو قصّها ثم أعد المحاولة');
         return;
       }
       final mime = (x.path.toLowerCase().endsWith('.png')) ? 'image/png' : 'image/jpeg';
-      _proofUrl = 'data:$mime;base64,${base64Encode(bytes)}';
+      proofImage.value = 'data:$mime;base64,${base64Encode(bytes)}';
       await _runOcr(x.path);
       if (!ocrDone.value) {
         Get.snackbar('تم الإرفاق', 'تعذر قراءة نص الصورة — ستُراجع يدوياً',
@@ -218,7 +218,7 @@ class PaymentController extends GetxController {
       );
       return;
     }
-    if (_proofUrl.isEmpty) {
+    if (proofImage.value.isEmpty) {
       Get.snackbar('صورة الحوالة مطلوبة', 'أرفق صورة الإيداع أو الحوالة قبل الإرسال');
       return;
     }
@@ -229,7 +229,7 @@ class PaymentController extends GetxController {
       senderName: sender,
       refNo: refNo,
       note: noteCtrl.text.trim(),
-      proofUrl: _proofUrl,
+      proofUrl: proofImage.value,
     );
     Get.back();
   }
@@ -293,7 +293,14 @@ class PaymentController extends GetxController {
         duration: const Duration(seconds: 5),
       );
     } catch (e) {
-      Get.snackbar('تعذر إرسال الطلب', '$e');
+      final msg = '$e';
+      final hint = msg.contains('permission')
+          ? 'قواعد Firestore المحدّثة لم تُنشر بعد — انشرها من الكونسول ثم أعد المحاولة.'
+          : msg.contains('maximum') || msg.contains('longer than')
+              ? 'صورة الحوالة كبيرة على الحفظ — التقط صورة أوضح وأصغر.'
+              : msg;
+      Get.snackbar('تعذر إرسال الطلب', hint,
+          duration: const Duration(seconds: 6));
     } finally {
       busy.value = false;
     }
