@@ -102,8 +102,16 @@ class _OrdersTabState extends State<OrdersTab> {
             children: [
               Row(
                 children: [
-                  Text(o.orderNo,
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+                  Expanded(
+                    child: Text(o.orderNo,
+                        style: const TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w800)),
+                  ),
+                  IconButton(
+                    tooltip: 'عرض وتعديل الطلب',
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    onPressed: () => _openEditor(o),
+                  ),
                   if (o.isDeferred) ...[
                     const SizedBox(width: 6),
                     Container(
@@ -269,5 +277,94 @@ class _OrdersTabState extends State<OrdersTab> {
     } catch (e) {
       Get.snackbar('تعذر الحفظ', '$e');
     }
+  }
+}
+
+
+/// محرّر الطلب للموظف: الحالة، التتبع، المندوب، وملاحظة تُسجَّل في سجل الطلب.
+extension _StaffOrderEditor on _OrdersTabState {
+  Future<void> _openEditor(Order o) async {
+    final orders = Get.find<OrderService>();
+    var status = o.status;
+    final tracking = TextEditingController(text: o.trackingNo);
+    final courier = TextEditingController(text: o.courierName);
+    final note = TextEditingController();
+
+    await Get.dialog(
+      AlertDialog(
+        title: Text('الطلب ${o.orderNo}',
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                  '${o.address.receiverName} · ${o.address.phone}\n'
+                  '${o.address.fullAr}',
+                  style: const TextStyle(fontSize: 11, height: 1.5)),
+              const SizedBox(height: 8),
+              Text('${o.items.length} منتج · إجمالي ${o.totalSar.toStringAsFixed(2)} ر.س',
+                  style: const TextStyle(fontSize: 11)),
+              const Divider(height: 18),
+              const Text('الحالة',
+                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
+              DropdownButtonFormField<OrderStatus>(
+                value: status,
+                isExpanded: true,
+                items: OrderStatus.values
+                    .map((e) => DropdownMenuItem(
+                          value: e,
+                          child: Text(e.labelAr,
+                              style: const TextStyle(fontSize: 12)),
+                        ))
+                    .toList(),
+                onChanged: (v) => status = v ?? status,
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: tracking,
+                decoration: const InputDecoration(
+                    labelText: 'رقم التتبع', isDense: true),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: courier,
+                decoration: const InputDecoration(
+                    labelText: 'اسم المندوب', isDense: true),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: note,
+                decoration: const InputDecoration(
+                    labelText: 'ملاحظة داخلية (تُسجَّل في سجل الطلب)',
+                    isDense: true),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: Get.back, child: const Text('إغلاق')),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await orders.advanceStatus(
+                  orderId: o.id,
+                  to: status,
+                  note: note.text.trim(),
+                  trackingNo: tracking.text.trim(),
+                  courierName: courier.text.trim(),
+                );
+                Get.back();
+                Get.snackbar('تم التحديث', 'حُفظت حالة الطلب ${o.orderNo}');
+              } catch (e) {
+                Get.snackbar('تعذر الحفظ', '$e');
+              }
+            },
+            child: const Text('حفظ التعديل'),
+          ),
+        ],
+      ),
+    );
   }
 }

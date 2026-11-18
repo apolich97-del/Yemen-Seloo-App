@@ -11,56 +11,44 @@ class CartShare {
   /// يبني الرابط من منتجات السلة.
   static String buildFromItems(List<CartItem> items) => _build([
         for (final i in items)
-          {
-            'g': i.goodsId,
-            'k': i.sku,
-            't': i.title,
-            'p': i.sourcePrice,
-            'q': i.quantity,
-            'c': i.color,
-            's': i.size,
-            'u': i.sourceUrl,
-            'm': i.imageUrl,
-          }
+          [i.goodsId, _short(i.title), i.sourcePrice, i.quantity, i.color, i.size]
       ]);
 
   /// يبني الرابط من سطور السلة المطبَّعة (شاشة الملخص).
   static String buildFromLines(List<dynamic> lines) => _build([
         for (final l in lines)
-          {
-            'g': l.goodsId as String,
-            'k': l.variantKey as String,
-            't': l.titleAr as String,
-            'p': l.unitPriceSar as double,
-            'q': l.qty as int,
-            'c': l.color as String,
-            's': l.size as String,
-            'u': '',
-            'm': l.imageUrl as String,
-          }
+          [
+            l.goodsId as String,
+            _short(l.titleAr as String),
+            l.unitPriceSar as double,
+            l.qty as int,
+            l.color as String,
+            l.size as String,
+          ]
       ]);
 
   /// يبني الرابط من منتجات طلب منشأ (لأجل ملخص الطلب وإيصالاته).
   static String fromOrderItems(dynamic order) {
     final items = order.items as List<dynamic>;
-    final rows = <Map<String, dynamic>>[];
+    final rows = <List<dynamic>>[];
     for (final it in items) {
-      rows.add({
-        'g': it.goodsId as String,
-        'k': it.sku as String,
-        't': it.title as String,
-        'p': it.unitPriceSar as double,
-        'q': it.qty as int,
-        'c': it.color as String,
-        's': it.size as String,
-        'u': it.productUrl as String,
-        'm': it.imageUrl as String,
-      });
+      rows.add(<dynamic>[
+        it.goodsId as String,
+        _short(it.title as String),
+        it.unitPriceSar as double,
+        it.qty as int,
+        it.color as String,
+        it.size as String,
+      ]);
     }
     return _build(rows);
   }
 
-  static String _build(List<Map<String, dynamic>> rows) {
+  /// يقتصر الاسم على 28 حرفاً — يُجلَب الاسم الكامل من الكتالوج.
+  static String _short(String t) =>
+      t.length <= 28 ? t : '${t.substring(0, 28)}…';
+
+  static String _build(List<List<dynamic>> rows) {
     final Map<String, dynamic> payload = {'s': _version, 'i': rows};
     final String token = base64Url
         .encode(utf8.encode(jsonEncode(payload)))
@@ -99,7 +87,20 @@ class CartShare {
 
       final List<CartItem> items = [];
       for (var i = 0; i < rows.length; i++) {
-        final Map<String, dynamic> r = Map<String, dynamic>.from(rows[i] as Map);
+        final dynamic raw = rows[i];
+        final Map<String, dynamic> r;
+        if (raw is List) {
+          r = <String, dynamic>{
+            'g': raw.isNotEmpty ? raw[0] : '',
+            't': raw.length > 1 ? raw[1] : '',
+            'p': raw.length > 2 ? raw[2] : 0,
+            'q': raw.length > 3 ? raw[3] : 1,
+            'c': raw.length > 4 ? raw[4] : '',
+            's': raw.length > 5 ? raw[5] : '',
+          };
+        } else {
+          r = Map<String, dynamic>.from(raw as Map);
+        }
         items.add(CartItem(
           lineId: 'shared_${DateTime.now().millisecondsSinceEpoch}_$i',
           goodsId: (r['g'] ?? '') as String,

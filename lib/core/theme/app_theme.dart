@@ -28,10 +28,10 @@ class T {
   static Color get soft => dark ? const Color(0xFF16102E) : const Color(0xFFFAF7FF);
 
   static Color get softBorder =>
-      dark ? const Color(0xFF342370) : T.softBorder;
+      dark ? const Color(0xFF342370) : const Color(0xFFE9D5FF);
 
   static Color get border =>
-      dark ? const Color(0xFF2D2354) : T.border;
+      dark ? const Color(0xFF2D2354) : const Color(0xFFE9E4F5);
 
   static Color get text => dark ? AppDark.text : AppColors.ink;
 
@@ -76,7 +76,7 @@ class AppTheme {
       fontFamily: 'Tajawal',
       appBarTheme: AppBarTheme(
         centerTitle: true,
-        backgroundColor: T.card,
+        backgroundColor: Colors.white,
         foregroundColor: AppColors.ink,
         elevation: 0,
         scrolledUnderElevation: 1,
@@ -88,7 +88,7 @@ class AppTheme {
       ),
       cardTheme: CardTheme(
         elevation: 0,
-        color: T.card,
+        color: Colors.white,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: radius,
@@ -97,7 +97,7 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: T.elevated,
+        fillColor: Colors.white,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
