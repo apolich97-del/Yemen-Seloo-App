@@ -21,7 +21,6 @@ import '../../../core/services/settings_service.dart';
 import '../../../core/theme/app_theme.dart';
 
 const Color _purple = Color(0xFF7C3AED);
-const Color _purpleLight = Color(0xFFFAF7FF);
 const Color _border = Color(0xFFE9D5FF);
 const Color _green = Color(0xFF25D366);
 const Color _orange = Color(0xFFF97316);
@@ -436,7 +435,7 @@ class _CartScreenState extends State<CartScreen> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: _purpleLight,
+                      color: T.soft,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: _border),
                     ),
@@ -799,7 +798,7 @@ class _CartScreenState extends State<CartScreen> {
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: _purpleLight,
+                        color: T.soft,
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(color: _border),
                       ),
@@ -969,7 +968,7 @@ class _CartScreenState extends State<CartScreen> {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: _purpleLight,
+          color: T.soft,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: _orange.withOpacity(0.5),
@@ -1309,7 +1308,7 @@ class _Header extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: _purpleLight,
+                  color: T.soft,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(
@@ -1397,7 +1396,7 @@ class _Header extends StatelessWidget {
             width: 34,
             height: 34,
             decoration: BoxDecoration(
-              color: _purpleLight,
+              color: T.soft,
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Icon(
@@ -1767,7 +1766,7 @@ class _ProductImageState extends State<_ProductImage> {
   }
 
   Widget _spinner() => Container(
-        color: _purpleLight,
+        color: T.soft,
         child: const Center(
           child: SizedBox(
             width: 18,
@@ -1798,7 +1797,7 @@ class _ProductImageState extends State<_ProductImage> {
             fadeInDuration: const Duration(milliseconds: 120),
             memCacheWidth: 200,
             placeholder: (_, __) => _spinner(),
-            errorWidget: (_, __, ___) => Container(color: _purpleLight),
+            errorWidget: (_, __, ___) => Container(color: T.soft),
           ),
         // 2) الكبيرة فوقها وتحل مكانها عند الجاهزية
         CachedNetworkImage(
@@ -1820,7 +1819,7 @@ class _ProductImageState extends State<_ProductImage> {
   }
 
   Widget _placeholder() => Container(
-        color: _purpleLight,
+        color: T.soft,
         child: const Icon(
           Icons.image_outlined,
           color: _purple,
@@ -1849,7 +1848,7 @@ class _QuantityButton extends StatelessWidget {
         width: 32,
         height: 32,
         decoration: BoxDecoration(
-          color: enabled ? _purpleLight : const Color(0xFFF3F4F6),
+          color: enabled ? T.soft : T.border,
           shape: BoxShape.circle,
         ),
         child: Icon(
@@ -1875,7 +1874,7 @@ class _RegionSelector extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: _purpleLight,
+          color: T.soft,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: _border),
         ),
@@ -1982,7 +1981,7 @@ class _QuoteSummary extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: _purpleLight,
+          color: T.soft,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: _border),
         ),
@@ -2108,7 +2107,7 @@ class _ContactBox extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: _purpleLight,
+        color: T.soft,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _border),
       ),

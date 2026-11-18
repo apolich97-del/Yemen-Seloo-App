@@ -1,5 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import 'admin_shell.dart';
 
 import '../../core/models/currency.dart';
 import '../../core/models/order.dart';
@@ -47,13 +50,16 @@ class DashboardTab extends StatelessWidget {
                 spacing: 12,
                 runSpacing: 12,
                 children: [
-                  _Kpi('إجمالي الطلبات', '${docs.length}', Icons.receipt_long, AppColors.primary),
+                  _Kpi('إجمالي الطلبات', '${docs.length}', Icons.receipt_long, AppColors.primary,
+                      onTap: () => adminGo('الطلبات')),
                   _Kpi('قيمة الطلبات', formatMoney(revenue, AppCurrency.sar), Icons.payments_outlined,
                       AppColors.primaryDark),
                   _Kpi('بانتظار الحوالة', '$unpaid', Icons.schedule, const Color(0xFFB26A00)),
-                  _Kpi('قيد التحقق', '$verifying', Icons.fact_check_outlined, const Color(0xFFB26A00)),
+                  _Kpi('قيد التحقق', '$verifying', Icons.fact_check_outlined, const Color(0xFFB26A00),
+                      onTap: () => adminGo('المدفوعات')),
                   _Kpi('قيد التجهيز', '$processing', Icons.inventory_2_outlined, const Color(0xFF1A56DB)),
-                  _Kpi('تم الشحن', '$shipped', Icons.local_shipping_outlined, const Color(0xFF6B21A8)),
+                  _Kpi('تم الشحن', '$shipped', Icons.local_shipping_outlined, const Color(0xFF6B21A8),
+                      onTap: () => adminGo('الشحن')),
                   _Kpi('تم التسليم', '$delivered', Icons.check_circle_outline, AppColors.success),
                 ],
               ),
@@ -182,22 +188,42 @@ Widget _salesReport(List<QueryDocumentSnapshot> docs) {
   );
 }
 
+/// ينتقل إلى تبويب داخل لوحة الإدارة بالاسم.
+void adminGo(String label) {
+  if (!Get.isRegistered<AdminNav>()) return;
+  const order = [
+    'لوحة المعلومات',
+    'الطلبات',
+    'المدفوعات',
+    'إيصال',
+    'دعم العملاء',
+    'الشحن',
+    'الإعدادات',
+  ];
+  final i = order.indexOf(label);
+  if (i >= 0) Get.find<AdminNav>().go(i);
+}
+
 class _Kpi extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
   final Color color;
-  const _Kpi(this.label, this.value, this.icon, this.color);
+  final VoidCallback? onTap;
+  const _Kpi(this.label, this.value, this.icon, this.color, {this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
       width: 180,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: T.card,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE6EAE8)),
+        border: Border.all(color: T.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -206,8 +232,10 @@ class _Kpi extends StatelessWidget {
           const SizedBox(height: 10),
           Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: color)),
           const SizedBox(height: 2),
-          Text(label, style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
+          Text(label,
+              style: TextStyle(fontSize: 11.5, color: T.muted)),
         ],
+      ),
       ),
     );
   }

@@ -21,7 +21,31 @@ class PaymentsTab extends StatelessWidget {
       child: StreamBuilder<List<Order>>(
         stream: allOrdersStream(status: OrderStatus.verifying),
         builder: (context, snap) {
-          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+          if (snap.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.cloud_off, size: 44, color: AppColors.muted),
+                    const SizedBox(height: 10),
+                    const Text('تعذر تحميل الحوالات',
+                        style: TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 6),
+                    Text('${snap.error}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 10.5, color: AppColors.muted)),
+                  ],
+                ),
+              ),
+            );
+          }
+          if (!snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
           final list = snap.data!.where((o) => !o.payment.isEmpty).toList();
           if (list.isEmpty) {
             return const Center(

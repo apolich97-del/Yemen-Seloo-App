@@ -347,7 +347,7 @@ class CheckoutScreen extends GetView<CheckoutController> {
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: selected ? AppColors.primary.withOpacity(.08) : Colors.white,
+              color: selected ? AppColors.primary.withOpacity(.08) : T.card,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                   color: selected ? AppColors.primary : T.border,

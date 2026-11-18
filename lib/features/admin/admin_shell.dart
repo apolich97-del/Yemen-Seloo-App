@@ -20,8 +20,14 @@ class AdminShell extends StatefulWidget {
   State<AdminShell> createState() => _AdminShellState();
 }
 
+/// تحكم تنقّل داخل لوحة الإدارة (تستخدمه لوحة المعلومات للانتقال).
+class AdminNav extends GetxController {
+  final RxInt index = 0.obs;
+  void go(int i) => index.value = i;
+}
+
 class _AdminShellState extends State<AdminShell> {
-  int _index = 0;
+  late final AdminNav _nav = Get.put(AdminNav(), permanent: false);
 
   /// تبويبات كل دور: المحاسب، الشحن، خدمة العملاء، المدير.
   static List<_TabDef> _tabsFor(String role) {
@@ -60,7 +66,7 @@ class _AdminShellState extends State<AdminShell> {
       }
       final wide = MediaQuery.of(context).size.width >= 900;
       final tabs = _tabsFor(auth.role);
-      final idx = _index.clamp(0, tabs.length - 1);
+      final idx = _nav.index.value.clamp(0, tabs.length - 1);
       final body = switch (tabs[idx].label) {
         'لوحة المعلومات' => const DashboardTab(),
         'الطلبات' => const OrdersTab(),
@@ -79,7 +85,7 @@ class _AdminShellState extends State<AdminShell> {
                 selectedIndex: idx,
                 backgroundColor: T.card,
                 indicatorColor: AppColors.primary.withOpacity(.12),
-                onDestinationSelected: (i) => setState(() => _index = i),
+                onDestinationSelected: _nav.go,
                 leading: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 20),
                   child: Text('يمن سيلو · إدارة',
@@ -114,7 +120,7 @@ class _AdminShellState extends State<AdminShell> {
         body: body,
         bottomNavigationBar: NavigationBar(
           selectedIndex: idx,
-          onDestinationSelected: (i) => setState(() => _index = i),
+          onDestinationSelected: _nav.go,
           destinations: tabs
               .map((t) => NavigationDestination(icon: Icon(t.icon), label: t.label))
               .toList(),

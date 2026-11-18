@@ -135,7 +135,7 @@ class PaymentScreen extends GetView<PaymentController> {
                 color: active ? AppColors.primary : const Color(0xFFE6EAE8),
                 width: active ? 1.6 : 1,
               ),
-              color: active ? AppColors.primary.withOpacity(.05) : Colors.white,
+              color: active ? AppColors.primary.withOpacity(.05) : T.card,
             ),
             child: Row(
               children: [

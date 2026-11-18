@@ -252,11 +252,16 @@ class OrderService extends GetxService {
 }
 
 Stream<List<Order>> allOrdersStream({OrderStatus? status, int limit = 200}) {
-  Query q = FirebaseFirestore.instance.collection('orders');
+  // بلا orderBy مع where: يمنع الحاجة إلى فهرس مركّب.
+  // الترتيب يتم داخل التطبيق بعد الجلب.
+  Query q = FirebaseFirestore.instance.collection('orders').limit(limit);
   if (status != null) q = q.where('status', isEqualTo: status.key);
-  return q.orderBy('createdAt', descending: true).limit(limit).snapshots().map(
-        (s) => s.docs
-            .map((d) => Order.fromDoc(d.id, d.data() as Map<String, dynamic>))
-            .toList(),
-      );
+  return q.snapshots().map((s) {
+    final list = s.docs
+        .map((d) => Order.fromDoc(d.id, d.data() as Map<String, dynamic>))
+        .toList();
+    list.sort((a, b) =>
+        (b.createdAt ?? DateTime(2000)).compareTo(a.createdAt ?? DateTime(2000)));
+    return list;
+  });
 }

@@ -213,7 +213,7 @@ class OrderDetailScreen extends StatelessWidget {
                     height: 22,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: done ? AppColors.primary : Colors.white,
+                      color: done ? AppColors.primary : T.card,
                       border: Border.all(
                         color: done ? AppColors.primary : const Color(0xFFDCE3E0),
                         width: 2,

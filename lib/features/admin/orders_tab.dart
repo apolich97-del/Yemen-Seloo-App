@@ -1,8 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../core/models/currency.dart';
 import '../../core/models/order.dart';
+import '../../core/services/auth_service.dart';
 import '../../core/services/order_service.dart';
 import '../../core/theme/app_theme.dart';
 import 'role_guard.dart';
@@ -302,10 +304,33 @@ extension _StaffOrderEditor on _OrdersTabState {
               Text(
                   '${o.address.receiverName} · ${o.address.phone}\n'
                   '${o.address.fullAr}',
-                  style: const TextStyle(fontSize: 11, height: 1.5)),
-              const SizedBox(height: 8),
-              Text('${o.items.length} منتج · إجمالي ${o.totalSar.toStringAsFixed(2)} ر.س',
-                  style: const TextStyle(fontSize: 11)),
+                  style: TextStyle(fontSize: 11, height: 1.5, color: T.text)),
+              const SizedBox(height: 6),
+              Text(
+                  '${o.items.length} منتج · إجمالي ${o.totalSar.toStringAsFixed(2)} ر.س · '
+                  'مدفوع ${o.paidTotalLocal.toStringAsFixed(2)} · متبقٍ ${o.remainingLocal.toStringAsFixed(2)}',
+                  style: TextStyle(fontSize: 11, color: T.muted)),
+              const Divider(height: 16),
+              // معاينة المنتجات كاملة
+              ...o.items.map((it) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('• ', style: TextStyle(color: T.muted)),
+                        Expanded(
+                          child: Text(
+                            '${it.title.length > 60 ? '${it.title.substring(0, 60)}…' : it.title}'
+                            ' × ${it.qty}'
+                            '${it.color.isNotEmpty ? ' · ${it.color}' : ''}'
+                            '${it.size.isNotEmpty ? ' · ${it.size}' : ''}',
+                            style: TextStyle(fontSize: 10.5, height: 1.5, color: T.text),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )),
+              const Divider(height: 16),
               const Divider(height: 18),
               const Text('الحالة',
                   style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
@@ -344,6 +369,39 @@ extension _StaffOrderEditor on _OrdersTabState {
           ),
         ),
         actions: [
+          if (Get.find<AuthService>().role == 'manager')
+            TextButton(
+              onPressed: () async {
+                final ok = await Get.dialog<bool>(
+                  AlertDialog(
+                    title: const Text('حذف الطلب؟'),
+                    content: Text('سيُحذف الطلب ${o.orderNo} نهائياً. لا يمكن التراجع.',
+                        style: const TextStyle(fontSize: 12)),
+                    actions: [
+                      TextButton(
+                          onPressed: () => Get.back(result: false),
+                          child: const Text('إلغاء')),
+                      ElevatedButton(
+                          onPressed: () => Get.back(result: true),
+                          child: const Text('حذف')),
+                    ],
+                  ),
+                );
+                if (ok != true) return;
+                try {
+                  await FirebaseFirestore.instance
+                      .collection('orders')
+                      .doc(o.id)
+                      .delete();
+                  Get.back();
+                  Get.snackbar('تم الحذف', 'أُزيل الطلب ${o.orderNo}');
+                } catch (e) {
+                  Get.snackbar('تعذر الحذف', '$e');
+                }
+              },
+              child: const Text('حذف الطلب',
+                  style: TextStyle(color: AppColors.danger)),
+            ),
           TextButton(onPressed: Get.back, child: const Text('إغلاق')),
           ElevatedButton(
             onPressed: () async {

@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import '../../core/models/app_settings.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/theme/app_theme.dart';
+import 'team_tab.dart';
 import 'role_guard.dart';
 
 /// الإعدادات: أسعار الصرف (140 / 413)، رسوم الشحن والتوصيل، بيانات الدعم، الكوبونات.
@@ -137,6 +138,28 @@ class _SettingsTabState extends State<SettingsTab> {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            SectionCard(
+              title: 'الفريق والصلاحيات',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'حدّد دور كل موظف: مدير، محاسب، شحن، مندوب، أو خدمة عملاء. '
+                    'يظهر لكل موظف ما يخصه فقط في لوحة الإدارة.',
+                    style: TextStyle(fontSize: 11, height: 1.6, color: T.muted),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => Get.to(() => const TeamTab()),
+                      icon: const Icon(Icons.group_add_outlined, size: 16),
+                      label: const Text('توزيع أدوار الفريق'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             SectionCard(
               title: 'أسعار الصرف',
               child: Column(
