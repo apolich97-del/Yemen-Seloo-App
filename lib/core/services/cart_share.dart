@@ -121,7 +121,18 @@ class CartShare {
     }
   }
 
-  /// نص رسالة واتساب: بند «رابط السلة كاملة».
-  static String whatsappSection(String url) =>
-      '\n🛒 رابط السلة كاملة:\n$url\n';
+  /// الرمز وحده (بلا رابط) — يُلصق في نافذة الاستيراد.
+  static String tokenFromUrl(String url) => _token(url) ?? '';
+
+  /// نص رسالة واتساب: بند «رابط السلة كاملة» مع بديل الرمز.
+  static String whatsappSection(String url) {
+    final token = tokenFromUrl(url);
+    final b = StringBuffer('\n🛒 رابط السلة كاملة:\n$url\n');
+    if (token.isNotEmpty) {
+      b.writeln(
+          'إن لم يفتح الرابط: افتح التطبيق ← تبويب السلة ← «استيراد سلة شي ان» '
+          'والصق الرمز التالي:\n$token');
+    }
+    return b.toString();
+  }
 }

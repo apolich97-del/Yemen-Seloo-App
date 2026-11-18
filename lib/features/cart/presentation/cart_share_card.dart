@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 import '../../../core/routes/app_routes.dart';
+import '../../../core/services/cart_share.dart';
 import '../../../core/theme/app_theme.dart';
 
 /// بطاقة «رابط السلة كاملة»: نسخ الرابط أو فتح السلة.
@@ -42,6 +43,32 @@ class CartShareCard extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 11, color: AppColors.muted)),
+          if (CartShare.tokenFromUrl(url).isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'الرمز: ${CartShare.tokenFromUrl(url)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 9.5, color: AppColors.muted),
+                  ),
+                ),
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(Icons.copy, size: 15),
+                  onPressed: () async {
+                    await Clipboard.setData(ClipboardData(
+                        text: CartShare.tokenFromUrl(url)));
+                    Get.snackbar('تم النسخ',
+                        'الصق الرمز في نافذة «استيراد سلة شي ان»');
+                  },
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 10),
           Row(
             children: [

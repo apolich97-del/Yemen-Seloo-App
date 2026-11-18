@@ -128,15 +128,16 @@ class SupportService extends GetxService {
   Future<String> openThread({Order? order}) async {
     final auth = Get.find<AuthService>();
     final uid = auth.uid ?? '';
+    // استعلام بحقل واحد فقط حتى لا يحتاج فهرساً مركّباً؛
+    // استبعاد المحادثات المغلقة يتم داخل التطبيق.
     final existing = await _db
         .collection('support_threads')
         .where('userId', isEqualTo: uid)
-        .where('mode', isNotEqualTo: 'closed')
-        .limit(5)
+        .limit(10)
         .get();
     for (final d in existing.docs) {
       final m = d.data();
-      // نفس الطلب أو محادثة عامة مفتوحة
+      if ((m['mode'] ?? 'bot') == 'closed') continue;
       if (order == null || m['orderId'] == order.id) return d.id;
     }
     final ref = _db.collection('support_threads').doc();
