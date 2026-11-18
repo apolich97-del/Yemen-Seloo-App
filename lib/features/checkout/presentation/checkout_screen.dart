@@ -6,6 +6,7 @@ import '../../../core/models/currency.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../core/services/cart_share.dart';
+import '../../guide/interactive_guide.dart';
 import '../../../core/services/order_documents.dart';
 import '../../../core/services/settings_service.dart';
 import '../../cart/presentation/cart_share_card.dart';
@@ -301,6 +302,21 @@ class CheckoutScreen extends GetView<CheckoutController> {
   }
 
   /// اختيار خطة السداد: كاش أو طلب آجل 50%.
+  /// إرشاد مرة واحدة لبطاقة الطلب الآجل.
+  void _guideDeferred() {
+    if (!Get.isRegistered<InteractiveGuideController>()) return;
+    Get.find<InteractiveGuideController>().showIfFirst(
+      'action_deferred',
+      title: 'الطلب الآجل 50%',
+      body: 'إن بلغت قيمة المنتجات الحد الأدنى، يمكنك دفع النصف الآن والنصف عند الاستلام.',
+      steps: <String>[
+        'اختر «طلب آجل — السداد بالنصف».',
+        'حوّل الدفعة الأولى فقط من شاشة الدفع.',
+        'تابع المتبقي في بطاقة الرصيد داخل تفاصيل الطلب.',
+      ],
+    );
+  }
+
   Widget _planCard(BuildContext context) {
     if (!Get.isRegistered<SettingsService>()) return const SizedBox.shrink();
     final sf = Get.find<SettingsService>().settings.value;
@@ -321,7 +337,12 @@ class CheckoutScreen extends GetView<CheckoutController> {
       }) {
         final selected = controller.paymentPlan.value == value;
         return GestureDetector(
-          onTap: enabled ? () => controller.paymentPlan.value = value : null,
+          onTap: enabled
+              ? () {
+                  controller.paymentPlan.value = value;
+                  if (value == 'half_deferred') _guideDeferred();
+                }
+              : null,
           child: Container(
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.all(12),

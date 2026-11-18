@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/theme_controller.dart';
+import '../guide/interactive_guide.dart';
+
 import '../../core/controllers/profile_controller.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/services/auth_service.dart';
@@ -224,6 +228,8 @@ class ProfileScreen extends GetView<ProfileController> {
             _tile(Icons.headset_mic_outlined, 'خدمة العملاء', () {
               Get.snackbar('خدمة العملاء', 'افتح واتساب على رقم الدعم من الإعدادات');
             }),
+
+              _appSettingsCard(),
           ],
         ),
       );
@@ -274,4 +280,60 @@ class ProfileScreen extends GetView<ProfileController> {
           );
         }),
       );
+}
+
+
+/// بطاقة إعدادات التطبيق: الثيم والإرشادات.
+Widget _appSettingsCard() {
+  final tc = Get.isRegistered<ThemeController>() ? Get.find<ThemeController>() : null;
+  final gc = Get.isRegistered<InteractiveGuideController>()
+      ? Get.find<InteractiveGuideController>()
+      : null;
+  return Container(
+    margin: const EdgeInsets.only(top: 12),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Get.isDarkMode ? const Color(0xFF130F24) : Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: Get.isDarkMode ? const Color(0xFF2D2354) : const Color(0xFFE9E4F5)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('إعدادات التطبيق',
+            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 8),
+        if (tc != null)
+          Obx(() => SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: tc.isDark.value,
+                title: const Text('الثيم الليلي (أسود)',
+                    style: TextStyle(fontSize: 12.5)),
+                subtitle: Text(
+                    tc.isDark.value ? 'المظهر الحالي: ليلي' : 'المظهر الحالي: نهاري',
+                    style: const TextStyle(fontSize: 11)),
+                onChanged: (v) => tc.setDark(v),
+              )),
+        if (gc != null)
+          Obx(() => SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: gc.enabled.value,
+                title: const Text('الإشعارات الإرشادية التفاعلية',
+                    style: TextStyle(fontSize: 12.5)),
+                subtitle: const Text('بطاقات توضيحية تظهر مرة واحدة لكل صفحة وزر',
+                    style: TextStyle(fontSize: 11)),
+                onChanged: (v) => gc.setEnabled(v),
+              )),
+        if (gc != null)
+          TextButton.icon(
+            onPressed: () {
+              gc.reset();
+              Get.snackbar('تم', 'سيعرض التطبيق الإرشادات من البداية');
+            },
+            icon: const Icon(Icons.restart_alt, size: 16),
+            label: const Text('إعادة تشغيل الدليل الإرشادي من البداية'),
+          ),
+      ],
+    ),
+  );
 }

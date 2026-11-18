@@ -15,6 +15,7 @@ import '../application/cart_counter.dart';
 import '../data/seloo_cart_link.dart';
 import '../../../core/services/catalog_service.dart';
 import '../../../core/services/cart_share.dart';
+import '../../guide/interactive_guide.dart';
 import '../domain/cart_item.dart';
 
 const Color _purple = Color(0xFF7C3AED);
@@ -170,6 +171,19 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Future<void> _importSharedCart() async {
+    if (Get.isRegistered<InteractiveGuideController>()) {
+      Get.find<InteractiveGuideController>().showIfFirst(
+        'action_import',
+        title: 'استيراد رابط SHEIN',
+        body: 'الصق رابط منتج أو سلة شي إن، أو رابط «السلة كاملة» من يمن سيلو '
+            'لاستعادة كل المنتجات دفعة واحدة.',
+        steps: <String>[
+          'انسخ الرابط من تطبيق شي إن أو من رسالة واتساب.',
+          'الصقه في الحقل ثم اضغط استيراد.',
+          'ستظهر المنتجات في السلة بأسعارها بالريال السعودي.',
+        ],
+      );
+    }
     if (_importing) return;
 
     final String text = _shareCartController.text.trim();

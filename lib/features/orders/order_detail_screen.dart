@@ -12,6 +12,7 @@ import '../../core/models/receipt.dart';
 import '../../core/services/cart_share.dart';
 import '../../core/services/receipt_service.dart';
 import '../cart/presentation/cart_share_card.dart';
+import '../guide/interactive_guide.dart';
 import '../support/presentation/support_screen.dart';
 import '../../core/services/order_documents.dart';
 import '../../core/services/order_service.dart';
@@ -333,14 +334,28 @@ class OrderDetailScreen extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: () => Get.bottomSheet(
-                  _UploadReceiptSheet(order: o),
+                onPressed: () {
+                  if (Get.isRegistered<InteractiveGuideController>()) {
+                    Get.find<InteractiveGuideController>().showIfFirst(
+                      'action_receipt',
+                      title: 'رفع إيصال سداد',
+                      body: 'ارفع صورة الحوالة وسيُخصم المبلغ من المتبقي بعد اعتماد المحاسبة.',
+                      steps: <String>[
+                        'أدخل المبلغ المحوّل واسم المرسل.',
+                        'أرفق صورة إشعار الحوالة.',
+                        'انتظر الاعتماد ليظهر الإيصال برقمه.',
+                      ],
+                    );
+                  }
+                  Get.bottomSheet(
+                          _UploadReceiptSheet(order: o),
                   isScrollControlled: true,
                   backgroundColor: Colors.white,
-                  shape: const RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(20))),
-                ),
+                          shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.vertical(
+                                  top: Radius.circular(20))),
+                        );
+                },
                 icon: const Icon(Icons.upload_file_outlined, size: 18),
                 label: const Text('رفع إيصال سداد'),
               ),

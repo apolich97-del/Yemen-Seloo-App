@@ -12,6 +12,8 @@ import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'core/config/seloo_config.dart';
 import 'core/controllers/checkout_controller.dart';
 import 'core/routes/app_routes.dart';
+import 'core/theme/app_theme.dart';
+import 'core/theme/theme_controller.dart';
 import 'features/cart/application/cart_counter.dart';
 import 'features/cart/data/seloo_cart_link.dart';
 import 'features/cart/data/seloo_cart_service.dart';
@@ -316,11 +318,11 @@ class SelooApp extends StatelessWidget {
       ],
       locale: const Locale('ar'),
       fallbackLocale: const Locale('en'),
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: const Color(0xFF7C3AED),
-        scaffoldBackgroundColor: const Color(0xFFFAF7FF),
-      ),
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: Get.isRegistered<ThemeController>()
+          ? Get.find<ThemeController>().mode
+          : ThemeMode.light,
       initialRoute: '/main',
       initialBinding: InitialBinding(),
       getPages: <GetPage<dynamic>>[

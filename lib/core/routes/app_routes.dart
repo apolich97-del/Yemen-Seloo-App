@@ -18,6 +18,8 @@ import '../models/cart.dart';
 import '../services/order_service.dart';
 import '../services/receipt_service.dart';
 import '../../features/support/data/support_service.dart';
+import '../../features/guide/interactive_guide.dart';
+import '../theme/theme_controller.dart';
 import '../services/pricing_service.dart';
 import '../services/settings_service.dart';
 
@@ -43,6 +45,9 @@ class InitialBinding extends Bindings {
     Get.put<OrderService>(OrderService(), permanent: true);
     Get.put<ReceiptService>(ReceiptService(), permanent: true);
     Get.put<SupportService>(SupportService(), permanent: true);
+    Get.put<ThemeController>(ThemeController(), permanent: true);
+    Get.put<InteractiveGuideController>(InteractiveGuideController(),
+        permanent: true);
   }
 }
 

@@ -12,6 +12,18 @@ class AppColors {
   static const success = Color(0xFF15803D);
 }
 
+class AppDark {
+  static const bg = Color(0xFF090714);
+  static const card = Color(0xFF130F24);
+  static const cardHigh = Color(0xFF1B1536);
+  static const border = Color(0xFF2D2354);
+  static const borderSoft = Color(0xFF342370);
+  static const primary = Color(0xFF5B2EFF);
+  static const primarySoft = Color(0xFF7C3AED);
+  static const text = Color(0xFFF5F3FF);
+  static const textMuted = Color(0xFFC4B5FD);
+}
+
 class AppTheme {
   static ThemeData light() {
     final scheme = ColorScheme.fromSeed(
@@ -87,6 +99,116 @@ class AppTheme {
         backgroundColor: AppColors.ink,
       ),
       dividerTheme: const DividerThemeData(color: Color(0xFFEDF1EF), thickness: 1),
+    );
+  }
+
+  /// الثيم الليلي بهوية يمن سيلو.
+  static ThemeData dark() {
+    final scheme = ColorScheme.fromSeed(
+      seedColor: AppDark.primarySoft,
+      brightness: Brightness.dark,
+      primary: AppDark.primarySoft,
+      surface: AppDark.card,
+    ).copyWith(
+      surface: AppDark.card,
+      onSurface: AppDark.text,
+      outline: AppDark.border,
+    );
+
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: AppDark.bg,
+      canvasColor: AppDark.bg,
+      dividerColor: AppDark.border,
+      cardColor: AppDark.card,
+      shadowColor: Colors.black54,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: AppDark.card,
+        foregroundColor: AppDark.text,
+        elevation: 0,
+        centerTitle: false,
+      ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: AppDark.card,
+        selectedItemColor: AppDark.primarySoft,
+        unselectedItemColor: AppDark.textMuted,
+        type: BottomNavigationBarType.fixed,
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: AppDark.card,
+        indicatorColor: AppDark.primarySoft.withOpacity(.25),
+        labelTextStyle: WidgetStatePropertyAll(
+            TextStyle(fontSize: 11, color: AppDark.text)),
+      ),
+      cardTheme: CardTheme(
+        color: AppDark.card,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppDark.border),
+        ),
+      ),
+      dialogTheme: DialogTheme(
+        backgroundColor: AppDark.cardHigh,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: AppDark.cardHigh,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppDark.cardHigh,
+        hintStyle: const TextStyle(color: AppDark.textMuted, fontSize: 12),
+        labelStyle: const TextStyle(color: AppDark.textMuted, fontSize: 12),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppDark.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppDark.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppDark.primarySoft, width: 1.4),
+        ),
+      ),
+      textTheme: const TextTheme(
+        bodyLarge: TextStyle(color: AppDark.text),
+        bodyMedium: TextStyle(color: AppDark.text),
+        bodySmall: TextStyle(color: AppDark.textMuted),
+        titleLarge: TextStyle(color: AppDark.text, fontWeight: FontWeight.w900),
+        titleMedium: TextStyle(color: AppDark.text, fontWeight: FontWeight.w700),
+      ),
+      iconTheme: const IconThemeData(color: AppDark.textMuted),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppDark.primarySoft,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppDark.text,
+          side: const BorderSide(color: AppDark.borderSoft),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+      tabBarTheme: const TabBarTheme(
+        labelColor: AppDark.text,
+        unselectedLabelColor: AppDark.textMuted,
+      ),
+      listTileTheme: const ListTileThemeData(iconColor: AppDark.textMuted),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: AppDark.cardHigh,
+        contentTextStyle: const TextStyle(color: AppDark.text),
+        actionTextColor: AppDark.primarySoft,
+      ),
     );
   }
 }

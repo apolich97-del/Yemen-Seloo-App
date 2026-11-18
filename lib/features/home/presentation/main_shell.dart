@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
+import '../../guide/interactive_guide.dart';
+import '../../../core/widgets/brand_logo.dart';
+
 import '../../cart/application/cart_counter.dart';
 import 'home_tab.dart';
 import 'main_tab_controller.dart';
@@ -30,6 +33,44 @@ class _MainShellState extends State<MainShell> {
     'طلباتي',
     'الدعم',
   ];
+
+  /// إرشاد تفاعلي عند أول دخول لكل تبويب.
+  void _guideTab(int index) {
+    if (!Get.isRegistered<InteractiveGuideController>()) return;
+    final c = Get.find<InteractiveGuideController>();
+    switch (index) {
+      case 0:
+        guideForPage(c, 'page_home', 'الرئيسية',
+            'من هنا تبدأ رحلتك: عروض مختارة، حالة آخر طلب، وروابط سريعة للسلة والدعم.');
+        break;
+      case 1:
+        guideForPage(c, 'page_shein', 'تصفح SHEIN',
+            'كل منتج تفتحه هنا يُضاف إلى سلة يمن سيلو مع سعره بالريال السعودي.',
+            steps: <String>[
+              'اختر المنتج ثم اللون والمقاس.',
+              'ارجع إلى السلة لتجد المنتج مضافاً.',
+              'يمكنك تعديل المقاس أو الكمية قبل الطلب.',
+            ]);
+        break;
+      case 2:
+        guideForPage(c, 'page_cart', 'سلة التسوق',
+            'السلة تجمع منتجات شي إن والمنتجات المستوردة من الروابط، مع حساب الشحن والرسوم.',
+            steps: <String>[
+              'راجع الكميات والأسعار.',
+              'اضغط «نسخ رابط السلة» لمشاركة السلة كاملة.',
+              'أكمل الطلب لعرض ملخص الطلب وطريقة السداد.',
+            ]);
+        break;
+      case 3:
+        guideForPage(c, 'page_orders', 'طلباتي',
+            'تابع كل طلب بمراحله الست، واعرف المدفوع والمتبقي ورقم التتبع.');
+        break;
+      case 4:
+        guideForPage(c, 'page_support', 'الدعم',
+            'دليل إرشادي قابل للبحث، ومساعد ذكي يجيب من بيانات طلبك ثم يحوّلك لموظف.');
+        break;
+    }
+  }
 
   // ⭐ نافذة تغيير العملة / المنطقة
   void _showCurrencyDialog() {
@@ -158,15 +199,9 @@ class _MainShellState extends State<MainShell> {
               centerTitle: false,
               title: Row(
                 children: <Widget>[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: Image.asset(
-                      'assets/images/logo.png',
-                      width: 30,
-                      height: 30,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.storefront, color: Colors.white, size: 24),
-                    ),
+                  const ClipRRect(
+                    borderRadius: BorderRadius.all(Radius.circular(6)),
+                    child: BrandLogo(height: 30),
                   ),
                   const SizedBox(width: 8),
                   Text(
@@ -176,6 +211,7 @@ class _MainShellState extends State<MainShell> {
                 ],
               ),
               actions: <Widget>[
+                const ThemeToggleButton(),
                 // ⭐ الحساب: تسجيل الدخول، العناوين، الطلبات
                 IconButton(
                   tooltip: 'حسابي',
@@ -207,6 +243,7 @@ class _MainShellState extends State<MainShell> {
                   _tabCtrl.goTo(i);
                   // ⭐ فتح تبويب السلة يعيد قراءتها من التخزين فوراً
                   if (i == 2) _cart.onItemAdded();
+                  _guideTab(i);
                 },
                 type: BottomNavigationBarType.fixed,
                 backgroundColor: Colors.white,
