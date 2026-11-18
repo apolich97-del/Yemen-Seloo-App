@@ -3,7 +3,12 @@ import 'package:get/get.dart';
 
 import '../../../core/controllers/checkout_controller.dart';
 import '../../../core/models/currency.dart';
+import 'package:share_plus/share_plus.dart';
+
+import '../../../core/services/cart_share.dart';
+import '../../../core/services/order_documents.dart';
 import '../../../core/services/settings_service.dart';
+import '../../cart/presentation/cart_share_card.dart';
 import '../../../core/theme/app_theme.dart';
 
 /// المرحلة 1 — «ملخص الطلب / إكمال الطلب»
@@ -27,6 +32,28 @@ class CheckoutScreen extends GetView<CheckoutController> {
           icon: const Icon(Icons.arrow_forward_ios, size: 18),
           onPressed: Get.back,
         ),
+        actions: [
+          IconButton(
+            tooltip: 'ملخص PDF',
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            onPressed: () async {
+              if (controller.lines.isEmpty) return;
+              try {
+                final f = await CartPdf.build(
+                  lines: controller.lines,
+                  addressAr: controller.address.value?.fullAr ?? '',
+                  totalLabel:
+                      'الإجمالي: ${formatMoney(controller.estimate.value?.totalLocal ?? 0, controller.currency.value)}',
+                  currencyNote: controller.currency.value.key,
+                );
+                await Share.shareXFiles([XFile(f.path)],
+                    text: 'ملخص السلة — يمن سيلو');
+              } catch (e) {
+                Get.snackbar('تعذر إنشاء PDF', '$e');
+              }
+            },
+          ),
+        ],
       ),
       body: Obx(() {
         if (controller.lines.isEmpty) {
@@ -46,6 +73,12 @@ class CheckoutScreen extends GetView<CheckoutController> {
             _planCard(context),
             const SizedBox(height: 12),
             _summaryCard(context),
+            const SizedBox(height: 12),
+            Obx(() => CartShareCard(
+                  url: controller.lines.isEmpty
+                      ? ''
+                      : CartShare.buildFromLines(controller.lines),
+                )),
             const SizedBox(height: 12),
             _couponCard(context),
             const SizedBox(height: 90),

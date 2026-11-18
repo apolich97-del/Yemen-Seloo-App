@@ -9,7 +9,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/models/currency.dart';
 import '../../core/models/order.dart';
 import '../../core/models/receipt.dart';
+import '../../core/services/cart_share.dart';
 import '../../core/services/receipt_service.dart';
+import '../cart/presentation/cart_share_card.dart';
 import '../../core/services/order_documents.dart';
 import '../../core/services/order_service.dart';
 import '../../core/theme/app_theme.dart';
@@ -40,6 +42,8 @@ class OrderDetailScreen extends StatelessWidget {
               _header(o),
               const SizedBox(height: 12),
               _timeline(o),
+              const SizedBox(height: 12),
+              CartShareCard(url: CartShare.fromOrderItems(o)),
               const SizedBox(height: 12),
               _receiptsCard(o),
               if (o.hasRemaining) _balanceCard(o),

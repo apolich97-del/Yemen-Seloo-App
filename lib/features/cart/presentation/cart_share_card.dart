@@ -1,0 +1,72 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:get/get.dart';
+
+import '../../../core/routes/app_routes.dart';
+import '../../../core/theme/app_theme.dart';
+
+/// بطاقة «رابط السلة كاملة»: نسخ الرابط أو فتح السلة.
+class CartShareCard extends StatelessWidget {
+  const CartShareCard({super.key, required this.url, this.title = 'رابط السلة كاملة'});
+
+  final String url;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    if (url.isEmpty) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE9E4F5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.link, size: 18, color: AppColors.primary),
+              const SizedBox(width: 6),
+              Text(title,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.primaryDark)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(url,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, color: AppColors.muted)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    await Clipboard.setData(ClipboardData(text: url));
+                    Get.snackbar('تم النسخ', 'رابط السلة كاملة جاهز للمشاركة');
+                  },
+                  icon: const Icon(Icons.copy_all_outlined, size: 16),
+                  label: const Text('نسخ رابط السلة'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => Get.toNamed(AppRoutes.cart),
+                  icon: const Icon(Icons.shopping_cart_outlined, size: 16),
+                  label: const Text('فتح السلة كاملة'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}

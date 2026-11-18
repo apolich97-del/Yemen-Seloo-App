@@ -14,6 +14,7 @@ import '../../shein/data/shein_image_resolver.dart';
 import '../application/cart_counter.dart';
 import '../data/seloo_cart_link.dart';
 import '../../../core/services/catalog_service.dart';
+import '../../../core/services/cart_share.dart';
 import '../domain/cart_item.dart';
 
 const Color _purple = Color(0xFF7C3AED);
@@ -175,6 +176,19 @@ class _CartScreenState extends State<CartScreen> {
 
     if (text.isEmpty) {
       _snack('الصق رابط السلة المشتركة أولاً');
+      return;
+    }
+
+    // رابط «السلة كاملة» الصادر من تطبيق يمن سيلو: استعادة دفعة واحدة
+    if (CartShare.isCartLink(text)) {
+      final restored = CartShare.parse(text);
+      if (restored == null || restored.isEmpty) {
+        _snack('رابط السلة غير صالح أو تالف');
+        return;
+      }
+      _cart.items.assignAll(restored);
+      _cart.editingLineId.value = null;
+      _snack('تمت استعادة ${restored.length} منتجاً من رابط السلة كاملة');
       return;
     }
 
@@ -611,8 +625,8 @@ class _CartScreenState extends State<CartScreen> {
     // رابط سلة يمن سيلو الكاملة (كل المنتجات في رابط واحد)
     try {
       if (_cart.items.isNotEmpty) {
-        b.writeln('🛒 *سلة كاملة — كل المنتجات في رابط واحد:*');
-        b.writeln(cartLink ?? SelooCartLink.webLink(_cart.items));
+        b.writeln('🛒 رابط السلة كاملة:');
+        b.writeln(CartShare.buildFromItems(_cart.items));
         b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
       }
     } catch (_) {}

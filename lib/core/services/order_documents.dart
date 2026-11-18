@@ -12,6 +12,7 @@ import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/currency.dart';
+import 'cart_share.dart';
 import '../models/order.dart';
 import '../models/receipt.dart';
 import 'settings_service.dart';
@@ -73,6 +74,51 @@ class OrderDocuments {
     }
   }
 
+  /// بطاقة «رابط السلة كاملة» قابلة للنقر داخل PDF.
+  static pw.Widget _cartLinkCard(
+      String url, pw.TextStyle Function(double, bool, PdfColor) t) {
+    if (url.isEmpty) return pw.SizedBox();
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(top: 12),
+      padding: const pw.EdgeInsets.all(11),
+      decoration: pw.BoxDecoration(
+        color: _soft,
+        borderRadius: pw.BorderRadius.circular(10),
+        border: pw.Border.all(color: _gold),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          pw.Text('🛒 رابط السلة كاملة',
+              style: t(11.5, true, _violetDark)),
+          pw.SizedBox(height: 5),
+          pw.UrlLink(
+            destination: url,
+            child: pw.Container(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+              decoration: pw.BoxDecoration(
+                color: _violet,
+                borderRadius: pw.BorderRadius.circular(8),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                children: [
+                  pw.Text('افتح السلة كاملة بكل المنتجات',
+                      style: t(10, true, PdfColors.white)),
+                  pw.SizedBox(height: 3),
+                  pw.Text(url,
+                      style: t(7.5, false, PdfColors.white),
+                      maxLines: 1,
+                      overflow: pw.TextOverflow.clip),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   static String _variant(OrderItem it) {
     final parts = <String>[
       if (it.color.isNotEmpty) 'اللون: ${it.color}',
@@ -111,7 +157,8 @@ class OrderDocuments {
       ..writeln('━━━━━━━━━━━━━━')
       ..writeln('💰 *الإجمالي: ${formatMoney(o.totalLocal, o.currency)}*')
       ..writeln()
-      ..writeln('شكراً لثقتكم بـ يمن سيلو 💜');
+      ..writeln('شكراً لثقتكم بـ يمن سيلو 💜')
+      ..writeln(CartShare.whatsappSection(CartShare.fromOrderItems(o)));
     return b.toString();
   }
 
@@ -358,6 +405,8 @@ class OrderDocuments {
             pw.Divider(color: _gold),
             kv('الإجمالي', formatMoney(o.totalLocal, o.currency), strong: true),
           ]),
+          OrderDocuments._cartLinkCard(CartShare.fromOrderItems(o),
+              (double sz, bool bl, PdfColor cl) => t(sz, b: bl, c: cl)),
           if (_deliveryWindow().isNotEmpty || _support().isNotEmpty)
             pw.Container(
               padding: const pw.EdgeInsets.all(10),
@@ -534,6 +583,8 @@ extension ReceiptDocuments on OrderDocuments {
               ),
             ],
           ),
+          OrderDocuments._cartLinkCard(CartShare.fromOrderItems(o),
+              (double sz, bool bl, PdfColor cl) => t(sz, b: bl, c: cl)),
           box('البيان المالي للطلب', [
             kv('إجمالي الطلب', formatMoney(o.totalLocal, o.currency)),
             kv('هذا الإيصال', formatMoney(r.amountLocal, o.currency)),
@@ -581,6 +632,132 @@ extension ReceiptDocuments on OrderDocuments {
 
     final dir = await getTemporaryDirectory();
     final f = File('${dir.path}/Receipt-${r.receiptNo}.pdf');
+    await f.writeAsBytes(await doc.save());
+    return f;
+  }
+}
+
+
+/// ملخص PDF للسلة قبل إنشاء الطلب (شاشة الملخص).
+class CartPdf {
+  static Future<File> build({
+    required List<dynamic> lines,
+    required String addressAr,
+    required String totalLabel,
+    required String currencyNote,
+  }) async {
+    final reg = pw.Font.ttf(await rootBundle.load('assets/fonts/Tajawal-Regular.ttf'));
+    final bold = pw.Font.ttf(await rootBundle.load('assets/fonts/Tajawal-Bold.ttf'));
+    final logo = pw.MemoryImage(
+        (await rootBundle.load('assets/images/logo.png')).buffer.asUint8List());
+    const violet = PdfColor.fromInt(0xFF7C3AED);
+    const violetDark = PdfColor.fromInt(0xFF5B21B6);
+    const gold = PdfColor.fromInt(0xFFC9A227);
+    const soft = PdfColor.fromInt(0xFFF7F5FB);
+    const ink = PdfColor.fromInt(0xFF1B1F1D);
+
+    pw.TextStyle t(double size, bool b, PdfColor? c) =>
+        pw.TextStyle(font: b ? bold : reg, fontSize: size, color: c ?? ink);
+
+    final List<pw.TableRow> rows = [
+      pw.TableRow(
+        decoration: const pw.BoxDecoration(color: violetDark),
+        children: [
+          for (final h in ['المنتج', 'الكمية', 'سعر الوحدة'])
+            pw.Padding(
+              padding: const pw.EdgeInsets.all(6),
+              child: pw.Text(h, style: t(10, true, PdfColors.white)),
+            ),
+        ],
+      ),
+      for (final l in lines)
+        pw.TableRow(children: [
+          pw.Padding(
+              padding: const pw.EdgeInsets.all(6),
+              child: pw.Text('${l.titleAr}', style: t(9.5, false, null))),
+          pw.Padding(
+              padding: const pw.EdgeInsets.all(6),
+              child: pw.Text('${l.qty}', style: t(9.5, false, null))),
+          pw.Padding(
+              padding: const pw.EdgeInsets.all(6),
+              child: pw.Text('${l.unitPriceSar}', style: t(9.5, false, null))),
+        ]),
+    ];
+
+    final doc = pw.Document(title: 'ملخص السلة', author: 'يمن سيلو');
+    doc.addPage(pw.Page(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(26),
+      textDirection: pw.TextDirection.rtl,
+      theme: pw.ThemeData.withFont(base: reg, bold: bold),
+      build: (_) => pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          pw.Container(
+            padding: const pw.EdgeInsets.all(16),
+            decoration: pw.BoxDecoration(
+                color: violet, borderRadius: pw.BorderRadius.circular(12)),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('ملخص السلة', style: t(14, true, PdfColors.white)),
+                      pw.Text(addressAr, style: t(9.5, false, gold)),
+                    ]),
+                pw.Row(children: [
+                  pw.Text('يمن سيلو', style: t(17, true, PdfColors.white)),
+                  pw.SizedBox(width: 8),
+                  pw.ClipRRect(
+                      horizontalRadius: 8,
+                      verticalRadius: 8,
+                      child: pw.Image(logo, width: 40, height: 40)),
+                ]),
+              ],
+            ),
+          ),
+          pw.SizedBox(height: 12),
+          pw.Table(
+            columnWidths: {
+              0: const pw.FlexColumnWidth(3),
+              1: const pw.FlexColumnWidth(1),
+              2: const pw.FlexColumnWidth(1.4),
+            },
+            border: pw.TableBorder(
+                horizontalInside:
+                    pw.BorderSide(color: PdfColor.fromInt(0xFFE4DDF5))),
+            children: rows,
+          ),
+          pw.SizedBox(height: 12),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(11),
+            decoration: pw.BoxDecoration(
+                color: soft,
+                borderRadius: pw.BorderRadius.circular(10),
+                border: pw.Border.all(color: PdfColor.fromInt(0xFFE4DDF5))),
+            child: pw.Column(children: [
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(totalLabel, style: t(12, true, null)),
+                  pw.Text(currencyNote, style: t(9, false, null)),
+                ],
+              ),
+              pw.SizedBox(height: 4),
+              pw.Text('الأسعار تقديرية بالريال السعودي وتُثبَّت عند إنشاء الطلب.',
+                  style: t(8.5, false, gold)),
+            ]),
+          ),
+          OrderDocuments._cartLinkCard(
+              CartShare.buildFromLines(lines),
+              (double sz, bool bl, PdfColor? cl) => t(sz, bl, cl)),
+        ],
+      ),
+    ));
+
+    final dir = await getTemporaryDirectory();
+    final f = File('${dir.path}/Yemen-Seloo-Cart.pdf');
     await f.writeAsBytes(await doc.save());
     return f;
   }
