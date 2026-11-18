@@ -17,6 +17,7 @@ import '../../../core/services/catalog_service.dart';
 import '../../../core/services/cart_share.dart';
 import '../../guide/interactive_guide.dart';
 import '../domain/cart_item.dart';
+import '../../../core/services/settings_service.dart';
 import '../../../core/theme/app_theme.dart';
 
 const Color _purple = Color(0xFF7C3AED);
@@ -1058,6 +1059,18 @@ class _CartScreenState extends State<CartScreen> {
                       _selected.length == _cart.items.length,
                 ),
                   const SizedBox(height: 8),
+                  ShippingProgressBar(
+                    subtotalSar: _cart.items
+                        .where((e) => _selected.contains(e.lineId))
+                        .fold<double>(0,
+                            (a, e) => a + e.sourcePrice * e.quantity),
+                    thresholdSar: Get.isRegistered<SettingsService>()
+                        ? Get.find<SettingsService>()
+                            .settings
+                            .value
+                            .freeShippingThresholdSar
+                        : 300,
+                  ),
                   _buildImportSheinCartButton(),
                   const Expanded(child: _EmptyCart()),
                 ],
@@ -2153,6 +2166,72 @@ class _EmptyCart extends StatelessWidget {
             style: FilledButton.styleFrom(backgroundColor: _purple),
             onPressed: () => Get.offNamed('/shein'),
             child: const Text('تصفّح SHEIN'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+/// شريط تقدم الشحن المجاني المتدرج.
+class ShippingProgressBar extends StatelessWidget {
+  const ShippingProgressBar({super.key, required this.subtotalSar, required this.thresholdSar});
+
+  final double subtotalSar;
+  final double thresholdSar;
+
+  @override
+  Widget build(BuildContext context) {
+    final double target = thresholdSar <= 0 ? 0 : thresholdSar;
+    final double ratio =
+        target <= 0 ? 1 : (subtotalSar / target).clamp(0.0, 1.0);
+    final bool done = target <= 0 || subtotalSar >= target;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: T.soft,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: T.softBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Icon(done ? Icons.local_shipping : Icons.local_shipping_outlined,
+                  size: 16, color: done ? AppColors.success : T.primary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  done
+                      ? 'مبروك! شحن طلبك مجاني'
+                      : 'أضف ${(target - subtotalSar).toStringAsFixed(2)} ر.س للشحن المجاني',
+                  style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      color: T.text),
+                ),
+              ),
+              Text('${(ratio * 100).round()}%',
+                  style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w900,
+                      color: T.primary)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: LinearProgressIndicator(
+              value: ratio,
+              minHeight: 7,
+              backgroundColor: T.border,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                done ? AppColors.success : T.primary,
+              ),
+            ),
           ),
         ],
       ),

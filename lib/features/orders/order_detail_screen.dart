@@ -12,6 +12,7 @@ import '../../core/models/receipt.dart';
 import '../../core/services/cart_share.dart';
 import '../../core/services/receipt_service.dart';
 import '../cart/presentation/cart_share_card.dart';
+import '../../core/widgets/order_stage_bar.dart';
 import '../guide/interactive_guide.dart';
 import '../support/presentation/support_screen.dart';
 import '../../core/services/order_documents.dart';
@@ -56,6 +57,13 @@ class OrderDetailScreen extends StatelessWidget {
               const SizedBox(height: 12),
               CartShareCard(url: CartShare.fromOrderItems(o)),
               const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: SectionCard(
+                  title: 'مراحل الطلب',
+                  child: OrderStageBar(status: o.status),
+                ),
+              ),
               _receiptsCard(o),
               if (o.hasRemaining) _balanceCard(o),
               if (o.hasRemaining) const SizedBox(height: 12),

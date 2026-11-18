@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import '../../../core/routes/app_routes.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/brand_logo.dart';
 
@@ -77,42 +79,74 @@ class HomeTab extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: T.softBorder),
                 ),
-                child: const Column(
+                child: Column(
                   children: <Widget>[
-                    Icon(Icons.info_outline, color: _purple, size: 28),
-                    SizedBox(height: 10),
-                    Text(
+                    const Icon(Icons.info_outline, color: _purple, size: 28),
+                    const SizedBox(height: 10),
+                    const Text(
                       'تصفّح منتجات SHEIN، أضفها إلى سلتك، وأكّد طلبك بسهولة عبر التطبيق.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        color: Color(0xFF374151),
-                        height: 1.6,
-                      ),
+                      style: TextStyle(fontSize: 13.5, height: 1.6),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () => Get.toNamed('/shein'),
+                            icon: const Icon(Icons.explore_outlined, size: 16),
+                            label: const Text('تصفّح المتجر'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => Get.toNamed(AppRoutes.cart),
+                            icon: const Icon(Icons.shopping_cart_outlined,
+                                size: 16),
+                            label: const Text('عرض السلة'),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 24),
-              const _ServiceItem(
-                icon: Icons.shopping_bag_outlined,
-                title: 'تسوّق من SHEIN',
-                subtitle: 'ملايين المنتجات بين يديك',
+              Row(
+                children: const <Widget>[
+                  Expanded(
+                    child: _ServiceTile(
+                      icon: Icons.shopping_bag_outlined,
+                      title: 'تسوّق SHEIN',
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: _ServiceTile(
+                      icon: Icons.currency_exchange,
+                      title: 'تسعير شفاف',
+                    ),
+                  ),
+                ],
               ),
-              const _ServiceItem(
-                icon: Icons.currency_exchange,
-                title: 'تسعير شفاف',
-                subtitle: 'بالريال اليمني حسب منطقتك',
-              ),
-              const _ServiceItem(
-                icon: Icons.local_shipping_outlined,
-                title: 'شحن موثوق',
-                subtitle: 'من السعودية إلى بابك',
-              ),
-              const _ServiceItem(
-                icon: Icons.support_agent,
-                title: 'دعم مباشر',
-                subtitle: 'فريقنا في خدمتك دائماً',
+              const SizedBox(height: 10),
+              Row(
+                children: const <Widget>[
+                  Expanded(
+                    child: _ServiceTile(
+                      icon: Icons.local_shipping_outlined,
+                      title: 'شحن موثوق',
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: _ServiceTile(
+                      icon: Icons.support_agent,
+                      title: 'دعم مباشر',
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
               Container(
@@ -120,7 +154,7 @@ class HomeTab extends StatelessWidget {
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
                   color: _purple,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -192,6 +226,46 @@ class _ServiceItem extends StatelessWidget {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+
+/// بطاقة خدمة بأسلوب الويب: مربع أيقونة 44×44 وخلفية ناعمة وحد بنفسجي رفيع.
+class _ServiceTile extends StatelessWidget {
+  const _ServiceTile({required this.icon, required this.title});
+
+  final IconData icon;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: T.soft,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: T.softBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: T.card,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: T.softBorder),
+            ),
+            child: Icon(icon, size: 22, color: T.primary),
+          ),
+          const SizedBox(height: 8),
+          Text(title,
+              style: TextStyle(
+                  fontSize: 12.5, fontWeight: FontWeight.w800, color: T.text)),
         ],
       ),
     );
