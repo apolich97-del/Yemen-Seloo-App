@@ -70,8 +70,6 @@ class AuthService extends GetxService {
   static const Set<String> mainManagerEmails = <String>{
     'apolich97@gmail.com',
     'abode212k@gmail.com',
-    // كتابة بديلة للبريد الأول (apilich97) — تُحذف بعد التأكد من الصيغة الصحيحة.
-    'apilich97@gmail.com',
   };
 
   /// المدير الرئيسي فقط (وليس الحسابات المشتركة أو باقي الموظفين).
