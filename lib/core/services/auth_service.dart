@@ -66,7 +66,10 @@ class AuthService extends GetxService {
   bool get isStaff => role != 'customer';
 
   /// بريد المدير الرئيسي — الحساب الوحيد الذي يملك التعديل والحذف الحسّاس.
-  static const String mainManagerEmail = 'yemen01.silo@gmail.com';
+  static const String mainManagerEmail = 'apolich97@gmail.com';
+
+  /// حسابات إضافية تُمنح صلاحية المدير الرئيسي (اتركها فارغة للتقييد بحساب واحد).
+  static const Set<String> extraMainManagers = <String>{};
 
   /// المدير الرئيسي فقط (وليس الحسابات المشتركة أو باقي الموظفين).
   bool get isMainManager {
@@ -74,7 +77,11 @@ class AuthService extends GetxService {
         .trim()
         .toLowerCase();
     final r = role;
-    return email == mainManagerEmail && (r == 'manager' || r == 'owner');
+    final allowed = <String>{
+      mainManagerEmail,
+      ...extraMainManagers,
+    };
+    return allowed.contains(email) && (r == 'manager' || r == 'owner');
   }
 
   @override
