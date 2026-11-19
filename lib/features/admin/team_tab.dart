@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/services/auth_service.dart';
 import '../../core/theme/app_theme.dart';
 
 /// توزيع أدوار الفريق: يضبط users/{uid}.role لكل موظف.
@@ -19,6 +20,35 @@ class TeamTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!Get.isRegistered<AuthService>() ||
+        !Get.find<AuthService>().isMainManager) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('توزيع أدوار الفريق')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.lock_outline, size: 48, color: T.muted),
+                const SizedBox(height: 12),
+                Text(
+                  'توزيع الأدوار متاح للمدير الرئيسي فقط',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: T.text),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'راجع المدير الرئيسي لتغيير دورك أو صلاحياتك.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 11, color: T.muted),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     return Scaffold(
       appBar: AppBar(title: const Text('توزيع أدوار الفريق')),
       body: StreamBuilder<QuerySnapshot>(

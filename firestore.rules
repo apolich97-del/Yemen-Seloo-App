@@ -15,11 +15,24 @@ service cloud.firestore {
         ? d.upfrontDueLocal : d.totalLocal;
     }
 
+    function isMainManager() {
+      return auth() && (
+        request.auth.token.email == 'apolich97@gmail.com' ||
+        request.auth.token.email == 'yemen01.silo@gmail.com'
+      );
+    }
+
     match /users/{uid} {
       allow read: if auth() && (uid == me() || staff());
       allow create: if auth() && uid == me() && !request.resource.data.keys().hasAny(['role']);
       allow update: if auth() && uid == me() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role','fcmTokens']);
-      allow delete: if staff();
+      // تغيير الأدوار والصلاحيات: المدير الرئيسي فقط
+      allow update: if isMainManager()
+        && request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])
+        && request.resource.data.role in ['customer','manager','accounting','shipping','courier','support'];
+      allow update: if isMainManager()
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
+      allow delete: if isMainManager();
       match /addresses/{a} { allow read, write: if auth() && (uid == me() || staff()); }
       match /cart/{c} { allow read: if auth() && uid == me(); allow write: if false; }
     }

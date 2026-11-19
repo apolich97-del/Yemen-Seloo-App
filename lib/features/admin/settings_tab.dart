@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../core/models/app_settings.dart';
+import '../../core/services/auth_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/theme/app_theme.dart';
 import 'team_tab.dart';
@@ -36,6 +37,8 @@ class _SettingsTabState extends State<SettingsTab> {
   final _perPiece = TextEditingController();
   final _minDays = TextEditingController();
   final _maxDays = TextEditingController();
+  final _senderName = TextEditingController();
+  final _waybillPhone = TextEditingController();
   final _whatsapp = TextEditingController();
   final _phone = TextEditingController();
 
@@ -53,7 +56,7 @@ class _SettingsTabState extends State<SettingsTab> {
       _defThreshold, _defPercent, _shipping, _delivery,
       _deliveryNorth, _deliverySouth, _freeOver,
       _serviceFee, _perPiece, _minDays, _maxDays,
-      _whatsapp, _phone, _couponCode, _couponValue
+      _senderName, _waybillPhone, _whatsapp, _phone, _couponCode, _couponValue
     ]) {
       c.dispose();
     }
@@ -78,6 +81,8 @@ class _SettingsTabState extends State<SettingsTab> {
     _perPiece.text = s.shippingPerPieceSar.toStringAsFixed(2);
     _minDays.text = s.deliveryMinDays.toString();
     _maxDays.text = s.deliveryMaxDays.toString();
+    _senderName.text = s.senderName;
+    _waybillPhone.text = s.waybillCompanyPhone;
     _whatsapp.text = s.supportWhatsApp;
     _phone.text = s.supportPhone;
     _loaded = true;
@@ -106,6 +111,8 @@ class _SettingsTabState extends State<SettingsTab> {
         supportWhatsApp: _whatsapp.text.trim(),
         supportPhone: _phone.text.trim(),
         companyNameAr: 'يمن سيلو',
+        senderName: _senderName.text.trim(),
+        waybillCompanyPhone: _waybillPhone.text.trim(),
       );
       await _db.collection('settings').doc('app').set({
         ...s.toMap(),
@@ -147,7 +154,9 @@ class _SettingsTabState extends State<SettingsTab> {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            SectionCard(
+            if (Get.isRegistered<AuthService>() &&
+                Get.find<AuthService>().isMainManager)
+              SectionCard(
               title: 'الفريق والصلاحيات',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -431,6 +440,36 @@ class _SettingsTabState extends State<SettingsTab> {
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
                       labelText: 'شحن مجاني عند تجاوز (بالريال السعودي)',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            SectionCard(
+              title: 'بوليصة شحن المحافظات',
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _senderName,
+                    decoration: const InputDecoration(
+                      labelText: 'اسم المُرسِل المعتمد (من المدير)',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _waybillPhone,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: 'رقم الشركة الافتراضي على البوليصة',
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      'يُطبع الاسم والرقم تلقائياً في أعلى بوليصة شحن المحافظات.',
+                      style: TextStyle(fontSize: 10.5, color: T.muted),
                     ),
                   ),
                 ],

@@ -40,6 +40,12 @@ class AppSettings {
   final int deliveryMinDays;
   final int deliveryMaxDays;
 
+  /// اسم المُرسِل المعتمد على بوليصة شحن المحافظات.
+  final String senderName;
+
+  /// رقم الشركة الافتراضي الظاهر على بوليصة شحن المحافظات.
+  final String waybillCompanyPhone;
+
   const AppSettings({
     this.rateNorth = 140,
     this.rateSouth = 413,
@@ -62,6 +68,8 @@ class AppSettings {
     this.usdRateSouth = 1570,
     this.deliveryMinDays = 15,
     this.deliveryMaxDays = 20,
+    this.senderName = 'يمن سيلو',
+    this.waybillCompanyPhone = '',
   });
 
   /// رسوم التوصيل بعملة العرض المختارة.
@@ -95,6 +103,8 @@ class AppSettings {
     String? supportPhone,
     String? companyNameAr,
     bool? codEnabled,
+    String? senderName,
+    String? waybillCompanyPhone,
   }) =>
       AppSettings(
         rateNorth: rateNorth ?? this.rateNorth,
@@ -116,6 +126,9 @@ class AppSettings {
         supportWhatsApp: supportWhatsApp ?? this.supportWhatsApp,
         supportPhone: supportPhone ?? this.supportPhone,
         companyNameAr: companyNameAr ?? this.companyNameAr,
+        senderName: senderName ?? this.senderName,
+        waybillCompanyPhone:
+            waybillCompanyPhone ?? this.waybillCompanyPhone,
         codEnabled: codEnabled ?? this.codEnabled,
       );
 
@@ -144,6 +157,8 @@ class AppSettings {
       shippingPerPieceSar: d(m['shippingPerPieceSar'], 1),
       deliveryMinDays: (m['deliveryMinDays'] as num?)?.toInt() ?? 15,
       deliveryMaxDays: (m['deliveryMaxDays'] as num?)?.toInt() ?? 20,
+      senderName: (m['senderName'] ?? 'يمن سيلو') as String,
+      waybillCompanyPhone: (m['waybillCompanyPhone'] ?? '') as String,
     );
   }
 
@@ -169,6 +184,8 @@ class AppSettings {
         'shippingPerPieceSar': shippingPerPieceSar,
         'deliveryMinDays': deliveryMinDays,
         'deliveryMaxDays': deliveryMaxDays,
+        'senderName': senderName,
+        'waybillCompanyPhone': waybillCompanyPhone,
       };
 }
 
