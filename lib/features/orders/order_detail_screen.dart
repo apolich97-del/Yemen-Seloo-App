@@ -1,5 +1,9 @@
 import 'dart:convert';
 
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart'
+    show FirebaseFirestore, FieldValue, Timestamp;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
@@ -19,6 +23,7 @@ import '../receipts/presentation/my_receipts_screen.dart';
 import '../support/presentation/support_screen.dart';
 import '../../core/services/order_documents.dart';
 import '../../core/services/order_service.dart';
+import '../../core/services/auth_service.dart';
 import '../../core/theme/app_theme.dart';
 
 /// تفاصيل الطلب: الخط الزمني + المنتجات + إثبات التسليم + تسريع الشحن.
@@ -137,12 +142,179 @@ class OrderDetailScreen extends StatelessWidget {
                       : 'طلب تسريع الشحن'),
                 ),
               ],
+              const SizedBox(height: 12),
+              _CancelCard(order: o),
+              if (Get.isRegistered<AuthService>() &&
+                  Get.find<AuthService>().isMainManager) ...[
+                const SizedBox(height: 12),
+                _managerActions(o),
+              ],
               const SizedBox(height: 24),
             ],
           );
         },
       ),
     );
+  }
+
+  /// أدوات المدير الرئيسي: تصحيح البيانات أو حذف الطلب.
+  Widget _managerActions(Order o) => SectionCard(
+        title: 'صلاحيات المدير الرئيسي',
+        child: Column(
+          children: [
+            Text(
+              'هذه الأدوات مخصّصة لتصحيح أخطاء الموظفين: تعديل الحالة والمبالغ '
+              'والتتبع والملاحظات، أو حذف الطلب وإيصالاته.',
+              style: TextStyle(fontSize: 10.5, height: 1.6, color: T.muted),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _managerEdit(o),
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text('تعديل بيانات الطلب',
+                        style: TextStyle(fontSize: 11.5)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: () => _managerDelete(o),
+                  icon: const Icon(Icons.delete_outline, size: 16),
+                  label: const Text('حذف',
+                      style: TextStyle(fontSize: 11.5)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+
+  Future<void> _managerEdit(Order o) async {
+    var status = o.status;
+    final tracking = TextEditingController(text: o.trackingNo);
+    final courier = TextEditingController(text: o.courierName);
+    final paid =
+        TextEditingController(text: o.paidTotalLocal.toStringAsFixed(2));
+    final note = TextEditingController();
+
+    final ok = await Get.dialog<bool>(
+      AlertDialog(
+        title: const Text('تعديل بيانات الطلب',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<OrderStatus>(
+                value: status,
+                isExpanded: true,
+                items: OrderStatus.values
+                    .map((e) => DropdownMenuItem(
+                          value: e,
+                          child: Text(e.labelAr,
+                              style: const TextStyle(fontSize: 12)),
+                        ))
+                    .toList(),
+                onChanged: (v) => status = v ?? status,
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: tracking,
+                decoration: const InputDecoration(
+                    labelText: 'رقم التتبع', isDense: true),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: courier,
+                decoration: const InputDecoration(
+                    labelText: 'المندوب', isDense: true),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: paid,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                    labelText: 'تصحيح المدفوع', isDense: true),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: note,
+                decoration: const InputDecoration(
+                    labelText: 'سبب التصحيح (يُسجَّل)', isDense: true),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Get.back(result: false),
+              child: const Text('إلغاء')),
+          ElevatedButton(
+              onPressed: () => Get.back(result: true),
+              child: const Text('حفظ')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      final newPaid = double.tryParse(paid.text.trim());
+      final ref = FirebaseFirestore.instance.collection('orders').doc(o.id);
+      await ref.update({
+        'status': status.key,
+        'trackingNo': tracking.text.trim(),
+        'courierName': courier.text.trim(),
+        if (newPaid != null) 'paidTotalLocal': newPaid,
+        if (newPaid != null)
+          'remainingLocal': (o.totalLocal - newPaid).clamp(0, 1e12),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      await ref.collection('events').add({
+        'status': status.key,
+        'at': Timestamp.now(),
+        'byName': 'المدير الرئيسي',
+        'note': note.text.trim().isEmpty
+            ? 'تصحيح بيانات الطلب'
+            : note.text.trim(),
+      });
+      Get.snackbar('تم التعديل', 'حُدّثت بيانات الطلب ${o.orderNo}');
+    } catch (e) {
+      Get.snackbar('تعذر التعديل', '$e');
+    }
+  }
+
+  Future<void> _managerDelete(Order o) async {
+    final ok = await Get.dialog<bool>(
+      AlertDialog(
+        title: const Text('حذف الطلب؟'),
+        content: Text(
+            'سيُحذف الطلب ${o.orderNo} وإيصالاته نهائياً. لا يمكن التراجع.',
+            style: const TextStyle(fontSize: 12)),
+        actions: [
+          TextButton(
+              onPressed: () => Get.back(result: false),
+              child: const Text('إلغاء')),
+          ElevatedButton(
+              onPressed: () => Get.back(result: true),
+              child: const Text('حذف')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      final db = FirebaseFirestore.instance;
+      final receipts =
+          await db.collection('receipts').where('orderId', isEqualTo: o.id).get();
+      for (final r in receipts.docs) {
+        await r.reference.delete();
+      }
+      await db.collection('orders').doc(o.id).delete();
+      Get.snackbar('تم الحذف', 'أُزيل الطلب ${o.orderNo}');
+      Get.back();
+    } catch (e) {
+      Get.snackbar('تعذر الحذف', '$e');
+    }
   }
 
   Widget _deferredBadge() => Container(
@@ -840,5 +1012,203 @@ class _ProofSection extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+/// إلغاء الطلب خلال 24 ساعة للعميل، مع عدّاد للأسباب الجاهزة.
+class _CancelCard extends StatefulWidget {
+  const _CancelCard({required this.order});
+  final Order order;
+
+  @override
+  State<_CancelCard> createState() => _CancelCardState();
+}
+
+class _CancelCardState extends State<_CancelCard> {
+  Timer? _ticker;
+
+  static const List<String> _reasons = <String>[
+    'تغيير المقاس/اللون',
+    'تغيير الرأي',
+    'خطأ في العنوان',
+    'تأخر التحقق',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  bool get _allowedStatus =>
+      widget.order.status == OrderStatus.unpaid ||
+      widget.order.status == OrderStatus.verifying ||
+      widget.order.status == OrderStatus.processing;
+
+  Duration get _left {
+    final deadline =
+        widget.order.createdAt.add(const Duration(hours: 24));
+    final diff = deadline.difference(DateTime.now());
+    return diff.isNegative ? Duration.zero : diff;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final o = widget.order;
+    if (!_allowedStatus || _left == Duration.zero) {
+      return const SizedBox.shrink();
+    }
+    final h = _left.inHours;
+    final m = _left.inMinutes % 60;
+    return SectionCard(
+      title: 'إلغاء الطلب',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: T.soft,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: T.softBorder),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.timer_outlined, size: 15, color: T.primary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'يمكنك الإلغاء مجاناً خلال $h ساعة و$m دقيقة',
+                    style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        color: T.text),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'الإلغاء متاح ما دام الطلب غير مشحون وخلال 24 ساعة من إنشائه.',
+            style: TextStyle(fontSize: 10.5, height: 1.6, color: T.muted),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.danger,
+                side: BorderSide(color: AppColors.danger.withOpacity(.5)),
+              ),
+              onPressed: () => _askCancel(o),
+              icon: const Icon(Icons.cancel_outlined, size: 16),
+              label: const Text('إلغاء الطلب',
+                  style: TextStyle(fontSize: 12)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _askCancel(Order o) async {
+    String? reason;
+    final other = TextEditingController();
+    final ok = await Get.dialog<bool>(
+      AlertDialog(
+        title: const Text('سبب إلغاء الطلب',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
+        content: StatefulBuilder(
+          builder: (context, setLocal) => SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ..._reasons.map((r) => RadioListTile<String>(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      value: r,
+                      groupValue: reason,
+                      title: Text(r,
+                          style: TextStyle(fontSize: 12, color: T.text)),
+                      onChanged: (v) => setLocal(() => reason = v),
+                    )),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: other,
+                  decoration: const InputDecoration(
+                      labelText: 'سبب آخر (اختياري)', isDense: true),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Get.back(result: false),
+              child: const Text('تراجع')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.danger),
+            onPressed: () => Get.back(result: true),
+            child: const Text('تأكيد الإلغاء'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    final finalReason = (other.text.trim().isNotEmpty
+            ? other.text.trim()
+            : (reason ?? 'بدون سبب محدد'))
+        .toString();
+    try {
+      final db = FirebaseFirestore.instance;
+      final ref = db.collection('orders').doc(o.id);
+      await ref.update({
+        'status': OrderStatus.cancelled.key,
+        'cancelReason': finalReason,
+        'cancelledAt': FieldValue.serverTimestamp(),
+        'cancelledBy': 'customer',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      await ref.collection('events').add({
+        'status': OrderStatus.cancelled.key,
+        'at': Timestamp.now(),
+        'byName': 'العميل',
+        'note': 'إلغاء خلال 24 ساعة — $finalReason',
+      });
+
+      // تنبيه المحاسبة إذا كان هناك مبلغ مدفوع.
+      if (o.paidTotalLocal > 0.5) {
+        await db.collection('staff_alerts').add({
+          'type': 'cancel_with_payment',
+          'target': 'accounting',
+          'orderId': o.id,
+          'orderNo': o.orderNo,
+          'amountLocal': o.paidTotalLocal,
+          'currency': o.currency.name,
+          'reason': finalReason,
+          'createdAt': FieldValue.serverTimestamp(),
+          'read': false,
+        });
+      }
+      Get.snackbar('تم الإلغاء',
+          o.paidTotalLocal > 0.5
+              ? 'أُلغي الطلب، وأُبلغت المحاسبة لمراجعة المبلغ المدفوع'
+              : 'أُلغي الطلب بنجاح');
+      Get.offAllNamed('/main');
+    } catch (e) {
+      Get.snackbar('تعذر الإلغاء', '$e');
+    }
   }
 }

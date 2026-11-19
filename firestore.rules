@@ -100,6 +100,13 @@ service cloud.firestore {
     }
     match /meta/{m} { allow read: if true; allow write: if staff(); }
     match /alerts/{a} { allow read, update: if staff(); allow create: if false; }
+    // تنبيهات الموظفين (مثل إلغاء طلب مدفوع) — العميل ينشئ، الفريق يقرأ
+    match /staff_alerts/{a} {
+      allow create: if auth()
+        && request.resource.data.target is string
+        && request.resource.data.orderId is string;
+      allow read, update, delete: if staff();
+    }
     match /{document=**} { allow read, write: if false; }
   }
 }

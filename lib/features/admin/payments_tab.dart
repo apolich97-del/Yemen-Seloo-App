@@ -7,6 +7,7 @@ import '../../core/models/currency.dart';
 import '../../core/models/order.dart';
 import '../../core/services/order_service.dart';
 import '../../core/theme/app_theme.dart';
+import 'order_preview_sheet.dart';
 import 'role_guard.dart';
 
 /// مراجعة الحوالات: العميل أدخل اسم المرسل ورقم العملية ← المحاسب يؤكد أو يرفض.
@@ -67,14 +68,20 @@ class PaymentsTab extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Text(o.orderNo,
-                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+                          InkWell(
+                            onTap: () => showOrderPreview(o),
+                            child: Text(o.orderNo,
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: T.text)),
+                          ),
                           const Spacer(),
                           Text(formatMoney(o.totalLocal, o.currency),
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w900,
-                                  color: AppColors.primaryDark)),
+                                  color: T.primary)),
                         ],
                       ),
                       const SizedBox(height: 8),

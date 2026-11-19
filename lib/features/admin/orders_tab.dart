@@ -7,6 +7,7 @@ import '../../core/models/order.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/order_service.dart';
 import '../../core/theme/app_theme.dart';
+import 'order_preview_sheet.dart';
 import 'role_guard.dart';
 
 /// إدارة الطلبات: تغيير الحالة + رقم التتبع + تعيين المندوب.
@@ -105,12 +106,30 @@ class _OrdersTabState extends State<OrdersTab> {
               Row(
                 children: [
                   Expanded(
-                    child: Text(o.orderNo,
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w800)),
+                    child: InkWell(
+                      onTap: () => showOrderPreview(o),
+                      child: Row(
+                        children: [
+                          Flexible(
+                            child: Text(o.orderNo,
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: T.text)),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(Icons.open_in_new, size: 13, color: T.primary),
+                        ],
+                      ),
+                    ),
                   ),
                   IconButton(
-                    tooltip: 'عرض وتعديل الطلب',
+                    tooltip: 'معاينة الطلب كاملة',
+                    icon: Icon(Icons.visibility_outlined, size: 16, color: T.primary),
+                    onPressed: () => showOrderPreview(o),
+                  ),
+                  IconButton(
+                    tooltip: 'تعديل سريع',
                     icon: const Icon(Icons.edit_outlined, size: 16),
                     onPressed: () => _openEditor(o),
                   ),
