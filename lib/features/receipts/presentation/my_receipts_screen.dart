@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+
+import '../../guide/interactive_guide.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../core/models/currency.dart';
@@ -20,7 +22,10 @@ class MyReceiptsScreen extends StatelessWidget {
     final uid = Get.find<AuthService>().uid ?? '';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('إيصالات السداد')),
+      appBar: AppBar(
+        title: const Text('إيصالات السداد'),
+        actions: const [ThemeToggleButton(), SizedBox(width: 6)],
+      ),
       body: uid.isEmpty
           ? const Center(child: Text('سجّل الدخول لعرض إيصالاتك'))
           : StreamBuilder<List<Receipt>>(

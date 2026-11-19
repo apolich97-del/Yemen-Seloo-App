@@ -104,11 +104,11 @@ class _SupportScreenState extends State<SupportScreen> {
               ),
               if (_query.isEmpty && _suggestions.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                const Text('الأكثر بحثاً',
+                Text('الأكثر بحثاً',
                     style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w900,
-                        color: AppColors.primaryDark)),
+                        color: T.primary)),
                 const SizedBox(height: 6),
                 Wrap(
                   spacing: 6,
@@ -171,10 +171,10 @@ class _SupportScreenState extends State<SupportScreen> {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(stage,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w900,
-                      color: AppColors.primaryDark)),
+                      color: T.primary)),
             ),
             const SizedBox(height: 6),
             ...items.map((e) => _entryTile(e)),
@@ -182,55 +182,77 @@ class _SupportScreenState extends State<SupportScreen> {
         ),
       );
 
-  Widget _entryTile(GuideEntry e) => Container(
+  Widget _entryTile(GuideEntry e) => Obx(() => Container(
         margin: const EdgeInsets.only(bottom: 6),
         decoration: BoxDecoration(
           color: T.card,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: T.border),
         ),
-        child: ExpansionTile(
-          shape: const Border(),
-          tilePadding: const EdgeInsets.symmetric(horizontal: 12),
-          title: Text(e.question,
-              style: const TextStyle(
-                  fontSize: 12.5, fontWeight: FontWeight.w700)),
-          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: Text(e.answer,
-                  style: const TextStyle(fontSize: 12, height: 1.6)),
-            ),
-            if (e.steps.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              ...List.generate(
-                e.steps.length,
-                (i) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      CircleAvatar(
-                        radius: 8,
-                        backgroundColor: AppColors.accent.withOpacity(.25),
-                        child: Text('${i + 1}',
-                            style: const TextStyle(
-                                fontSize: 9, fontWeight: FontWeight.w900)),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(e.steps[i],
-                            style: const TextStyle(fontSize: 11.5, height: 1.5)),
-                      ),
-                    ],
+        child: Theme(
+          data: Theme.of(Get.context!).copyWith(
+            dividerColor: Colors.transparent,
+            splashColor: T.primary.withOpacity(.08),
+            highlightColor: Colors.transparent,
+          ),
+          child: ExpansionTile(
+            shape: const Border(),
+            collapsedShape: const Border(),
+            backgroundColor: T.card,
+            collapsedBackgroundColor: T.card,
+            iconColor: T.primary,
+            collapsedIconColor: T.muted,
+            textColor: T.text,
+            collapsedTextColor: T.text,
+            tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+            title: Text(e.question,
+                style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: T.text)),
+            childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            children: [
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(e.answer,
+                    style: TextStyle(
+                        fontSize: 12, height: 1.6, color: T.text)),
+              ),
+              if (e.steps.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                ...List.generate(
+                  e.steps.length,
+                  (i) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CircleAvatar(
+                          radius: 8,
+                          backgroundColor: AppColors.accent.withOpacity(.25),
+                          child: Text('${i + 1}',
+                              style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w900,
+                                  color: T.text)),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(e.steps[i],
+                              style: TextStyle(
+                                  fontSize: 11.5,
+                                  height: 1.5,
+                                  color: T.text)),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
-      );
+      ));
 
   // ══════════════ قسم ب: المساعد والدردشة ══════════════
 

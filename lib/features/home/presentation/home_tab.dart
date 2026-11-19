@@ -68,9 +68,9 @@ class HomeTab extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'وسيطك الموثوق للتسوق العالمي',
-                style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                style: TextStyle(fontSize: 13, color: T.muted),
               ),
               const SizedBox(height: 30),
               Container(
@@ -225,8 +225,8 @@ class _ServiceItem extends StatelessWidget {
                 ),
                 Text(
                   subtitle,
-                  style: const TextStyle(
-                      fontSize: 12, color: Color(0xFF6B7280)),
+                  style: TextStyle(
+                      fontSize: 12, color: T.muted),
                 ),
               ],
             ),

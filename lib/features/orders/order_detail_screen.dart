@@ -13,9 +13,9 @@ import '../../core/services/cart_share.dart';
 import '../../core/services/receipt_service.dart';
 import '../cart/presentation/cart_share_card.dart';
 import '../../core/widgets/brand_header.dart';
+import '../guide/interactive_guide.dart';
 import '../../core/widgets/order_stage_bar.dart';
 import '../receipts/presentation/my_receipts_screen.dart';
-import '../guide/interactive_guide.dart';
 import '../support/presentation/support_screen.dart';
 import '../../core/services/order_documents.dart';
 import '../../core/services/order_service.dart';
@@ -30,7 +30,10 @@ class OrderDetailScreen extends StatelessWidget {
     final id = Get.arguments as String? ?? '';
     final svc = Get.find<OrderService>();
     return Scaffold(
-      appBar: AppBar(title: const Text('تفاصيل الطلب')),
+      appBar: AppBar(
+        title: const Text('تفاصيل الطلب'),
+        actions: const [ThemeToggleButton(), SizedBox(width: 6)],
+      ),
       body: StreamBuilder<Order?>(
         stream: svc.watchOrder(id),
         builder: (context, snap) {

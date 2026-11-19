@@ -159,7 +159,7 @@ class _MainShellState extends State<MainShell> {
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('البقاء', style: TextStyle(color: Color(0xFF6B7280))),
+              child: Text('البقاء', style: TextStyle(color: T.muted)),
             ),
             FilledButton(
               onPressed: () => Navigator.of(ctx).pop(true),

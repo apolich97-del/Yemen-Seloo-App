@@ -19,6 +19,7 @@ import '../../guide/interactive_guide.dart';
 import '../domain/cart_item.dart';
 import '../../../core/services/settings_service.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../home/presentation/main_tab_controller.dart';
 import '../../../core/widgets/brand_header.dart';
 
 const Color _purple = Color(0xFF7C3AED);
@@ -462,9 +463,9 @@ class _CartScreenState extends State<CartScreen> {
                         ),
                         Text(
                           '(${commissionSar.toStringAsFixed(2)} SAR × $rate)',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
-                            color: Color(0xFF6B7280),
+                            color: T.muted,
                           ),
                         ),
                       ],
@@ -476,9 +477,9 @@ class _CartScreenState extends State<CartScreen> {
             actions: <Widget>[
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text(
+                child: Text(
                   'إلغاء',
-                  style: TextStyle(color: Color(0xFF6B7280)),
+                  style: TextStyle(color: T.muted),
                 ),
               ),
               FilledButton(
@@ -1044,7 +1045,7 @@ class _CartScreenState extends State<CartScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: T.card,
+        backgroundColor: T.bg,
         body: SafeArea(
           child: Obx(() {
             if (_cart.items.isEmpty) {
@@ -1071,10 +1072,13 @@ class _CartScreenState extends State<CartScreen> {
                             .freeShippingThresholdSar
                         : 300,
                   ),
-                  BrandHeader(
-                    title: 'سلة التسوق',
-                    subtitle: '${_cart.items.length} عنصر · يمن سيلو',
-                    compact: true,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
+                    child: BrandHeader(
+                      title: 'سلة التسوق',
+                      subtitle: '${_cart.items.length} عنصر · يمن سيلو',
+                      compact: true,
+                    ),
                   ),
                   _buildImportSheinCartButton(),
                   const Expanded(child: _EmptyCart()),
@@ -1096,26 +1100,13 @@ class _CartScreenState extends State<CartScreen> {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                     children: <Widget>[
-                      const Text(
-                        'سلة التسوق',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF1F2937),
-                        ),
+                      BrandHeader(
+                        title: 'سلة التسوق',
+                        subtitle:
+                            '${_cart.items.length} عنصر · اختر منطقة التسعير ثم أكّد طلبك',
+                        compact: true,
                       ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'اختر منطقة التسعير، ثم شارك سلتك أو أكّد طلبك.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          color: Color(0xFF6B7280),
-                          height: 1.5,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 12),
                       _buildImportSheinCartButton(),
                       const SizedBox(height: 10),
                       ..._cart.items.map(
@@ -1302,7 +1293,7 @@ class _Header extends StatelessWidget {
       decoration: BoxDecoration(
         color: T.card,
         border: Border(
-          bottom: BorderSide(color: Color(0xFFF3F4F6)),
+          bottom: BorderSide(color: T.border),
         ),
       ),
       child: Row(
@@ -1550,10 +1541,10 @@ class _CartLineTile extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.right,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 13.5,
-                        color: Color(0xFF1F2937),
+                        color: T.text,
                         height: 1.4,
                       ),
                     ),
@@ -2117,9 +2108,9 @@ class _ContactBox extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _border),
       ),
-      child: const Column(
+      child: Column(
         children: <Widget>[
-          Text(
+          const Text(
             '📞 للتواصل معنا',
             style: TextStyle(
               fontSize: 12,
@@ -2132,7 +2123,7 @@ class _ContactBox extends StatelessWidget {
             'الأساسي: $_primaryPhone',
             style: TextStyle(
               fontSize: 12.5,
-              color: Color(0xFF1F2937),
+              color: T.text,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -2141,7 +2132,7 @@ class _ContactBox extends StatelessWidget {
             'البديل: $_backupPhone',
             style: TextStyle(
               fontSize: 12,
-              color: Color(0xFF6B7280),
+              color: T.muted,
             ),
           ),
         ],
@@ -2155,29 +2146,57 @@ class _EmptyCart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          const Icon(
-            Icons.shopping_bag_outlined,
-            size: 64,
-            color: _purple,
+    return Obx(() => Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: T.card,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: T.border),
           ),
-          const SizedBox(height: 12),
-          const Text('سلتك فارغة. تصفّح SHEIN وأضف ما يعجبك.'),
-          const SizedBox(height: 12),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _purple),
-            onPressed: () => Get.offNamed('/shein'),
-            child: const Text('تصفّح SHEIN'),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  color: T.soft,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: T.softBorder),
+                ),
+                child: Icon(
+                  Icons.shopping_bag_outlined,
+                  size: 38,
+                  color: T.primary,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'سلتك فارغة. تصفّح SHEIN وأضف ما يعجبك.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    fontSize: 12.5, height: 1.6, color: T.text),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: T.primary,
+                    foregroundColor: T.dark ? const Color(0xFF1B1035) : Colors.white,
+                  ),
+                  onPressed: () => Get.find<MainTabController>().goTo(1),
+                  icon: const Icon(Icons.storefront_outlined, size: 18),
+                  label: const Text('تصفّح SHEIN'),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
+        ));
   }
 }
-
 
 /// شريط تقدم الشحن المجاني المتدرج.
 class ShippingProgressBar extends StatelessWidget {
