@@ -34,9 +34,9 @@ class _OrderPreview extends StatelessWidget {
 
   final Order order;
 
-  bool get _isMainManager {
+  bool get _canEdit {
     if (!Get.isRegistered<AuthService>()) return false;
-    return Get.find<AuthService>().isMainManager;
+    return Get.find<AuthService>().canEditOrders;
   }
 
   @override
@@ -192,7 +192,7 @@ class _OrderPreview extends StatelessWidget {
                     ),
                   ],
                 ),
-                if (_isMainManager) ...[
+                if (_canEdit) ...[
                   const SizedBox(height: 8),
                   Row(
                     children: [

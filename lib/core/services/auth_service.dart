@@ -84,6 +84,9 @@ class AuthService extends GetxService {
     return allowed.contains(email) && (r == 'manager' || r == 'owner');
   }
 
+  /// من يملك تعديل بيانات الطلب وحذفه: المدير الرئيسي والمحاسب.
+  bool get canEditOrders => isMainManager || role == 'accounting';
+
   @override
   void onInit() {
     super.onInit();

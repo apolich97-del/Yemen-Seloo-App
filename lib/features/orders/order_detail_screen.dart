@@ -145,7 +145,7 @@ class OrderDetailScreen extends StatelessWidget {
               const SizedBox(height: 12),
               _CancelCard(order: o),
               if (Get.isRegistered<AuthService>() &&
-                  Get.find<AuthService>().isMainManager) ...[
+                  Get.find<AuthService>().canEditOrders) ...[
                 const SizedBox(height: 12),
                 _managerActions(o),
               ],
@@ -159,12 +159,12 @@ class OrderDetailScreen extends StatelessWidget {
 
   /// أدوات المدير الرئيسي: تصحيح البيانات أو حذف الطلب.
   Widget _managerActions(Order o) => SectionCard(
-        title: 'صلاحيات المدير الرئيسي',
+        title: 'صلاحيات التعديل والحذف',
         child: Column(
           children: [
             Text(
-              'هذه الأدوات مخصّصة لتصحيح أخطاء الموظفين: تعديل الحالة والمبالغ '
-              'والتتبع والملاحظات، أو حذف الطلب وإيصالاته.',
+              'مخصّصة للمدير الرئيسي والمحاسب لتصحيح أخطاء الموظفين: تعديل الحالة '
+              'والمبالغ والتتبع والملاحظات، أو حذف الطلب وإيصالاته.',
               style: TextStyle(fontSize: 10.5, height: 1.6, color: T.muted),
             ),
             const SizedBox(height: 10),
