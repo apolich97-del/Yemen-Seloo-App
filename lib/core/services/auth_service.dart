@@ -65,11 +65,14 @@ class AuthService extends GetxService {
   String get role => user.value?.role ?? 'customer';
   bool get isStaff => role != 'customer';
 
-  /// بريد المدير الرئيسي — الحساب الوحيد الذي يملك التعديل والحذف الحسّاس.
-  static const String mainManagerEmail = 'apolich97@gmail.com';
-
-  /// حسابات إضافية تُمنح صلاحية المدير الرئيسي (اتركها فارغة للتقييد بحساب واحد).
-  static const Set<String> extraMainManagers = <String>{};
+  /// حسابات المدير الرئيسي — فقط هذان الحسابان يملكان توزيع الأدوار
+  /// وتعديل وحذف الطلبات.
+  static const Set<String> mainManagerEmails = <String>{
+    'apolich97@gmail.com',
+    'abode212k@gmail.com',
+    // كتابة بديلة للبريد الأول (apilich97) — تُحذف بعد التأكد من الصيغة الصحيحة.
+    'apilich97@gmail.com',
+  };
 
   /// المدير الرئيسي فقط (وليس الحسابات المشتركة أو باقي الموظفين).
   bool get isMainManager {
@@ -77,11 +80,8 @@ class AuthService extends GetxService {
         .trim()
         .toLowerCase();
     final r = role;
-    final allowed = <String>{
-      mainManagerEmail,
-      ...extraMainManagers,
-    };
-    return allowed.contains(email) && (r == 'manager' || r == 'owner');
+    return mainManagerEmails.contains(email) &&
+        (r == 'manager' || r == 'owner');
   }
 
   /// من يملك تعديل بيانات الطلب وحذفه: المدير الرئيسي والمحاسب.

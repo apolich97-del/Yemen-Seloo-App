@@ -18,7 +18,8 @@ service cloud.firestore {
     function isMainManager() {
       return auth() && (
         request.auth.token.email == 'apolich97@gmail.com' ||
-        request.auth.token.email == 'yemen01.silo@gmail.com'
+        request.auth.token.email == 'abode212k@gmail.com' ||
+        request.auth.token.email == 'apilich97@gmail.com'
       );
     }
 
