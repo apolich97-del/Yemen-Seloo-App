@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:flutter/foundation.dart';
@@ -37,6 +36,7 @@ class TransferDraft {
 
 class PaymentController extends GetxController {
   final _orders = Get.find<OrderService>();
+  // ignore: unused_field
   final _auth = Get.find<AuthService>();
   final _cart = Get.find<CartRepository>();
   final _cartCounter = Get.find<CartCounter>();

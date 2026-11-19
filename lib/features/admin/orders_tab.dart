@@ -152,7 +152,7 @@ class _OrdersTabState extends State<OrdersTab> {
               const SizedBox(height: 6),
               Text(
                 '${o.address.city} · ${o.address.receiverName} · ${o.address.phone} · ${o.totalPieces} قطعة',
-                style: const TextStyle(fontSize: 11.5, color: AppColors.muted),
+                style: TextStyle(fontSize: 11.5, color: T.muted),
               ),
               const SizedBox(height: 8),
               Row(

@@ -82,8 +82,8 @@ class _ReceiptsTabState extends State<ReceiptsTab> {
             return const Center(child: CircularProgressIndicator());
           }
           if (list.isEmpty) {
-            return const Text('لا توجد إيصالات بانتظار المراجعة',
-                style: TextStyle(fontSize: 12, color: AppColors.muted));
+            return Text('لا توجد إيصالات بانتظار المراجعة',
+                style: TextStyle(fontSize: 12, color: T.muted));
           }
           return Column(
             children: list.map((r) => _pendingRow(r)).toList(),
@@ -95,7 +95,7 @@ class _ReceiptsTabState extends State<ReceiptsTab> {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: T.bg,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
@@ -116,7 +116,7 @@ class _ReceiptsTabState extends State<ReceiptsTab> {
             ),
             const SizedBox(height: 4),
             Text('المرسل: ${r.senderName} · المرجع: ${r.refNo}',
-                style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
+                style: TextStyle(fontSize: 11.5, color: T.muted)),
             if (r.proofUrl.isNotEmpty) ...[
               const SizedBox(height: 6),
               ClipRRect(
@@ -213,8 +213,8 @@ class _ReceiptsTabState extends State<ReceiptsTab> {
         builder: (context, snap) {
           final list = snap.data ?? const <Receipt>[];
           if (list.isEmpty) {
-            return const Text('لا توجد إيصالات معتمدة بعد',
-                style: TextStyle(fontSize: 12, color: AppColors.muted));
+            return Text('لا توجد إيصالات معتمدة بعد',
+                style: TextStyle(fontSize: 12, color: T.muted));
           }
           return Column(
             children: list.take(20).map((r) {
@@ -227,7 +227,7 @@ class _ReceiptsTabState extends State<ReceiptsTab> {
                 subtitle: Text(
                     '${formatMoney(r.amountLocal, AppCurrency.north)} · متبقٍ ${formatMoney(r.remainingAfterLocal, AppCurrency.north)}',
                     style:
-                        const TextStyle(fontSize: 11, color: AppColors.muted)),
+                        TextStyle(fontSize: 11, color: T.muted)),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [

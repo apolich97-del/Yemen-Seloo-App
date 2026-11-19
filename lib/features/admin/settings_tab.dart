@@ -29,6 +29,8 @@ class _SettingsTabState extends State<SettingsTab> {
   final _rateSouth = TextEditingController();
   final _shipping = TextEditingController();
   final _delivery = TextEditingController();
+  final _deliveryNorth = TextEditingController();
+  final _deliverySouth = TextEditingController();
   final _freeOver = TextEditingController();
   final _serviceFee = TextEditingController();
   final _perPiece = TextEditingController();
@@ -47,7 +49,10 @@ class _SettingsTabState extends State<SettingsTab> {
   @override
   void dispose() {
     for (final c in [
-      _rateNorth, _rateSouth, _shipping, _delivery, _freeOver,
+      _rateNorth, _rateSouth, _usdNorth, _usdSouth,
+      _defThreshold, _defPercent, _shipping, _delivery,
+      _deliveryNorth, _deliverySouth, _freeOver,
+      _serviceFee, _perPiece, _minDays, _maxDays,
       _whatsapp, _phone, _couponCode, _couponValue
     ]) {
       c.dispose();
@@ -66,6 +71,8 @@ class _SettingsTabState extends State<SettingsTab> {
     _rateSouth.text = s.rateSouth.toStringAsFixed(0);
     _shipping.text = s.shippingFeeSar.toStringAsFixed(2);
     _delivery.text = s.deliveryFeeSar.toStringAsFixed(2);
+    _deliveryNorth.text = s.deliveryFeeNorthLocal.toStringAsFixed(0);
+    _deliverySouth.text = s.deliveryFeeSouthLocal.toStringAsFixed(0);
     _freeOver.text = s.freeShippingThresholdSar.toStringAsFixed(0);
     _serviceFee.text = s.serviceFeeSar.toStringAsFixed(2);
     _perPiece.text = s.shippingPerPieceSar.toStringAsFixed(2);
@@ -89,6 +96,8 @@ class _SettingsTabState extends State<SettingsTab> {
         rateSouth: double.tryParse(_rateSouth.text) ?? 413,
         shippingFeeSar: double.tryParse(_shipping.text) ?? 0,
         deliveryFeeSar: double.tryParse(_delivery.text) ?? 0,
+        deliveryFeeNorthLocal: double.tryParse(_deliveryNorth.text) ?? 1500,
+        deliveryFeeSouthLocal: double.tryParse(_deliverySouth.text) ?? 1000,
         freeShippingThresholdSar: double.tryParse(_freeOver.text) ?? 300,
         serviceFeeSar: double.tryParse(_serviceFee.text) ?? 1.22,
         shippingPerPieceSar: double.tryParse(_perPiece.text) ?? 1,
@@ -161,8 +170,9 @@ class _SettingsTabState extends State<SettingsTab> {
               ),
             ),
             SectionCard(
-              title: 'أسعار الصرف',
+              title: 'أسعار الصرف لجميع العملات والمناطق',
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
@@ -178,67 +188,6 @@ class _SettingsTabState extends State<SettingsTab> {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('الطلبات الآجلة (الدفع بالنصف)',
-                                style: TextStyle(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w800)),
-                            SwitchListTile(
-                              contentPadding: EdgeInsets.zero,
-                              value: _defEnabled,
-                              title: const Text('تفعيل نظام الآجل',
-                                  style: TextStyle(fontSize: 12)),
-                              onChanged: (v) => setState(() => _defEnabled = v),
-                            ),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    controller: _defThreshold,
-                                    keyboardType: TextInputType.number,
-                                    decoration: const InputDecoration(
-                                        labelText: 'الحد الأدنى (ر.س)'),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: TextField(
-                                    controller: _defPercent,
-                                    keyboardType: TextInputType.number,
-                                    decoration: const InputDecoration(
-                                        labelText: 'نسبة المقدمة %'),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: 160,
-                        child: TextField(
-                          controller: _usdNorth,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                              labelText: '1 دولار ← ريال شمالي'),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: 160,
-                        child: TextField(
-                          controller: _usdSouth,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                              labelText: '1 دولار ← ريال جنوبي'),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
                         child: TextField(
                           controller: _rateSouth,
                           keyboardType: TextInputType.number,
@@ -250,11 +199,149 @@ class _SettingsTabState extends State<SettingsTab> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'التسعير الداخلي بالريال السعودي. تغيير السعر يؤثر على الطلبات الجديدة فقط؛ '
-                    'كل طلب يحتفظ بـ exchangeRate الخاص به عند إنشائه.',
-                    style: TextStyle(fontSize: 11, height: 1.6, color: AppColors.muted),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _usdNorth,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: '1 دولار (\$) ← ريال شمالي',
+                            hintText: '533',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _usdSouth,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: '1 دولار (\$) ← ريال جنوبي',
+                            hintText: '1570',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: T.soft,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: T.softBorder),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.info_outline, size: 14, color: T.primary),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'المعامل النشط الآن: 1 ر.س = '
+                                '${_rateNorth.text.isEmpty ? '—' : _rateNorth.text} شمالي · '
+                                '${_rateSouth.text.isEmpty ? '—' : _rateSouth.text} جنوبي',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: T.text),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'التغيير يُطبَّق فوراً على الكتالوج والطلبات الجديدة، '
+                          'وكل طلب قديم يحتفظ بسعر الصرف المسجّل عند إنشائه.',
+                          style: TextStyle(
+                              fontSize: 10.5, height: 1.6, color: T.muted),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            SectionCard(
+              title: 'نظام الطلبات الآجلة (الدفع بالنصف)',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _defEnabled,
+                    title: Text('تفعيل نظام الآجل',
+                        style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: T.text)),
+                    subtitle: Text('يسمح للعميل بدفع نصف القيمة وتأجيل الباقي',
+                        style: TextStyle(fontSize: 10.5, color: T.muted)),
+                    onChanged: (v) => setState(() => _defEnabled = v),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _defThreshold,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                              labelText: 'حد تفعيل الطلب الآجل (ر.س)'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _defPercent,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                              labelText: 'نسبة الدفعة المقدمة (%)'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            SectionCard(
+              title: 'رسوم التوصيل المحلي حسب المنطقة والعملة',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _deliveryNorth,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                              labelText: 'توصيل الشمال (ر.ي شمال)'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _deliverySouth,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                              labelText: 'توصيل الجنوب (ر.ي جنوب)'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _delivery,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                        labelText: 'توصيل السعودية (ر.س)'),
                   ),
                 ],
               ),
@@ -284,9 +371,9 @@ class _SettingsTabState extends State<SettingsTab> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'تُطبَّق رسوم الخدمة على كل طلب، والشحن لكل قطعة ما دام الطلب تحت حد الشحن المجاني.',
-                    style: TextStyle(fontSize: 11, height: 1.6, color: AppColors.muted),
+                    style: TextStyle(fontSize: 11, height: 1.6, color: T.muted),
                   ),
                 ],
               ),

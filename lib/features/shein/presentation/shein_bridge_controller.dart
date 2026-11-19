@@ -14,6 +14,7 @@ class SheinBridgeController {
   final SelooCartService _cartService;
   String? _scriptSource;
   String? editingLineId;
+  // ignore: unused_field
   InAppWebViewController? _webView;
   Function(int total)? onStartClickCrawl;
   Function()? onCrawlStepFailed;

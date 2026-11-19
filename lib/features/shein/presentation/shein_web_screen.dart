@@ -19,6 +19,7 @@ class SheinWebScreen extends StatefulWidget {
 }
 
 class _SheinWebScreenState extends State<SheinWebScreen> {
+  // ignore: unused_field
   final CartCounter _cartCounter = Get.find<CartCounter>();
   final SheinBridgeController _bridgeController = SheinBridgeController();
 

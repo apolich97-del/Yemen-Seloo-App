@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../../core/theme/app_theme.dart';
+import 'main_tab_controller.dart';
 import '../../../core/widgets/brand_logo.dart';
 
 const Color _purple = Color(0xFF7C3AED);
@@ -114,36 +115,40 @@ class HomeTab extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               Row(
-                children: const <Widget>[
+                children: <Widget>[
                   Expanded(
                     child: _ServiceTile(
                       icon: Icons.shopping_bag_outlined,
                       title: 'تسوّق SHEIN',
+                      onTap: () => Get.find<MainTabController>().goTo(1),
                     ),
                   ),
-                  SizedBox(width: 10),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: _ServiceTile(
                       icon: Icons.currency_exchange,
                       title: 'تسعير شفاف',
+                      onTap: () => Get.toNamed(AppRoutes.profile),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
               Row(
-                children: const <Widget>[
+                children: <Widget>[
                   Expanded(
                     child: _ServiceTile(
                       icon: Icons.local_shipping_outlined,
                       title: 'شحن موثوق',
+                      onTap: () => Get.find<MainTabController>().goTo(3),
                     ),
                   ),
-                  SizedBox(width: 10),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: _ServiceTile(
                       icon: Icons.support_agent,
                       title: 'دعم مباشر',
+                      onTap: () => Get.find<MainTabController>().goTo(4),
                     ),
                   ),
                 ],
@@ -156,7 +161,7 @@ class HomeTab extends StatelessWidget {
                   color: _purple,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: <Widget>[
                     Icon(Icons.phone, color: Colors.white, size: 18),
@@ -235,14 +240,19 @@ class _ServiceItem extends StatelessWidget {
 
 /// بطاقة خدمة بأسلوب الويب: مربع أيقونة 44×44 وخلفية ناعمة وحد بنفسجي رفيع.
 class _ServiceTile extends StatelessWidget {
-  const _ServiceTile({required this.icon, required this.title});
+  const _ServiceTile(
+      {required this.icon, required this.title, this.onTap});
 
   final IconData icon;
   final String title;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: T.soft,
@@ -267,6 +277,7 @@ class _ServiceTile extends StatelessWidget {
               style: TextStyle(
                   fontSize: 12.5, fontWeight: FontWeight.w800, color: T.text)),
         ],
+      ),
       ),
     );
   }

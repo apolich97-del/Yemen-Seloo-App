@@ -260,8 +260,7 @@ Stream<List<Order>> allOrdersStream({OrderStatus? status, int limit = 200}) {
     final list = s.docs
         .map((d) => Order.fromDoc(d.id, d.data() as Map<String, dynamic>))
         .toList();
-    list.sort((a, b) =>
-        (b.createdAt ?? DateTime(2000)).compareTo(a.createdAt ?? DateTime(2000)));
+    list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return list;
   });
 }

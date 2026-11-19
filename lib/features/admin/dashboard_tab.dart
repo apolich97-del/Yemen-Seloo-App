@@ -66,13 +66,13 @@ class DashboardTab extends StatelessWidget {
               const SizedBox(height: 16),
               _salesReport(docs),
               const SizedBox(height: 16),
-              const Card(
+              Card(
                 child: Padding(
                   padding: EdgeInsets.all(16),
                   child: Text(
                     'الأرقام تُحسب مباشرة من مجموعة orders — أي تغيير حالة من أي موظف يظهر هنا '
                     'وفي تطبيق العميل في اللحظة نفسها (Firestore realtime).',
-                    style: TextStyle(fontSize: 12, height: 1.7, color: AppColors.muted),
+                    style: TextStyle(fontSize: 12, height: 1.7, color: T.muted),
                   ),
                 ),
               ),
@@ -122,7 +122,7 @@ Widget _salesReport(List<QueryDocumentSnapshot> docs) {
                     style: const TextStyle(
                         fontSize: 12, fontWeight: FontWeight.w800))),
             Text('$count طلب',
-                style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
+                style: TextStyle(fontSize: 11.5, color: T.muted)),
             const Spacer(),
             Text(formatMoney(sales, AppCurrency.sar),
                 style: const TextStyle(
@@ -157,8 +157,8 @@ Widget _salesReport(List<QueryDocumentSnapshot> docs) {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('المحصّل المؤكد',
-                      style: TextStyle(fontSize: 10.5, color: AppColors.muted)),
+                  Text('المحصّل المؤكد',
+                      style: TextStyle(fontSize: 10.5, color: T.muted)),
                   Text(formatMoney(collected(orders), AppCurrency.sar),
                       style: const TextStyle(
                           fontSize: 13,
@@ -171,8 +171,8 @@ Widget _salesReport(List<QueryDocumentSnapshot> docs) {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('متبقٍ على العملاء (آجل)',
-                      style: TextStyle(fontSize: 10.5, color: AppColors.muted)),
+                  Text('متبقٍ على العملاء (آجل)',
+                      style: TextStyle(fontSize: 10.5, color: T.muted)),
                   Text(formatMoney(outstanding(orders), AppCurrency.sar),
                       style: const TextStyle(
                           fontSize: 13,

@@ -111,7 +111,7 @@ class PaymentScreen extends GetView<PaymentController> {
                 style: TextStyle(
                   fontSize: 12.5,
                   height: 1.7,
-                  color: AppColors.ink.withOpacity(.85),
+                  color: T.text.withOpacity(.85),
                 ),
               ),
             ),
@@ -132,7 +132,7 @@ class PaymentScreen extends GetView<PaymentController> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: active ? AppColors.primary : const Color(0xFFE6EAE8),
+                color: active ? AppColors.primary : T.border,
                 width: active ? 1.6 : 1,
               ),
               color: active ? AppColors.primary.withOpacity(.05) : T.card,
@@ -142,7 +142,7 @@ class PaymentScreen extends GetView<PaymentController> {
                 Icon(
                   active ? Icons.radio_button_checked : Icons.radio_button_off,
                   size: 20,
-                  color: active ? AppColors.primary : AppColors.muted,
+                  color: active ? AppColors.primary : T.muted,
                 ),
                 const SizedBox(width: 8),
                 Container(
@@ -170,7 +170,16 @@ class PaymentScreen extends GetView<PaymentController> {
                     ),
                   )
                 else
-                  ClipRRect(
+                  Container(
+                    width: 34,
+                    height: 34,
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: T.card,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: T.border),
+                    ),
+                    child: ClipRRect(
                     borderRadius: BorderRadius.circular(6),
                     child: Image.asset(
                       a.logoAsset,
@@ -193,6 +202,7 @@ class PaymentScreen extends GetView<PaymentController> {
                         ),
                       ),
                     ),
+                  ),
                   ),
                 const SizedBox(width: 8),
                 Expanded(

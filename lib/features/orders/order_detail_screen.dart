@@ -12,6 +12,7 @@ import '../../core/models/receipt.dart';
 import '../../core/services/cart_share.dart';
 import '../../core/services/receipt_service.dart';
 import '../cart/presentation/cart_share_card.dart';
+import '../../core/widgets/brand_header.dart';
 import '../../core/widgets/order_stage_bar.dart';
 import '../receipts/presentation/my_receipts_screen.dart';
 import '../guide/interactive_guide.dart';
@@ -43,6 +44,14 @@ class OrderDetailScreen extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              BrandHeader(
+                title: 'طلب ${o.orderNo}',
+                subtitle: o.address.receiverName.isEmpty
+                    ? 'يمن سيلو · متابعة الطلب'
+                    : '${o.address.receiverName} · ${o.address.city}',
+                badge: o.status.labelAr,
+              ),
+              const SizedBox(height: 12),
               _header(o),
               const SizedBox(height: 12),
               _timeline(o),
@@ -178,7 +187,7 @@ class OrderDetailScreen extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'تاريخ الطلب: ${o.createdAt.day}/${o.createdAt.month}/${o.createdAt.year}',
-              style: const TextStyle(fontSize: 12, color: AppColors.muted),
+              style: TextStyle(fontSize: 12, color: T.muted),
             ),
             if (o.trackingNo.isNotEmpty) ...[
               const SizedBox(height: 6),
@@ -187,7 +196,7 @@ class OrderDetailScreen extends StatelessWidget {
             ],
             const SizedBox(height: 6),
             Text(o.address.fullAr,
-                style: const TextStyle(fontSize: 12, height: 1.6, color: AppColors.muted)),
+                style: TextStyle(fontSize: 12, height: 1.6, color: T.muted)),
           ],
         ),
       ),
@@ -241,13 +250,13 @@ class OrderDetailScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: done ? FontWeight.w700 : FontWeight.w500,
-                        color: done ? AppColors.ink : AppColors.muted,
+                        color: done ? T.text : T.muted,
                       ),
                     ),
                     if (at != null)
                       Text(
                         '${at.day}/${at.month} · ${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}',
-                        style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                        style: TextStyle(fontSize: 11, color: T.muted),
                       ),
                     const SizedBox(height: 6),
                   ],
@@ -279,7 +288,7 @@ class OrderDetailScreen extends StatelessWidget {
                         width: 52,
                         height: 52,
                         color: const Color(0xFFEDF1EF),
-                        child: const Icon(Icons.image_outlined, size: 18, color: AppColors.muted),
+                        child: Icon(Icons.image_outlined, size: 18, color: T.muted),
                       ),
                     ),
                   ),
@@ -296,7 +305,7 @@ class OrderDetailScreen extends StatelessWidget {
                           Text(
                             [if (it.size.isNotEmpty) 'مقاس ${it.size}',
                              if (it.color.isNotEmpty) 'لون ${it.color}'].join(' · '),
-                            style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                            style: TextStyle(fontSize: 11, color: T.muted),
                           ),
                       ],
                     ),
@@ -456,9 +465,9 @@ class OrderDetailScreen extends StatelessWidget {
                                       fontWeight: FontWeight.w800)),
                               if (r.note.isNotEmpty)
                                 Text(r.note,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                         fontSize: 10.5,
-                                        color: AppColors.muted)),
+                                        color: T.muted)),
                             ],
                           ),
                         ),

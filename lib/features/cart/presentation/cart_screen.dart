@@ -19,6 +19,7 @@ import '../../guide/interactive_guide.dart';
 import '../domain/cart_item.dart';
 import '../../../core/services/settings_service.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/brand_header.dart';
 
 const Color _purple = Color(0xFF7C3AED);
 const Color _border = Color(0xFFE9D5FF);
@@ -935,7 +936,7 @@ class _CartScreenState extends State<CartScreen> {
           child: Text(
             label,
             style: TextStyle(
-              color: emphasize ? _purple : const Color(0xFF374151),
+              color: emphasize ? _purple : T.text,
               fontWeight:
                   emphasize ? FontWeight.w900 : FontWeight.w500,
               fontSize: emphasize ? 14 : 13,
@@ -945,7 +946,7 @@ class _CartScreenState extends State<CartScreen> {
         Text(
           value,
           style: TextStyle(
-            color: emphasize ? _purple : const Color(0xFF374151),
+            color: emphasize ? _purple : T.text,
             fontWeight:
                 emphasize ? FontWeight.w900 : FontWeight.w600,
             fontSize: emphasize ? 14 : 13,
@@ -1018,10 +1019,10 @@ class _CartScreenState extends State<CartScreen> {
                   backgroundColor: _orange,
                 ),
                 child: _importing
-                    ? const SizedBox(
+                    ? SizedBox(
                         height: 18,
                         width: 18,
-                        child: CircularProgressIndicator(
+                        child: const CircularProgressIndicator(
                           strokeWidth: 2,
                           color: Colors.white,
                         ),
@@ -1069,6 +1070,11 @@ class _CartScreenState extends State<CartScreen> {
                             .value
                             .freeShippingThresholdSar
                         : 300,
+                  ),
+                  BrandHeader(
+                    title: 'سلة التسوق',
+                    subtitle: '${_cart.items.length} عنصر · يمن سيلو',
+                    compact: true,
                   ),
                   _buildImportSheinCartButton(),
                   const Expanded(child: _EmptyCart()),
@@ -2044,7 +2050,7 @@ class _QuoteSummary extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              color: emphasize ? _purple : const Color(0xFF374151),
+              color: emphasize ? _purple : T.text,
               fontWeight:
                   emphasize ? FontWeight.w900 : FontWeight.w500,
               fontSize: emphasize ? 15 : 13,
@@ -2054,7 +2060,7 @@ class _QuoteSummary extends StatelessWidget {
         Text(
           value,
           style: TextStyle(
-            color: emphasize ? _purple : const Color(0xFF374151),
+            color: emphasize ? _purple : T.text,
             fontWeight:
                 emphasize ? FontWeight.w900 : FontWeight.w600,
             fontSize: emphasize ? 15 : 13,

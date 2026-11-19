@@ -131,7 +131,7 @@ class _SupportScreenState extends State<SupportScreen> {
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: AppColors.surface,
+                    color: T.bg,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Column(
@@ -141,10 +141,10 @@ class _SupportScreenState extends State<SupportScreen> {
                           style: TextStyle(
                               fontSize: 12.5, fontWeight: FontWeight.w800)),
                       const SizedBox(height: 6),
-                      const Text(
+                      Text(
                           'اسأل المساعد الذكي وسيجيبك من بيانات طلبك، أو حوّلك لموظف.',
                           style: TextStyle(
-                              fontSize: 11.5, color: AppColors.muted)),
+                              fontSize: 11.5, color: T.muted)),
                       const SizedBox(height: 8),
                       ElevatedButton(
                         onPressed: () => _openChat(prefill: _query),
@@ -251,11 +251,11 @@ class _SupportScreenState extends State<SupportScreen> {
             const Text('مساعد يمن سيلو الذكي',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               'يجيبك من بيانات طلبك الفعلية: الحالة، المدفوع، المتبقي، التتبع، '
               'ثم يحوّلك لموظف خدمة عملاء عند الحاجة.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11.5, color: AppColors.muted, height: 1.6),
+              style: TextStyle(fontSize: 11.5, color: T.muted, height: 1.6),
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
@@ -347,9 +347,9 @@ class _ChatViewState extends State<_ChatView> {
             builder: (context, snap) {
               final list = snap.data ?? const <SupportMessage>[];
               if (list.isEmpty) {
-                return const Center(
+                return Center(
                     child: Text('اكتب سؤالك وسيجيبك المساعد الذكي',
-                        style: TextStyle(fontSize: 12, color: AppColors.muted)));
+                        style: TextStyle(fontSize: 12, color: T.muted)));
               }
               return ListView.builder(
                 padding: const EdgeInsets.all(12),
@@ -365,7 +365,7 @@ class _ChatViewState extends State<_ChatView> {
             padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
             decoration: BoxDecoration(
               color: T.card,
-              border: Border(top: BorderSide(color: Color(0xFFE9E4F5))),
+              border: Border(top: BorderSide(color: T.border)),
             ),
             child: Column(
               children: [
@@ -419,11 +419,11 @@ class _ChatViewState extends State<_ChatView> {
     final color = mine
         ? AppColors.primary
         : isBot
-            ? AppColors.surface
+            ? T.bg
             : m.from == 'system'
                 ? AppColors.accent.withOpacity(.15)
                 : Colors.white;
-    final textColor = mine ? Colors.white : AppColors.ink;
+    final textColor = mine ? Colors.white : T.text;
     return Align(
       alignment: mine ? Alignment.centerLeft : Alignment.centerRight,
       child: Container(
@@ -446,10 +446,10 @@ class _ChatViewState extends State<_ChatView> {
                       : m.from == 'system'
                           ? 'النظام'
                           : (m.byName.isEmpty ? 'خدمة العملاء' : m.byName),
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 9.5,
                       fontWeight: FontWeight.w900,
-                      color: AppColors.muted)),
+                      color: T.muted)),
             const SizedBox(height: 3),
             if (m.imageUrl.isNotEmpty)
               Padding(

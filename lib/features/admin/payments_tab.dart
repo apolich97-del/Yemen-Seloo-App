@@ -28,7 +28,7 @@ class PaymentsTab extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.cloud_off, size: 44, color: AppColors.muted),
+                    Icon(Icons.cloud_off, size: 44, color: T.muted),
                     const SizedBox(height: 10),
                     const Text('تعذر تحميل الحوالات',
                         style: TextStyle(
@@ -36,8 +36,8 @@ class PaymentsTab extends StatelessWidget {
                     const SizedBox(height: 6),
                     Text('${snap.error}',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                            fontSize: 10.5, color: AppColors.muted)),
+                        style: TextStyle(
+                            fontSize: 10.5, color: T.muted)),
                   ],
                 ),
               ),
@@ -48,9 +48,9 @@ class PaymentsTab extends StatelessWidget {
           }
           final list = snap.data!.where((o) => !o.payment.isEmpty).toList();
           if (list.isEmpty) {
-            return const Center(
+            return Center(
               child: Text('لا توجد حوالات بانتظار المراجعة',
-                  style: TextStyle(fontSize: 13, color: AppColors.muted)),
+                  style: TextStyle(fontSize: 13, color: T.muted)),
             );
           }
           return ListView.builder(
@@ -98,17 +98,17 @@ class PaymentsTab extends StatelessWidget {
                                         .substring(o.payment.proofUrl.indexOf(',') + 1)),
                                     height: 140,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => const Text(
+                                    errorBuilder: (_, __, ___) => Text(
                                         'تعذر تحميل الصورة',
                                         style: TextStyle(
-                                            fontSize: 11, color: AppColors.muted)),
+                                            fontSize: 11, color: T.muted)),
                                   )
                                 : Image.network(o.payment.proofUrl,
                                     height: 140, fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => const Text(
+                                    errorBuilder: (_, __, ___) => Text(
                                         'تعذر تحميل الصورة',
                                         style: TextStyle(
-                                            fontSize: 11, color: AppColors.muted))),
+                                            fontSize: 11, color: T.muted))),
                           ),
                         ),
                       const SizedBox(height: 10),
@@ -150,7 +150,7 @@ class PaymentsTab extends StatelessWidget {
           children: [
             SizedBox(
               width: 110,
-              child: Text(k, style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
+              child: Text(k, style: TextStyle(fontSize: 11.5, color: T.muted)),
             ),
             Expanded(
               child: Text(v,

@@ -59,9 +59,9 @@ class _AdminShellState extends State<AdminShell> {
       if (!auth.isStaff) {
         return Scaffold(
           appBar: AppBar(title: const Text('لوحة الإدارة')),
-          body: const Center(
+          body: Center(
             child: Text('هذه اللوحة مخصصة لحسابات الفريق فقط',
-                style: TextStyle(fontSize: 13, color: AppColors.muted)),
+                style: TextStyle(fontSize: 13, color: T.muted)),
           ),
         );
       }
@@ -115,7 +115,7 @@ class _AdminShellState extends State<AdminShell> {
               padding: const EdgeInsets.only(left: 12),
               child: Center(
                 child: Text(auth.role,
-                    style: const TextStyle(fontSize: 11, color: AppColors.muted)),
+                    style: TextStyle(fontSize: 11, color: T.muted)),
               ),
             ),
           ],

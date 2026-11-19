@@ -52,9 +52,9 @@ class _AdminSupportTabState extends State<AdminSupportTab> {
         builder: (context, snap) {
           final list = snap.data ?? const <SupportThread>[];
           if (list.isEmpty) {
-            return const Center(
+            return Center(
                 child: Text('لا توجد محادثات بعد',
-                    style: TextStyle(fontSize: 12, color: AppColors.muted)));
+                    style: TextStyle(fontSize: 12, color: T.muted)));
           }
           return ListView.builder(
             padding: const EdgeInsets.all(12),
@@ -110,8 +110,8 @@ class _AdminSupportTabState extends State<AdminSupportTab> {
                 child: Text(t.summary,
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 10.5, height: 1.5, color: AppColors.muted)),
+                    style: TextStyle(
+                        fontSize: 10.5, height: 1.5, color: T.muted)),
               ),
             if (t.lastMessage.isNotEmpty)
               Text('آخر رسالة: ${t.lastMessage}',
@@ -140,13 +140,13 @@ class _AdminSupportTabState extends State<AdminSupportTab> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: T.bg,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Text(
+            child: Text(
               'يقرأ النظام سجل أسئلة الدردشة وعبارات البحث، ويجمع المتكرر منها، '
               'ثم تقترح صياغة سؤال وجواب وخطوات. اعتمد ما تريد نشره في دليل العملاء.',
-              style: TextStyle(fontSize: 11, height: 1.6, color: AppColors.muted),
+              style: TextStyle(fontSize: 11, height: 1.6, color: T.muted),
             ),
           ),
           const SizedBox(height: 10),
@@ -204,16 +204,16 @@ class _AdminSupportTabState extends State<AdminSupportTab> {
               ),
               const SizedBox(height: 4),
               Text('المرحلة: ${s.stage}',
-                  style: const TextStyle(
-                      fontSize: 10.5, color: AppColors.muted)),
+                  style: TextStyle(
+                      fontSize: 10.5, color: T.muted)),
               const SizedBox(height: 4),
               Text(s.answer,
                   style: const TextStyle(fontSize: 11, height: 1.5)),
               if (s.examples.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Text('من كلام العملاء: ${s.examples.join(' · ')}',
-                    style: const TextStyle(
-                        fontSize: 10, color: AppColors.muted)),
+                    style: TextStyle(
+                        fontSize: 10, color: T.muted)),
               ],
               const SizedBox(height: 8),
               Row(
@@ -301,7 +301,7 @@ class _AgentChatScreenState extends State<_AgentChatScreen> {
           if (widget.thread.summary.isNotEmpty)
             Container(
               width: double.infinity,
-              color: AppColors.surface,
+              color: T.bg,
               padding: const EdgeInsets.all(10),
               child: Text(widget.thread.summary,
                   style: const TextStyle(fontSize: 10.5, height: 1.5)),
@@ -346,7 +346,7 @@ class _AgentChatScreenState extends State<_AgentChatScreen> {
                                     fontWeight: FontWeight.w900,
                                     color: mine
                                         ? Colors.white70
-                                        : AppColors.muted)),
+                                        : T.muted)),
                             const SizedBox(height: 3),
                             if (m.imageUrl.isNotEmpty)
                               Padding(
@@ -364,7 +364,7 @@ class _AgentChatScreenState extends State<_AgentChatScreen> {
                                 style: TextStyle(
                                     fontSize: 12,
                                     height: 1.6,
-                                    color: mine ? Colors.white : AppColors.ink)),
+                                    color: mine ? Colors.white : T.text)),
                           ],
                         ),
                       ),

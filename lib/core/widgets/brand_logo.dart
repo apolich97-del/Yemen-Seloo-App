@@ -4,7 +4,7 @@ import 'package:get/get.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_controller.dart';
 
-/// شعار يمن سيلو: نسخة نهارية ونسخة ليلية تتغيّر مع الثيم تلقائياً.
+/// شعار يمن سيلو: يتبع الثيم فوراً — ليلي من logo_dark.jpg ثم png ثم الاحتياطي.
 class BrandLogo extends StatelessWidget {
   const BrandLogo({super.key, this.height = 30});
 
@@ -12,44 +12,57 @@ class BrandLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dark = Get.isRegistered<ThemeController>()
-        ? Get.find<ThemeController>().isDark.value
-        : Theme.of(context).brightness == Brightness.dark;
+    final controller = Get.isRegistered<ThemeController>()
+        ? Get.find<ThemeController>()
+        : null;
 
-    if (!dark) {
-      return Image.asset('assets/images/logo.png', height: height);
-    }
-
-    return Image.asset(
-      'assets/images/logo_dark.png',
-      height: height,
-      errorBuilder: (_, __, ___) => Image.asset(
+    Widget buildFor(bool dark) {
+      if (!dark) {
+        return Image.asset(
+          'assets/images/logo.png',
+          height: height,
+          errorBuilder: (_, __, ___) => _fallback(),
+        );
+      }
+      // الليلي: jpg أولاً (الملف الموجود فعلاً في assets)، ثم png
+      return Image.asset(
         'assets/images/logo_dark.jpg',
         height: height,
-        errorBuilder: (_, __, ___) => Container(
+        errorBuilder: (_, __, ___) => Image.asset(
+          'assets/images/logo_dark.png',
+          height: height,
+          errorBuilder: (_, __, ___) => _fallback(),
+        ),
+      );
+    }
+
+    if (controller == null) {
+      return buildFor(Theme.of(context).brightness == Brightness.dark);
+    }
+    return Obx(() => buildFor(controller.isDark.value));
+  }
+
+  Widget _fallback() => Container(
         height: height,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: <Color>[AppDark.cardHigh, AppDark.borderSoft],
+          gradient: LinearGradient(
+            colors: <Color>[T.card, T.soft],
           ),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppDark.borderSoft),
+          border: Border.all(color: T.softBorder),
         ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Icon(Icons.shopping_cart_outlined, size: 16, color: AppDark.text),
-            SizedBox(width: 6),
+            Icon(Icons.shopping_cart_outlined, size: 16, color: T.primary),
+            const SizedBox(width: 6),
             Text('يمن سيلو',
                 style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w900,
-                    color: AppDark.text)),
+                    color: T.text)),
           ],
         ),
-        ),
-      ),
-    );
-  }
+      );
 }

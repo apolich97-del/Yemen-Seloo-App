@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
+
+import 'theme_controller.dart';
 import 'package:flutter/material.dart';
-import '../../core/theme/app_theme.dart';
 
 /// هوية «يمن سيلو» — أخضر يمَني غامق + ذهبي، واجهة RTL بالكامل.
 class AppColors {
@@ -16,7 +17,13 @@ class AppColors {
 
 /// ألوان مستجيبة للثيم — تُستخدم بدل الألوان الصريحة.
 class T {
-  static bool get dark => Get.isDarkMode;
+  /// يعتمد على متحكم الثيم المحفوظ أولاً، ثم على سطوع السياق.
+  static bool get dark {
+    if (Get.isRegistered<ThemeController>()) {
+      return Get.find<ThemeController>().isDark.value;
+    }
+    return Get.isDarkMode;
+  }
 
   /// خلفية الشاشة.
   static Color get bg => dark ? AppDark.bg : const Color(0xFFF7F5FB);
@@ -235,6 +242,53 @@ class AppTheme {
               borderRadius: BorderRadius.circular(12)),
         ),
       ),
+      chipTheme: ChipThemeData(
+        backgroundColor: AppDark.cardHigh,
+        selectedColor: AppDark.primarySoft.withOpacity(.28),
+        disabledColor: AppDark.card,
+        labelStyle: const TextStyle(color: AppDark.text, fontSize: 12),
+        secondaryLabelStyle: const TextStyle(color: AppDark.text),
+        side: const BorderSide(color: AppDark.border),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) =>
+            states.contains(WidgetState.selected)
+                ? AppDark.primarySoft
+                : AppDark.textMuted),
+        trackColor: WidgetStateProperty.resolveWith((states) =>
+            states.contains(WidgetState.selected)
+                ? AppDark.primarySoft.withOpacity(.35)
+                : AppDark.cardHigh),
+        trackOutlineColor:
+            const WidgetStatePropertyAll<Color>(AppDark.border),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: AppDark.cardHigh,
+        surfaceTintColor: Colors.transparent,
+        textStyle: const TextStyle(color: AppDark.text, fontSize: 12.5),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: AppDark.border),
+        ),
+      ),
+      dropdownMenuTheme: DropdownMenuThemeData(
+        menuStyle: MenuStyle(
+          backgroundColor:
+              const WidgetStatePropertyAll<Color>(AppDark.cardHigh),
+          surfaceTintColor:
+              const WidgetStatePropertyAll<Color>(Colors.transparent),
+          shape: WidgetStatePropertyAll<OutlinedBorder>(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: AppDark.border),
+            ),
+          ),
+        ),
+        textStyle: const TextStyle(color: AppDark.text, fontSize: 12.5),
+      ),
       tabBarTheme: const TabBarTheme(
         labelColor: AppDark.text,
         unselectedLabelColor: AppDark.textMuted,
@@ -274,10 +328,10 @@ class SectionCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.ink,
+                      color: T.text,
                     ),
                   ),
                 ),
@@ -312,13 +366,13 @@ class MoneyRow extends StatelessWidget {
     final style = TextStyle(
       fontSize: bold ? 17 : 14,
       fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
-      color: bold ? AppColors.ink : AppColors.muted,
+      color: bold ? T.text : T.muted,
     );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          Text(label, style: style.copyWith(color: bold ? AppColors.ink : AppColors.ink)),
+          Text(label, style: style.copyWith(color: bold ? T.text : T.muted)),
           const Spacer(),
           Text(
             value,

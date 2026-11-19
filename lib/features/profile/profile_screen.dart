@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/brand_header.dart';
+import '../../core/widgets/brand_logo.dart';
 import '../../core/theme/theme_controller.dart';
 import '../guide/interactive_guide.dart';
 
@@ -9,7 +11,6 @@ import '../../core/controllers/profile_controller.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/services/auth_service.dart';
 import 'address_form_screen.dart';
-import '../../core/theme/app_theme.dart';
 
 /// المرحلة 4 — «حسابي»
 class ProfileScreen extends GetView<ProfileController> {
@@ -58,8 +59,8 @@ class ProfileScreen extends GetView<ProfileController> {
                           fontWeight: FontWeight.w900,
                           color: AppColors.primaryDark)),
                   const SizedBox(height: 4),
-                  const Text('وسيطك الموثوق للتسوق العالمي',
-                      style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                  Text('وسيطك الموثوق للتسوق العالمي',
+                      style: TextStyle(fontSize: 12, color: T.muted)),
                   const SizedBox(height: 20),
                   const Text('سجّل الدخول لإدارة حسابك وطلباتك',
                       style: TextStyle(fontSize: 13.5)),
@@ -156,42 +157,53 @@ class ProfileScreen extends GetView<ProfileController> {
     );
   }
 
-  Widget _identity(AppUser u) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [AppColors.primary, AppColors.primaryDark],
-            begin: Alignment.topRight,
-            end: Alignment.bottomLeft,
+  Widget _identity(AppUser u) => Column(
+        children: [
+          BrandHeader(
+            title: u.displayName.isEmpty ? 'مستخدم جديد' : u.displayName,
+            subtitle: u.phone ?? u.email ?? 'يمن سيلو · حسابك',
+            badge: u.role == 'customer' ? 'عميل' : u.role,
           ),
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withOpacity(.25),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 28,
-              backgroundColor: Colors.white.withOpacity(.2),
-              child: Text(
-                (u.displayName.isEmpty ? '؟' : u.displayName.characters.first),
-                style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [AppColors.primary, AppColors.primaryDark],
+                begin: Alignment.topRight,
+                end: Alignment.bottomLeft,
               ),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(.25),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(u.displayName.isEmpty ? 'مستخدم جديد' : u.displayName,
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: Colors.white.withOpacity(.2),
+                  child: Text(
+                    (u.displayName.isEmpty
+                        ? '؟'
+                        : u.displayName.characters.first),
+                    style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                          u.displayName.isEmpty ? 'مستخدم جديد' : u.displayName,
                       style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w900,
@@ -205,16 +217,18 @@ class ProfileScreen extends GetView<ProfileController> {
                 ],
               ),
             ),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(.16),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Image.asset('assets/images/logo.png', height: 30),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(.16),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const BrandLogo(height: 30),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       );
 
   Widget _menu() => Card(
@@ -246,7 +260,7 @@ class ProfileScreen extends GetView<ProfileController> {
           child: Icon(icon, size: 18, color: AppColors.primary),
         ),
         title: Text(label, style: const TextStyle(fontSize: 14)),
-        trailing: const Icon(Icons.arrow_back_ios_new, size: 14, color: AppColors.muted),
+        trailing: Icon(Icons.arrow_back_ios_new, size: 14, color: T.muted),
         onTap: onTap,
       );
 
@@ -262,8 +276,8 @@ class ProfileScreen extends GetView<ProfileController> {
         ),
         child: Obx(() {
           if (controller.addresses.isEmpty) {
-            return const Text('لا توجد عناوين محفوظة',
-                style: TextStyle(fontSize: 12, color: AppColors.muted));
+            return Text('لا توجد عناوين محفوظة',
+                style: TextStyle(fontSize: 12, color: T.muted));
           }
           return Column(
             children: controller.addresses
@@ -272,7 +286,7 @@ class ProfileScreen extends GetView<ProfileController> {
                       leading: const Icon(Icons.location_on_outlined, color: AppColors.primary),
                       title: Text(a.label, style: const TextStyle(fontSize: 13)),
                       subtitle: Text(a.fullAr,
-                          style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
+                          style: TextStyle(fontSize: 11.5, color: T.muted)),
                       trailing: IconButton(
                         icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.danger),
                         onPressed: () => controller.deleteAddress(a.id),

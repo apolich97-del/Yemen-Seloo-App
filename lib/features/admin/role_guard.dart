@@ -22,13 +22,13 @@ class RoleGuard extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.lock_outline, size: 48, color: AppColors.muted),
+                Icon(Icons.lock_outline, size: 48, color: T.muted),
                 const SizedBox(height: 12),
-                const Text('لا تملك صلاحية الوصول إلى هذا القسم',
-                    style: TextStyle(fontSize: 13, color: AppColors.muted)),
+                Text('لا تملك صلاحية الوصول إلى هذا القسم',
+                    style: TextStyle(fontSize: 13, color: T.muted)),
                 const SizedBox(height: 4),
                 Text('دورك الحالي: $role',
-                    style: const TextStyle(fontSize: 11, color: AppColors.muted)),
+                    style: TextStyle(fontSize: 11, color: T.muted)),
               ],
             ),
           ),

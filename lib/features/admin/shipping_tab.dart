@@ -27,9 +27,9 @@ class ShippingTab extends StatelessWidget {
                   o.status == OrderStatus.outForDelivery)
               .toList();
           if (list.isEmpty) {
-            return const Center(
+            return Center(
               child: Text('لا توجد شحنات نشطة',
-                  style: TextStyle(fontSize: 13, color: AppColors.muted)),
+                  style: TextStyle(fontSize: 13, color: T.muted)),
             );
           }
           return ListView.builder(
@@ -54,7 +54,7 @@ class ShippingTab extends StatelessWidget {
                     '${o.courierName.isEmpty ? 'بلا مندوب' : o.courierName}'
                     '${o.trackingNo.isEmpty ? '' : ' · تتبع ${o.trackingNo}'}'
                     ' · ${formatMoney(o.totalLocal, o.currency)}',
-                    style: const TextStyle(fontSize: 11.5, height: 1.6, color: AppColors.muted),
+                    style: TextStyle(fontSize: 11.5, height: 1.6, color: T.muted),
                   ),
                   isThreeLine: true,
                   trailing: IconButton(
