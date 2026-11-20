@@ -10,6 +10,7 @@ import 'receipts_tab.dart';
 import 'support_tab.dart';
 import 'settings_tab.dart';
 import 'shipping_tab.dart';
+import '../catalog/presentation/catalog_studio_tab.dart';
 
 /// المرحلة 5 — لوحة الإدارة (تعمل على الويب والجوال بنفس الكود).
 /// الأدوار: manager / support / shipping / courier / accounting
@@ -39,6 +40,7 @@ class _AdminShellState extends State<AdminShell> {
     const support = _TabDef('دعم العملاء', Icons.support_agent);
     const ship = _TabDef('الشحن', Icons.local_shipping_outlined);
     const settings = _TabDef('الإعدادات', Icons.settings_outlined);
+    const catalog = _TabDef('استوديو الكتالوج', Icons.inventory_2_outlined);
     switch (role) {
       case 'accounting':
         return [pays, receipts, orders];
@@ -48,10 +50,10 @@ class _AdminShellState extends State<AdminShell> {
       case 'support':
         return [support, orders, receipts];
       case 'marketer':
-        // مسوّق الكتالوج: يرى الكتالوج والطلبات والإعدادات لضبط الأسعار.
-        return [dash, orders];
+        // مسوّق الكتالوج: الاستوديو والطلبات فقط — بلا مدفوعات أو إعدادات أو فريق.
+        return [catalog, orders];
       default:
-        return [dash, orders, pays, receipts, support, ship, settings];
+        return [dash, orders, catalog, pays, receipts, support, ship, settings];
     }
   }
 
@@ -80,6 +82,7 @@ class _AdminShellState extends State<AdminShell> {
         'إيصال' => const ReceiptsTab(),
         'دعم العملاء' => const AdminSupportTab(),
         'الشحن' => const ShippingTab(),
+        'استوديو الكتالوج' => const CatalogStudioTab(),
         _ => const SettingsTab(),
       };
       if (wide) {

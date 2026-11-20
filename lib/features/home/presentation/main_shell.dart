@@ -11,7 +11,7 @@ import 'main_tab_controller.dart';
 import 'orders_tab.dart';
 import 'support_tab.dart';
 import '../../cart/presentation/cart_screen.dart';
-import '../../shein/presentation/shein_web_screen.dart';
+import '../../catalog/presentation/store_hub.dart';
 import '../../../core/theme/app_theme.dart';
 
 const Color _purple = Color(0xFF7C3AED);
@@ -231,7 +231,7 @@ class _MainShellState extends State<MainShell> {
               index: _tabCtrl.index.value,
               children: const <Widget>[
                 HomeTab(),
-                SheinWebScreen(),
+                const StoreHub(),
                 CartScreen(),
                 OrdersTab(),
                 SupportTab(),

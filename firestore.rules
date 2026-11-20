@@ -121,6 +121,13 @@ service cloud.firestore {
     }
 
     match /products/{g} { allow read: if true; allow write: if staff(); }
+    // كتالوج يمن سيلو: قراءة عامة، كتابة للمسوّق والمدير الرئيسي فقط.
+    match /catalog/{c} {
+      allow read: if true;
+      allow write: if auth() && (
+        isMainManager() || roleOf() == 'marketer' || roleOf() == 'manager'
+      );
+    }
     match /coupons/{c} { allow read: if auth(); allow write: if staff(); }
     match /settings/{s} { allow read: if auth(); allow write: if staff(); }
     // عدّادات متسلسلة (أرقام الإيصالات) — القراءة والزيادة الذرية للمسجلين
