@@ -51,6 +51,9 @@ class T {
       dark ? const Color(0xFFE0C264) : AppColors.accent;
 
   /// سطح أعلى قليلاً (حقول، قوائم).
+  /// سطح الأشرطة والألواح (الشريط السفلي، التبويبات) — يتبدّل مع الثيم.
+  static Color get surface => dark ? const Color(0xFF1A1233) : const Color(0xFFFFFFFF);
+
   static Color get elevated =>
       dark ? const Color(0xFF1B1536) : const Color(0xFFFFFFFF);
 }

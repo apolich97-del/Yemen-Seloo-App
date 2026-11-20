@@ -178,6 +178,8 @@ class OrderService extends GetxService {
     String trackingNo = '',
     String courierName = '',
     String proofUrl = '',
+    String courierPhone = '',
+    double? collectedLocal,
   }) async {
     final r = _db.collection('orders').doc(orderId);
     await r.update({
@@ -185,6 +187,8 @@ class OrderService extends GetxService {
       if (trackingNo.isNotEmpty) 'trackingNo': trackingNo,
       if (courierName.isNotEmpty) 'courierName': courierName,
       if (proofUrl.isNotEmpty) 'proofImageUrl': proofUrl,
+      if (courierPhone.isNotEmpty) 'courierPhone': courierPhone,
+      if (collectedLocal != null) 'collectedLocal': collectedLocal,
       'updatedAt': FieldValue.serverTimestamp(),
     });
     await r.collection('events').add({

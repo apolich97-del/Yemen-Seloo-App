@@ -119,6 +119,29 @@ class _StoreTabState extends State<StoreTab> {
     );
   }
 
+  Widget _pill(String label) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+        decoration: BoxDecoration(
+          color: T.soft,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: T.softBorder),
+        ),
+        child: Text(label,
+            style: TextStyle(fontSize: 9.5, color: T.text)),
+      );
+
+  static String _thousands(String digits) {
+    final clean = digits.replaceAll(RegExp(r'[^0-9.]'), '');
+    final parts = clean.split('.');
+    final buf = StringBuffer();
+    final intPart = parts.first;
+    for (var i = 0; i < intPart.length; i++) {
+      if (i > 0 && (intPart.length - i) % 3 == 0) buf.write(',');
+      buf.write(intPart[i]);
+    }
+    return parts.length > 1 ? '$buf.${parts[1]}' : '$buf';
+  }
+
   Widget _regionBar() => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
@@ -223,7 +246,7 @@ class _StoreTabState extends State<StoreTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(it.title,
+                Text(it.title.trim(),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -231,19 +254,26 @@ class _StoreTabState extends State<StoreTab> {
                         fontWeight: FontWeight.w800,
                         color: T.text)),
                 const SizedBox(height: 4),
-                Text('${price.toStringAsFixed(0)} $cur',
+                Text('${_thousands(price.toStringAsFixed(0))} $cur',
                     style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w900,
                         color: T.primary)),
                 if (it.colors.isNotEmpty || it.sizes.isNotEmpty) ...[
                   const SizedBox(height: 6),
-                  Text(
-                    [
-                      if (it.colors.isNotEmpty) 'ألوان: ${it.colors.join(' · ')}',
-                      if (it.sizes.isNotEmpty) 'مقاسات: ${it.sizes.join(' · ')}',
-                    ].join('  |  '),
-                    style: TextStyle(fontSize: 10, color: T.muted),
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
+                    children: [
+                      ...it.colors
+                          .where((e) => e.trim().isNotEmpty)
+                          .take(6)
+                          .map((e) => _pill('لون: ${e.trim()}')),
+                      ...it.sizes
+                          .where((e) => e.trim().isNotEmpty)
+                          .take(6)
+                          .map((e) => _pill('مقاس: ${e.trim()}')),
+                    ],
                   ),
                 ],
                 const SizedBox(height: 10),

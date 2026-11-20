@@ -61,7 +61,6 @@ Future<void> main() async {
 }
 
 // ═══ استقبال رابط السلة المشترك من شي إن عبر "مشاركة" ═══
-StreamSubscription<List<SharedMediaFile>>? _shareSub;
 
 void _listenForSharedLinks() {
   try {
@@ -72,7 +71,7 @@ void _listenForSharedLinks() {
       debugPrint('[Seloo] share initial error: $e');
     });
 
-    _shareSub = ReceiveSharingIntent.instance.getMediaStream().listen(
+    ReceiveSharingIntent.instance.getMediaStream().listen(
       _handleShared,
       onError: (Object e) => debugPrint('[Seloo] share stream error: $e'),
     );

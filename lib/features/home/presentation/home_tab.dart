@@ -29,11 +29,11 @@ class HomeTab extends StatelessWidget {
                   width: size,
                   height: size,
                   decoration: BoxDecoration(
-                    color: dark ? const Color(0xFF16102E) : T.soft,
-                    borderRadius: BorderRadius.circular(dark ? 24 : 999),
+                    color: T.surface,
+                    borderRadius: BorderRadius.circular(24),
                     border: Border.all(
-                        color: dark ? const Color(0xFF43337D) : T.softBorder,
-                        width: dark ? 1.5 : 2),
+                        color: T.primary.withOpacity(dark ? .45 : .25),
+                        width: 1.6),
                     boxShadow: dark
                         ? <BoxShadow>[
                             BoxShadow(
@@ -84,10 +84,11 @@ class HomeTab extends StatelessWidget {
                   children: <Widget>[
                     const Icon(Icons.info_outline, color: _purple, size: 28),
                     const SizedBox(height: 10),
-                    const Text(
+                    Text(
                       'تصفّح منتجات SHEIN، أضفها إلى سلتك، وأكّد طلبك بسهولة عبر التطبيق.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 13.5, height: 1.6),
+                      style: TextStyle(
+                          fontSize: 13.5, height: 1.6, color: T.text),
                     ),
                     const SizedBox(height: 14),
                     Row(

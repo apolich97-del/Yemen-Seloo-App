@@ -89,6 +89,8 @@ class ShippingTab extends StatelessWidget {
     final tracking = TextEditingController(text: o.trackingNo);
     final courier = TextEditingController(text: o.courierName);
     final proof = TextEditingController(text: o.proofImageUrl);
+    final courierPhone = TextEditingController();
+    final collected = TextEditingController();
     final ok = await showDialog<bool>(
       context: Get.context!,
       builder: (context) => AlertDialog(
@@ -105,10 +107,24 @@ class ShippingTab extends StatelessWidget {
                   controller: courier,
                   decoration: const InputDecoration(labelText: 'شركة الشحن')),
             ],
-            if (to == OrderStatus.outForDelivery)
+            if (to == OrderStatus.outForDelivery) ...[
               TextField(
                   controller: courier,
                   decoration: const InputDecoration(labelText: 'اسم المندوب')),
+              const SizedBox(height: 8),
+              TextField(
+                  controller: courierPhone,
+                  keyboardType: TextInputType.phone,
+                  textDirection: TextDirection.ltr,
+                  decoration:
+                      const InputDecoration(labelText: 'رقم جوال المندوب')),
+              const SizedBox(height: 8),
+              TextField(
+                  controller: collected,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                      labelText: 'مبلغ التحصيل (بالعملة المحلية)')),
+            ],
             if (to == OrderStatus.delivered)
               TextField(
                   controller: proof,
@@ -129,6 +145,8 @@ class ShippingTab extends StatelessWidget {
         trackingNo: tracking.text.trim(),
         courierName: courier.text.trim(),
         proofUrl: proof.text.trim(),
+        courierPhone: courierPhone.text.trim(),
+        collectedLocal: double.tryParse(collected.text.trim()),
       );
       Get.snackbar('تم', 'تم تحديث الحالة إلى ${to.labelAr}');
     } catch (e) {

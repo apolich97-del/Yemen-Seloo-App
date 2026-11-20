@@ -238,7 +238,12 @@ class _MainShellState extends State<MainShell> {
               ],
             ),
             bottomNavigationBar: Obx(
-              () => BottomNavigationBar(
+              () => Container(
+                decoration: BoxDecoration(
+                  color: T.surface,
+                  border: Border(top: BorderSide(color: T.border)),
+                ),
+                child: BottomNavigationBar(
                 currentIndex: _tabCtrl.index.value,
                 onTap: (int i) {
                   _tabCtrl.goTo(i);
@@ -247,9 +252,10 @@ class _MainShellState extends State<MainShell> {
                   _guideTab(i);
                 },
                 type: BottomNavigationBarType.fixed,
-                backgroundColor: T.card,
-                selectedItemColor: _purple,
-                unselectedItemColor: const Color(0xFF9CA3AF),
+                backgroundColor: T.surface,
+                elevation: 0,
+                selectedItemColor: T.primary,
+                unselectedItemColor: T.muted,
                 selectedFontSize: 11,
                 unselectedFontSize: 11,
                 items: <BottomNavigationBarItem>[
@@ -302,6 +308,7 @@ class _MainShellState extends State<MainShell> {
                     label: 'الدعم',
                   ),
                 ],
+                ),
               ),
             ),
           ),

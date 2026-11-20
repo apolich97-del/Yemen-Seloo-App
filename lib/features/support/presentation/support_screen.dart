@@ -115,8 +115,11 @@ class _SupportScreenState extends State<SupportScreen> {
                   runSpacing: 6,
                   children: _suggestions
                       .map((s) => ActionChip(
+                            backgroundColor: T.card,
+                            side: BorderSide(color: T.border),
                             label: Text(s,
-                                style: const TextStyle(fontSize: 10.5)),
+                                style: TextStyle(
+                                    fontSize: 10.5, color: T.text)),
                             onPressed: () {
                               _search.text = s;
                               setState(() => _query = s);
@@ -441,7 +444,7 @@ class _ChatViewState extends State<_ChatView> {
     final color = mine
         ? AppColors.primary
         : isBot
-            ? T.bg
+            ? T.card
             : m.from == 'system'
                 ? AppColors.accent.withOpacity(.15)
                 : T.card;

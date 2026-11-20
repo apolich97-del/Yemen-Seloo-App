@@ -127,12 +127,56 @@ class _AdminShellState extends State<AdminShell> {
           ],
         ),
         body: body,
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: idx,
-          onDestinationSelected: (i) => _nav.label.value = tabs[i].label,
-          destinations: tabs
-              .map((t) => NavigationDestination(icon: Icon(t.icon), label: t.label))
-              .toList(),
+        // شريط سفلي قابل للتمرير أفقياً حتى لا تنكسر أسماء التبويبات
+        bottomNavigationBar: Container(
+          color: T.surface,
+          child: SafeArea(
+            top: false,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+              child: Row(
+                children: List.generate(tabs.length, (i) {
+                  final active = i == idx;
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => _nav.label.value = tabs[i].label,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: active
+                            ? AppColors.primary.withOpacity(.14)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: active ? AppColors.primary : T.border),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(tabs[i].icon,
+                              size: 17,
+                              color: active ? AppColors.primary : T.muted),
+                          const SizedBox(width: 5),
+                          Text(tabs[i].label,
+                              maxLines: 1,
+                              softWrap: false,
+                              overflow: TextOverflow.fade,
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight:
+                                      active ? FontWeight.w900 : FontWeight.w600,
+                                  color: active ? AppColors.primary : T.muted)),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+          ),
         ),
       );
     });

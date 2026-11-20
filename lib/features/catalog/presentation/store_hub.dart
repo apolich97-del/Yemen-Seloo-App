@@ -16,10 +16,13 @@ class StoreHub extends StatelessWidget {
         backgroundColor: T.bg,
         appBar: AppBar(
           title: const Text('المتجر'),
+          backgroundColor: T.surface,
+          foregroundColor: T.text,
           bottom: TabBar(
             labelColor: T.primary,
             unselectedLabelColor: T.muted,
             indicatorColor: T.primary,
+            dividerColor: T.border,
             tabs: const [
               Tab(text: 'كتالوج يمن سيلو'),
               Tab(text: 'تصفح SHEIN'),

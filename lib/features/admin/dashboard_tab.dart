@@ -24,6 +24,7 @@ class DashboardTab extends StatelessWidget {
           final docs = snap.data?.docs ?? const [];
           double revenue = 0;
           var unpaid = 0, verifying = 0, processing = 0, shipped = 0, delivered = 0;
+          var cancelledCount = 0;
           for (final d in docs) {
             final o = Order.fromDoc(d.id, d.data() as Map<String, dynamic>);
             revenue += o.totalSar;
@@ -40,6 +41,7 @@ class DashboardTab extends StatelessWidget {
               case OrderStatus.delivered:
                 delivered++;
               case OrderStatus.cancelled:
+                cancelledCount++;
                 break;
             }
           }
@@ -61,6 +63,8 @@ class DashboardTab extends StatelessWidget {
                   _Kpi('تم الشحن', '$shipped', Icons.local_shipping_outlined, const Color(0xFF6B21A8),
                       onTap: () => adminGo('الشحن')),
                   _Kpi('تم التسليم', '$delivered', Icons.check_circle_outline, AppColors.success),
+                  _Kpi('ملغاة', '$cancelledCount', Icons.cancel_outlined,
+                      AppColors.danger),
                 ],
               ),
               const SizedBox(height: 16),

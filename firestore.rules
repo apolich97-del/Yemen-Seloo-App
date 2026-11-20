@@ -40,7 +40,7 @@ service cloud.firestore {
       // تغيير الأدوار والصلاحيات: المدير الرئيسي فقط
       allow update: if isMainManager()
         && request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])
-        && request.resource.data.role in ['customer','manager','accounting','shipping','courier','support'];
+        && request.resource.data.role in ['customer','marketer','manager','accounting','shipping','courier','support'];
       allow update: if isMainManager()
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
       allow delete: if isMainManager();
@@ -139,7 +139,11 @@ service cloud.firestore {
     // عدّادات متسلسلة (أرقام الإيصالات) — القراءة والزيادة الذرية للمسجلين
     match /counters/{c} {
       allow read: if auth();
-      allow create, update: if auth() && request.resource.data.value is number;
+      allow create, update: if staff() && request.resource.data.value is number;
+      // العميل يزيد عدّاد الطلبات فقط بمقدار 1 ليبقى توليد رقم YS-... يعمل
+      allow create: if auth() && c == 'orders' && request.resource.data.value == 1;
+      allow update: if auth() && c == 'orders'
+        && request.resource.data.value == resource.data.value + 1;
       allow delete: if staff();
     }
     match /meta/{m} { allow read: if true; allow write: if staff(); }

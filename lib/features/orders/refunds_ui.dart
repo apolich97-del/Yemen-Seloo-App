@@ -425,7 +425,9 @@ Future<void> showCreateRefundDialog(Order order) async {
   final svc = Get.put(RefundService(), permanent: false);
   final selected = <int, int>{};
   var reason = 'out_of_stock';
-  var method = 'deduct_remaining';
+  final canDeduct =
+      order.status.name != 'cancelled' && order.remainingLocal > 0;
+  var method = canDeduct ? 'deduct_remaining' : 'bank_transfer';
   final note = TextEditingController();
 
   double total() {
@@ -532,11 +534,12 @@ Future<void> showCreateRefundDialog(Order order) async {
                   isExpanded: true,
                   decoration: const InputDecoration(
                       labelText: 'طريقة التسوية', isDense: true),
-                  items: const [
-                    DropdownMenuItem(
-                        value: 'deduct_remaining',
-                        child: Text('خصم من المبلغ المتبقي (آجل 50%)')),
-                    DropdownMenuItem(
+                  items: [
+                    if (canDeduct)
+                      const DropdownMenuItem(
+                          value: 'deduct_remaining',
+                          child: Text('خصم من المبلغ المتبقي (آجل 50%)')),
+                    const DropdownMenuItem(
                         value: 'bank_transfer',
                         child: Text('تحويل لحساب العميل')),
                   ],
