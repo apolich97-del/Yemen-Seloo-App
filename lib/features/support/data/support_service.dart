@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import '../../../core/models/currency.dart';
 import '../../../core/models/order.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/cart_share.dart';
 import 'support_guide.dart';
 import 'support_models.dart';
 
@@ -207,6 +208,26 @@ class SupportService extends GetxService {
       {Order? order}) async {
     final q = _norm(question);
 
+    // 0) إن لم يُمرَّر طلب، اجلب أحدث طلب للعميل من Firestore.
+    if (order == null && Get.isRegistered<AuthService>()) {
+      final uid = Get.find<AuthService>().uid;
+      if (uid != null && uid.isNotEmpty) {
+        try {
+          final snap = await _db
+              .collection('orders')
+              .where('userId', isEqualTo: uid)
+              .orderBy('createdAt', descending: true)
+              .limit(1)
+              .get();
+          if (snap.docs.isNotEmpty) {
+            final d = snap.docs.first;
+            order = Order.fromDoc(
+                d.id, d.data() as Map<String, dynamic>);
+          }
+        } catch (_) {}
+      }
+    }
+
     // 1) أسئلة تخص طلباً بعينه
     if (order != null) {
       final cur = order.currency;
@@ -218,11 +239,34 @@ class SupportService extends GetxService {
           escalate: false,
         );
       }
-      if (_has(q, ['متبقي', 'باقي', 'رصيد', 'آجل', 'نصف'])) {
+      if (_has(q, ['متبقي', 'باقي', 'رصيد', 'آجل', 'نصف', 'قسط'])) {
+        final b = StringBuffer()
+          ..writeln('إجمالي طلبك ${formatMoney(order.totalLocal, cur)} '
+              '(${order.totalSar.toStringAsFixed(2)} ر.س).')
+          ..writeln('المؤكد دفعه: ${formatMoney(order.paidTotalLocal, cur)}.')
+          ..writeln('المتبقي: ${formatMoney(order.remainingLocal, cur)}.');
+        if (order.isDeferred) {
+          b.writeln('نظام السداد: آجل 50% — الدفعة الأولى '
+              '${formatMoney(order.upfrontDueLocal, cur)}.');
+        } else {
+          b.writeln('نظام السداد: دفعة كاملة.');
+        }
+        return AssistantReply(b.toString(), escalate: false);
+      }
+      if (_has(q, ['صرف', 'سعر', 'عملة', 'ريال', 'دولار'])) {
         return AssistantReply(
-          'إجمالي طلبك ${formatMoney(order.totalLocal, cur)}، '
-          'المؤكد دفعه ${formatMoney(order.paidTotalLocal, cur)}، '
-          'والمتبقي ${formatMoney(order.remainingLocal, cur)}.',
+          'سعر الصرف المثبّت على طلبك: 1 ر.س = '
+          '${order.exchangeRate.toStringAsFixed(2)} '
+          '${order.currency.name.toUpperCase()}، '
+          'وإجمالي طلبك ${formatMoney(order.totalLocal, cur)}.',
+          escalate: false,
+        );
+      }
+      if (_has(q, ['سلة', 'منتجات', 'قطع', 'اصناف', 'أصناف', 'رابط'])) {
+        final link = CartShare.fromOrderItems(order);
+        return AssistantReply(
+          'طلبك ${order.orderNo} يحتوي ${order.items.length} قطعة.\n'
+          '${link.isEmpty ? '' : 'رابط السلة كاملة:\n$link'}',
           escalate: false,
         );
       }
@@ -285,6 +329,21 @@ class SupportService extends GetxService {
       'text': 'تم تحويل المحادثة إلى موظف خدمة عملاء. سيرد عليك في أقرب وقت.',
       'at': FieldValue.serverTimestamp(),
     });
+
+    // تنبيه فوري لدور الدعم وللمدير الرئيسي.
+    for (final target in ['support', 'manager']) {
+      await _db.collection('staff_alerts').add({
+        'type': 'human_requested',
+        'target': target,
+        'threadId': threadId,
+        'orderId': order?.id ?? '',
+        'orderNo': order?.orderNo ?? '',
+        'customerName': order?.address.receiverName ?? '',
+        'summary': summary,
+        'createdAt': FieldValue.serverTimestamp(),
+        'read': false,
+      });
+    }
   }
 
   /// ملخص ذكي (قالبي) من آخر الرسائل وبيانات الطلب.

@@ -444,7 +444,7 @@ class _ChatViewState extends State<_ChatView> {
             ? T.bg
             : m.from == 'system'
                 ? AppColors.accent.withOpacity(.15)
-                : Colors.white;
+                : T.card;
     final textColor = mine ? Colors.white : T.text;
     return Align(
       alignment: mine ? Alignment.centerLeft : Alignment.centerRight,
@@ -487,9 +487,46 @@ class _ChatViewState extends State<_ChatView> {
               ),
             Text(m.text,
                 style: TextStyle(fontSize: 12, height: 1.6, color: textColor)),
+            if (isBot) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: _quickReplies
+                    .map((q) => ActionChip(
+                          backgroundColor: T.card,
+                          side: BorderSide(color: T.border),
+                          labelPadding:
+                              const EdgeInsets.symmetric(horizontal: 2),
+                          label: Text(q,
+                              style: TextStyle(
+                                  fontSize: 10.5, color: T.primary)),
+                          onPressed: () => _quick(q),
+                        ))
+                    .toList(),
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  static const List<String> _quickReplies = <String>[
+    'تتبع طلبي',
+    'كم المتبقي في الآجل',
+    'خطوات الدفع',
+    'إلغاء الطلب',
+    'التحدث مع موظف بشري',
+  ];
+
+  Future<void> _quick(String q) async {
+    if (q == 'التحدث مع موظف بشري') {
+      await _svc.escalate(widget.threadId, order: widget.order);
+      Get.snackbar('تم التحويل', 'سيتواصل معك موظف خدمة عملاء قريباً');
+      return;
+    }
+    _text.text = q;
+    await _send();
   }
 }

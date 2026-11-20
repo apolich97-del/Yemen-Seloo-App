@@ -1,10 +1,14 @@
 import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart' show FirebaseFirestore;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 
+import '../../core/models/order.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/theme/app_theme.dart';
+import 'order_preview_sheet.dart';
 import '../support/data/support_models.dart';
 import '../support/data/support_service.dart';
 
@@ -278,6 +282,12 @@ class _AgentChatScreenState extends State<_AgentChatScreen> {
             ? 'محادثة عميل'
             : 'محادثة الطلب ${widget.thread.orderNo}'),
         actions: [
+          if (widget.thread.orderNo.isNotEmpty)
+            IconButton(
+              tooltip: 'عرض الطلب',
+              icon: Icon(Icons.receipt_long_outlined, color: T.primary),
+              onPressed: _openOrder,
+            ),
           IconButton(
             tooltip: 'إعادة للمساعد الذكي',
             icon: const Icon(Icons.smart_toy_outlined),
@@ -327,7 +337,7 @@ class _AgentChatScreenState extends State<_AgentChatScreen> {
                             maxWidth:
                                 MediaQuery.of(context).size.width * .78),
                         decoration: BoxDecoration(
-                          color: mine ? AppColors.primary : Colors.white,
+                          color: mine ? AppColors.primary : T.card,
                           borderRadius: BorderRadius.circular(12),
                           border:
                               Border.all(color: T.border),
@@ -378,19 +388,47 @@ class _AgentChatScreenState extends State<_AgentChatScreen> {
             top: false,
             child: Padding(
               padding: const EdgeInsets.all(8),
-              child: Row(
+              child: Column(
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _text,
-                      decoration:
-                          const InputDecoration(hintText: 'ردّك على العميل…'),
-                      onSubmitted: (_) => _reply(),
+                  SizedBox(
+                    height: 34,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: _quickReplies
+                          .map((q) => Padding(
+                                padding: const EdgeInsets.only(left: 6),
+                                child: ActionChip(
+                                  backgroundColor: T.card,
+                                  side: BorderSide(color: T.border),
+                                  label: Text(q,
+                                      style: TextStyle(
+                                          fontSize: 10.5, color: T.primary)),
+                                  onPressed: () => _reply(text: q),
+                                ),
+                              ))
+                          .toList(),
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.send, color: AppColors.primary),
-                    onPressed: _reply,
+                  Row(
+                    children: [
+                      IconButton(
+                        tooltip: 'إرفاق صورة',
+                        icon: Icon(Icons.image_outlined, color: T.muted),
+                        onPressed: _pickImage,
+                      ),
+                      Expanded(
+                        child: TextField(
+                          controller: _text,
+                          decoration:
+                              const InputDecoration(hintText: 'ردّك على العميل…'),
+                          onSubmitted: (_) => _reply(),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.send, color: T.primary),
+                        onPressed: _reply,
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -401,12 +439,50 @@ class _AgentChatScreenState extends State<_AgentChatScreen> {
     );
   }
 
-  Future<void> _reply() async {
-    final t = _text.text.trim();
-    if (t.isEmpty) return;
+  static const List<String> _quickReplies = <String>[
+    'تم استلام طلبك وسنبدأ التجهيز',
+    'جارٍ التحقق من الحوالة',
+    'تم شحن طلبك، رقم التتبع بالأسفل',
+    'المتبقي من الآجل مستحق عند التسليم',
+    'شكراً لتواصلك مع يمن سيلو',
+  ];
+
+  Future<void> _reply({String? text, String imageUrl = ''}) async {
+    final t = (text ?? _text.text).trim();
+    if (t.isEmpty && imageUrl.isEmpty) return;
     final name = Get.find<AuthService>().user.value?.displayName ?? 'خدمة العملاء';
     await _svc.agentReply(widget.thread.id, t,
+        imageUrl: imageUrl,
         byName: name.isEmpty ? 'خدمة العملاء' : name);
-    _text.clear();
+    if (text == null) _text.clear();
+  }
+
+  Future<void> _pickImage() async {
+    final x = await ImagePicker().pickImage(
+        source: ImageSource.gallery, imageQuality: 40, maxWidth: 900);
+    if (x == null) return;
+    final bytes = await x.readAsBytes();
+    final mime =
+        x.path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+    await _reply(
+        text: _text.text, imageUrl: 'data:$mime;base64,${base64Encode(bytes)}');
+  }
+
+  Future<void> _openOrder() async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('orders')
+          .where('orderNo', isEqualTo: widget.thread.orderNo)
+          .limit(1)
+          .get();
+      if (snap.docs.isEmpty) {
+        Get.snackbar('غير موجود', 'لم يُعثر على الطلب ${widget.thread.orderNo}');
+        return;
+      }
+      final d = snap.docs.first;
+      await showOrderPreview(Order.fromDoc(d.id, d.data()));
+    } catch (e) {
+      Get.snackbar('تعذر العرض', '$e');
+    }
   }
 }
