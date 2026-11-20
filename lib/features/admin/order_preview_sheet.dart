@@ -13,6 +13,7 @@ import '../../core/services/order_service.dart';
 import '../../core/services/receipt_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_header.dart';
+import '../orders/refunds_ui.dart';
 
 /// معاينة كاملة للطلب للمدير والموظف: البيانات، القطع، المال، الإيصالات،
 /// التتبع والمراحل، مع مشاركة واتساب وPDF وصلاحيات المدير الرئيسي.
@@ -194,6 +195,17 @@ class _OrderPreview extends StatelessWidget {
                 ),
                 if (_canEdit) ...[
                   const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => showCreateRefundDialog(o),
+                      icon: const Icon(Icons.assignment_return_outlined,
+                          size: 16),
+                      label: const Text('إنشاء طلب استرداد',
+                          style: TextStyle(fontSize: 11.5)),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   Row(
                     children: [
                       Expanded(

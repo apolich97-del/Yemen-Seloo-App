@@ -66,6 +66,12 @@ service cloud.firestore {
         && (request.resource.data.status != 'verifying'
             || proofOk(request.resource.data.payment, dueOf(resource.data)));
       allow update: if staff();
+      // العميل يحدّث حقول حساب الاستلام فقط عندما يكون الاسترداد بانتظار البيانات
+      allow update: if auth() && resource.data.userId == me()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['refunds', 'updatedAt'])
+        && request.resource.data.refundedTotalSar == resource.data.refundedTotalSar
+        && request.resource.data.status == resource.data.status;
       allow delete: if false;
       match /events/{e} {
         allow read, create: if auth() && (get(/databases/$(database)/documents/orders/$(o)).data.userId == me() || staff());

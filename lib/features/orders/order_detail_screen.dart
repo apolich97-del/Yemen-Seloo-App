@@ -18,6 +18,7 @@ import '../../core/services/receipt_service.dart';
 import '../cart/presentation/cart_share_card.dart';
 import '../../core/widgets/brand_header.dart';
 import '../guide/interactive_guide.dart';
+import 'refunds_ui.dart';
 import '../../core/widgets/order_stage_bar.dart';
 import '../receipts/presentation/my_receipts_screen.dart';
 import '../support/presentation/support_screen.dart';
@@ -142,6 +143,7 @@ class OrderDetailScreen extends StatelessWidget {
                       : 'طلب تسريع الشحن'),
                 ),
               ],
+              RefundsSection(order: o),
               const SizedBox(height: 12),
               _CancelCard(order: o),
               if (Get.isRegistered<AuthService>() &&
