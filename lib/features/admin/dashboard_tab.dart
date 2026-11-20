@@ -17,7 +17,7 @@ class DashboardTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final col = FirebaseFirestore.instance.collection('orders');
     return RoleGuard(
-      allow: ['manager'],
+      allow: ['manager', 'marketer'],
       child: StreamBuilder<QuerySnapshot>(
         stream: col.snapshots(),
         builder: (context, snap) {

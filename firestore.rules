@@ -3,7 +3,25 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function auth() { return request.auth != null; }
     function me() { return request.auth.uid; }
-    function staff() { return auth() && request.auth.token.email in ['apolich97@gmail.com','abode212k@gmail.com','yemenseloo.shop@gmail.com']; }
+    // المديران الرئيسيان فقط — كل الصلاحيات الإدارية.
+    function isMainManager() {
+      return auth() && request.auth.token.email in [
+        'apolich97@gmail.com',
+        'abode212k@gmail.com'
+      ];
+    }
+    // دور المستخدم من وثيقة users/{uid} (عميل إن لم توجد).
+    function roleOf() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : 'customer';
+    }
+    // فريق العمل: المديران الرئيسيان أو أي دور موزّع من لوحة الفريق.
+    function staff() {
+      return auth() && (isMainManager() || roleOf() in [
+        'manager', 'marketer', 'accounting', 'shipping', 'support', 'courier'
+      ]);
+    }
     function proofOk(p, minAmount) {
       return p.proofUrl is string && p.proofUrl.size() > 0
         && p.amount is number && p.amount >= minAmount
@@ -13,13 +31,6 @@ service cloud.firestore {
     function dueOf(d) {
       return d.upfrontDueLocal is number && d.upfrontDueLocal > 0
         ? d.upfrontDueLocal : d.totalLocal;
-    }
-
-    function isMainManager() {
-      return auth() && (
-        request.auth.token.email == 'apolich97@gmail.com' ||
-        request.auth.token.email == 'abode212k@gmail.com'
-      );
     }
 
     match /users/{uid} {
@@ -101,6 +112,13 @@ service cloud.firestore {
       allow write: if staff();
     }
     match /support_faq_ignored/{f} { allow read, write: if staff(); }
+
+    // سجل الفريق: المدير الرئيسي يضيف/يعدّل/يزيل، والموظف يقرأ سجله فقط.
+    match /staff_invites/{email} {
+      allow read: if isMainManager() ||
+        (auth() && request.auth.token.email == email);
+      allow write: if isMainManager();
+    }
 
     match /products/{g} { allow read: if true; allow write: if staff(); }
     match /coupons/{c} { allow read: if auth(); allow write: if staff(); }

@@ -47,6 +47,9 @@ class _AdminShellState extends State<AdminShell> {
         return [ship, orders];
       case 'support':
         return [support, orders, receipts];
+      case 'marketer':
+        // مسوّق الكتالوج: يرى الكتالوج والطلبات والإعدادات لضبط الأسعار.
+        return [dash, orders];
       default:
         return [dash, orders, pays, receipts, support, ship, settings];
     }

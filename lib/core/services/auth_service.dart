@@ -85,6 +85,58 @@ class AuthService extends GetxService {
   /// من يملك تعديل بيانات الطلب وحذفه: المدير الرئيسي والمحاسب.
   bool get canEditOrders => isMainManager || role == 'accounting';
 
+  /// الأدوار القابلة للتوزيع من المدير الرئيسي.
+  static const Set<String> staffRoles = <String>{
+    'manager',
+    'marketer',
+    'accounting',
+    'shipping',
+    'support',
+    'courier',
+  };
+
+  /// إضافة موظف أو تحديث دوره في سجل الفريق.
+  Future<void> upsertStaff({
+    required String name,
+    required String email,
+    required String role,
+  }) async {
+    final key = email.trim().toLowerCase();
+    await FirebaseFirestore.instance.collection('staff_invites').doc(key).set({
+      'name': name.trim(),
+      'email': key,
+      'role': role,
+      'active': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'addedBy': user.value?.email ?? '',
+    }, SetOptions(merge: true));
+
+    // إن كان الحساب موجوداً مسبقاً في users نحدّث دوره فوراً.
+    final snap = await FirebaseFirestore.instance
+        .collection('users')
+        .where('email', isEqualTo: key)
+        .limit(5)
+        .get();
+    for (final d in snap.docs) {
+      await d.reference.set({'role': role}, SetOptions(merge: true));
+    }
+  }
+
+  /// إزالة الموظف: حذف السجل وإعادة دوره إلى عميل.
+  Future<void> removeStaff(String email) async {
+    final key = email.trim().toLowerCase();
+    if (mainManagerEmails.contains(key)) {
+      throw 'لا يمكن إزالة مدير رئيسي';
+    }
+    final db = FirebaseFirestore.instance;
+    await db.collection('staff_invites').doc(key).delete();
+    final snap =
+        await db.collection('users').where('email', isEqualTo: key).limit(5).get();
+    for (final d in snap.docs) {
+      await d.reference.set({'role': 'customer'}, SetOptions(merge: true));
+    }
+  }
+
   @override
   void onInit() {
     super.onInit();
@@ -121,14 +173,34 @@ class AuthService extends GetxService {
 
       // بريد الفريق يفتح لوحة الإدارة حتى لو لم يُضبط claim الدور بعد
       // (نفس القائمة المعتمدة في firestore.rules).
-      const staffEmails = [
-        'apolich97@gmail.com',
-        'abode212k@gmail.com',
-        'yemenseloo.shop@gmail.com',
-      ];
-      final email = (u.email ?? '').toLowerCase();
-      if (role == 'customer' && staffEmails.contains(email)) {
+      final email = (u.email ?? '').toLowerCase().trim();
+      if (role == 'customer' && mainManagerEmails.contains(email)) {
         role = 'manager';
+      }
+
+      // ربط ديناميكي: دور الموظف من سجل الفريق staff_invites/{email}
+      if (role == 'customer' && email.isNotEmpty) {
+        try {
+          final inv = await FirebaseFirestore.instance
+              .collection('staff_invites')
+              .doc(email)
+              .get();
+          final invRole = (inv.data()?['role'] ?? '') as String;
+          if (inv.data() != null &&
+              (inv.data()?['active'] ?? true) == true &&
+              staffRoles.contains(invRole)) {
+            role = invRole;
+            // تثبيت الدور في users/{uid} حتى تُقرأ به قواعد Firestore.
+            try {
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(u.uid)
+                  .set({'role': invRole}, SetOptions(merge: true));
+            } catch (_) {}
+          }
+        } catch (_) {
+          // تعذّر القراءة (قواعد/شبكة) — يبقى العميل عميلاً.
+        }
       }
       user.value = AppUser(
         uid: u.uid,

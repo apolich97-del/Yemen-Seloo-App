@@ -26,7 +26,7 @@ class _OrdersTabState extends State<OrdersTab> {
   @override
   Widget build(BuildContext context) {
     return RoleGuard(
-      allow: ['support', 'shipping', 'courier'],
+      allow: ['support', 'shipping', 'courier', 'accounting', 'marketer'],
       child: Column(
         children: [
           Padding(
