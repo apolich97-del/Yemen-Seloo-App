@@ -1,9 +1,12 @@
 import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/models/currency.dart';
 import '../../../core/models/order.dart';
 import '../../../core/theme/app_theme.dart';
 import '../data/support_guide.dart';
@@ -353,6 +356,176 @@ class _ChatViewState extends State<_ChatView> {
     }
   }
 
+  Widget _typingBubble() => Align(
+        alignment: Alignment.centerRight,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(
+            color: T.card,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: T.border),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('•••',
+                  style: TextStyle(
+                      fontSize: 13,
+                      letterSpacing: 2,
+                      fontWeight: FontWeight.w900,
+                      color: T.muted)),
+              const SizedBox(width: 6),
+              Text('المساعد يكتب',
+                  style: TextStyle(fontSize: 9.5, color: T.muted)),
+            ],
+          ),
+        ),
+      );
+
+  Widget _composerBar() => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: _pickOrder,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 11, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: T.primary.withOpacity(.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: T.primary.withOpacity(.4)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.receipt_long_outlined,
+                          size: 14, color: T.primary),
+                      const SizedBox(width: 5),
+                      Text('إرسال الطلب',
+                          style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w900,
+                              color: T.primary)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              ...<String>[
+                'تتبع شحنتي',
+                'المتبقي الآجل',
+                'طلب إرجاع',
+                'تعديل العنوان',
+              ].map((t) => Padding(
+                    padding: const EdgeInsets.only(left: 6),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: () {
+                        _text.text = t;
+                        _send();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: T.soft,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: T.softBorder),
+                        ),
+                        child: Text(t,
+                            style: TextStyle(
+                                fontSize: 10.5, color: T.text)),
+                      ),
+                    ),
+                  )),
+            ],
+          ),
+        ),
+      );
+
+  Future<void> _pickOrder() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final picked = await showModalBottomSheet<Order>(
+      context: context,
+      backgroundColor: T.card,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => Container(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.receipt_long, size: 17, color: T.primary),
+                const SizedBox(width: 6),
+                Text('طلبي',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        color: T.text)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Flexible(
+              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: FirebaseFirestore.instance
+                    .collection('orders')
+                    .where('userId', isEqualTo: uid)
+                    .orderBy('createdAt', descending: true)
+                    .limit(30)
+                    .snapshots(),
+                builder: (context, snap) {
+                  final docs = snap.data?.docs ?? const [];
+                  if (docs.isEmpty) {
+                    return Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text('لا توجد طلبات',
+                          style: TextStyle(fontSize: 12, color: T.muted)),
+                    );
+                  }
+                  return ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: docs.length,
+                    itemBuilder: (_, i) {
+                      final o = Order.fromDoc(
+                          docs[i].id, docs[i].data());
+                      return ListTile(
+                        dense: true,
+                        title: Text(o.orderNo,
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: T.text)),
+                        subtitle: Text(
+                            '${o.status.labelAr} · ${formatMoney(o.totalSar, AppCurrency.sar)}',
+                            style: TextStyle(fontSize: 10.5, color: T.muted)),
+                        trailing: Icon(Icons.send, size: 16, color: T.primary),
+                        onTap: () => Navigator.pop(context, o),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (picked == null) return;
+    _text.text =
+        'أرغب في الاستفسار عن طلبي ${picked.orderNo} — الحالة: ${picked.status.labelAr}';
+    await _send();
+  }
+
   Future<void> _pickImage() async {
     final x = await ImagePicker().pickImage(
         source: ImageSource.gallery, imageQuality: 40, maxWidth: 900);
@@ -371,15 +544,30 @@ class _ChatViewState extends State<_ChatView> {
             stream: _svc.messages(widget.threadId),
             builder: (context, snap) {
               final list = snap.data ?? const <SupportMessage>[];
+              final header = _AssistantHeader(
+                onAsk: (String q) {
+                  _text.text = q;
+                  _send();
+                },
+                onOrder: _pickOrder,
+              );
               if (list.isEmpty) {
-                return Center(
-                    child: Text('اكتب سؤالك وسيجيبك المساعد الذكي',
-                        style: TextStyle(fontSize: 12, color: T.muted)));
+                return ListView(
+                  padding: const EdgeInsets.all(12),
+                  children: [
+                    header,
+                    if (_sending) _typingBubble(),
+                  ],
+                );
               }
               return ListView.builder(
                 padding: const EdgeInsets.all(12),
-                itemCount: list.length,
-                itemBuilder: (_, i) => _bubble(list[i]),
+                itemCount: list.length + 1 + (_sending ? 1 : 0),
+                itemBuilder: (_, i) {
+                  if (i == 0) return header;
+                  if (i > list.length) return _typingBubble();
+                  return _bubble(list[i - 1]);
+                },
               );
             },
           ),
@@ -394,6 +582,7 @@ class _ChatViewState extends State<_ChatView> {
             ),
             child: Column(
               children: [
+                _composerBar(),
                 Row(
                   children: [
                     IconButton(
@@ -532,4 +721,327 @@ class _ChatViewState extends State<_ChatView> {
     _text.text = q;
     await _send();
   }
+}
+
+
+/// رأس المساعد الذكي: إجراءات سريعة + بطاقة «أسئلة ساخنة» بتبويبات.
+class _AssistantHeader extends StatefulWidget {
+  const _AssistantHeader({required this.onAsk, required this.onOrder});
+  final void Function(String question) onAsk;
+  final VoidCallback onOrder;
+
+  @override
+  State<_AssistantHeader> createState() => _AssistantHeaderState();
+}
+
+class _AssistantHeaderState extends State<_AssistantHeader> {
+  static const List<_QuickAction> _actions = <_QuickAction>[
+    _QuickAction('إرجاع واسترداد', Icons.assignment_return_outlined),
+    _QuickAction('تتبع الشحنة', Icons.local_shipping_outlined),
+    _QuickAction('تسريع الشحن', Icons.bolt_outlined),
+    _QuickAction('إرسال الطلب', Icons.send_outlined),
+    _QuickAction('تعديل العنوان', Icons.location_on_outlined),
+  ];
+
+  static const Map<String, List<String>> _hot = <String, List<String>>{
+    'أسئلة ساخنة': <String>[
+      'كيف أعرف أن طلبي وصل إلى مستودع شي إن؟',
+      'متى يتم شحن طلبي إلى اليمن؟',
+      'ما هي مدة التوصيل المتوقعة؟',
+      'كيف أتواصل مع موظف بشري؟',
+    ],
+    'التتبع والتوصيل': <String>[
+      'أين أجد رقم تتبع الشحنة؟',
+      'شحنتي متأخرة، ماذا أفعل؟',
+      'هل يمكن تغيير عنوان التوصيل بعد الشحن؟',
+      'من هو المندوب المسؤول عن طلبي؟',
+    ],
+    'الإرجاع والاسترداد': <String>[
+      'كيف أطلب إرجاع منتج؟',
+      'متى تُرد مبالغ الاسترداد؟',
+      'هل يمكن استرداد المبلغ على المحفظة؟',
+      'ماذا لو وصل المنتج تالفاً؟',
+    ],
+    'قيد التجهيز': <String>[
+      'كم يستغرق تجهيز الطلب؟',
+      'هل يمكن تعديل الطلب قبل التجهيز؟',
+      'لماذا طلبي قيد التجهيز منذ أيام؟',
+      'هل أستطيع إضافة منتج لطلبي؟',
+    ],
+    'الدفع والآجل': <String>[
+      'ما هو نظام الدفع الآجل 50%؟',
+      'كيف أرفع إيصال الحوالة؟',
+      'ما المبلغ المتبقي عليّ؟',
+      'أي محافظ وبنوك تقبلونها؟',
+    ],
+  };
+
+  int _tab = 0;
+  int _seed = 0;
+
+  List<String> get _questions {
+    final base = _hot[_hot.keys.elementAt(_tab)] ?? const <String>[];
+    if (_seed == 0) return base;
+    final copy = List<String>.from(base);
+    copy.removeAt(_seed % copy.length);
+    copy.add(base[_seed % base.length]);
+    return copy;
+  }
+
+  void _onAction(String label) {
+    if (label == 'إرسال الطلب') {
+      widget.onOrder();
+      return;
+    }
+    widget.onAsk(label == 'إرجاع واسترداد'
+        ? 'أرغب في طلب إرجاع واسترداد مبلغ منتج من طلبي.'
+        : label == 'تتبع الشحنة'
+            ? 'أريد تتبع شحنتي ومعرفة موقعها الحالي.'
+            : label == 'تسريع الشحن'
+                ? 'أريد تسريع شحن طلبي، ما الخيارات المتاحة؟'
+                : 'أريد تعديل عنوان التوصيل في طلبي.');
+  }
+
+  void _more() {
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: T.card,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text('الأسئلة الموصى بها',
+            style: TextStyle(
+                fontSize: 14, fontWeight: FontWeight.w900, color: T.text)),
+        content: SizedBox(
+          width: 320,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: _hot.entries.expand((e) {
+                return <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8, bottom: 4),
+                    child: Text(e.key,
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            color: T.primary)),
+                  ),
+                  ...e.value.map((q) => InkWell(
+                        onTap: () {
+                          Get.back();
+                          widget.onAsk(q);
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Text('• $q',
+                              style: TextStyle(
+                                  fontSize: 11.5, color: T.text)),
+                        ),
+                      )),
+                ];
+              }).toList(),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Get.back(),
+              child: Text('إغلاق', style: TextStyle(color: T.primary))),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // بطاقات الإجراءات السريعة
+        SizedBox(
+          height: 66,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: _actions.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (_, i) {
+              final a = _actions[i];
+              return InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () => _onAction(a.label),
+                child: Container(
+                  width: 92,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: T.card,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: T.border),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(a.icon, size: 18, color: T.primary),
+                      const SizedBox(height: 5),
+                      Text(a.label,
+                          maxLines: 2,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 9.5,
+                              height: 1.25,
+                              fontWeight: FontWeight.w700,
+                              color: T.text)),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+        // بطاقة الأسئلة الساخنة
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: T.card,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: T.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.local_fire_department_outlined,
+                      size: 16, color: T.primary),
+                  const SizedBox(width: 6),
+                  Text('أسئلة ساخنة',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          color: T.text)),
+                  const Spacer(),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () => setState(() => _seed++),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 3),
+                      child: Row(
+                        children: [
+                          Icon(Icons.refresh, size: 13, color: T.muted),
+                          const SizedBox(width: 3),
+                          Text('تحديث',
+                              style: TextStyle(
+                                  fontSize: 9.5, color: T.muted)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: _more,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 3),
+                      child: Text('أكثر',
+                          style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w900,
+                              color: T.primary)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              SizedBox(
+                height: 30,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _hot.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 6),
+                  itemBuilder: (_, i) {
+                    final active = i == _tab;
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: () => setState(() {
+                        _tab = i;
+                        _seed = 0;
+                      }),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: active
+                              ? T.primary.withOpacity(.13)
+                              : T.soft,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color: active ? T.primary : T.softBorder),
+                        ),
+                        child: Text(_hot.keys.elementAt(i),
+                            style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: active
+                                    ? FontWeight.w900
+                                    : FontWeight.w600,
+                                color: active ? T.primary : T.muted)),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...List<Widget>.generate(_questions.length, (i) {
+                final q = _questions[i];
+                return InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () => widget.onAsk(q),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 17,
+                          height: 17,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: T.soft,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: T.softBorder),
+                          ),
+                          child: Text('${i + 1}',
+                              style: TextStyle(
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.w900,
+                                  color: T.primary)),
+                        ),
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: Text(q,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  fontSize: 11, color: T.text)),
+                        ),
+                        Icon(Icons.chevron_left,
+                            size: 14, color: T.muted),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+      ],
+    );
+  }
+}
+
+class _QuickAction {
+  final String label;
+  final IconData icon;
+  const _QuickAction(this.label, this.icon);
 }

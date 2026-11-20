@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -9,6 +11,9 @@ import '../guide/interactive_guide.dart';
 
 import '../../core/controllers/profile_controller.dart';
 import '../../core/routes/app_routes.dart';
+import '../home/presentation/main_tab_controller.dart';
+import '../support/data/support_models.dart';
+import '../support/data/support_service.dart';
 import '../../core/services/auth_service.dart';
 import 'address_form_screen.dart';
 
@@ -89,6 +94,8 @@ class ProfileScreen extends GetView<ProfileController> {
           padding: const EdgeInsets.all(16),
           children: [
             _identity(u),
+            const SizedBox(height: 12),
+            const _OrderShortcuts(),
             const SizedBox(height: 12),
             SectionCard(
               title: 'البيانات الشخصية',
@@ -352,4 +359,164 @@ Widget _appSettingsCard() {
       ],
     ),
   );
+}
+
+
+/// صف اختصارات «طلبي»: 5 أيقونات بعدّادات حيّة من Firestore.
+class _OrderShortcuts extends StatelessWidget {
+  const _OrderShortcuts();
+
+  Stream<Map<String, int>> _counts() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return Stream.value(const <String, int>{});
+    return FirebaseFirestore.instance
+        .collection('orders')
+        .where('userId', isEqualTo: uid)
+        .snapshots()
+        .map((s) {
+      var unpaid = 0, processing = 0, shipped = 0, refunds = 0;
+      for (final d in s.docs) {
+        final st = (d.data()['status'] ?? '').toString();
+        if (st == 'unpaid') unpaid++;
+        if (st == 'processing') processing++;
+        if (st == 'shipped') shipped++;
+        final list = (d.data()['refunds'] as List?) ?? const [];
+        refunds += list.length;
+      }
+      return <String, int>{
+        'unpaid': unpaid,
+        'processing': processing,
+        'shipped': shipped,
+        'refunds': refunds,
+      };
+    });
+  }
+
+  void _go(int tab) {
+    if (Get.isRegistered<MainTabController>()) {
+      Get.find<MainTabController>().goTo(tab);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<Map<String, int>>(
+      stream: _counts(),
+      builder: (context, snap) {
+        final c = snap.data ?? const <String, int>{};
+        final support = Get.isRegistered<SupportService>()
+            ? Get.find<SupportService>()
+            : Get.put(SupportService(), permanent: false);
+        return StreamBuilder<List<SupportThread>>(
+          stream: support.myThreads(),
+          builder: (context, ts) {
+            final open = (ts.data ?? const <SupportThread>[])
+                .where((t) => t.mode != 'closed')
+                .length;
+            final items = <_Shortcut>[
+              _Shortcut('غير مدفوع', Icons.schedule, c['unpaid'] ?? 0,
+                  () => _go(3)),
+              _Shortcut('قيد التجهيز', Icons.inventory_2_outlined,
+                  c['processing'] ?? 0, () => _go(3)),
+              _Shortcut('تم الشحن', Icons.local_shipping_outlined,
+                  c['shipped'] ?? 0, () => _go(3)),
+              _Shortcut('المنتجات المسترجعة',
+                  Icons.assignment_return_outlined, c['refunds'] ?? 0,
+                  () => _go(3)),
+              _Shortcut('خدمة العملاء', Icons.support_agent, open,
+                  () => _go(4)),
+            ];
+            return Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+              decoration: BoxDecoration(
+                color: T.card,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: T.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8, bottom: 8),
+                    child: Text('طلبي',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            color: T.text)),
+                  ),
+                  Row(
+                    children: items
+                        .map((s) => Expanded(child: _tile(s)))
+                        .toList(),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _tile(_Shortcut s) => InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: s.onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+          child: Column(
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: T.soft,
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(color: T.softBorder),
+                    ),
+                    child: Icon(s.icon, size: 19, color: T.primary),
+                  ),
+                  if (s.count > 0)
+                    Positioned(
+                      top: -4,
+                      left: -4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 5, vertical: 1),
+                        constraints: const BoxConstraints(minWidth: 17),
+                        decoration: BoxDecoration(
+                          color: AppColors.danger,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: T.card, width: 1.4),
+                        ),
+                        child: Text('${s.count}',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white)),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 5),
+              Text(s.label,
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: 8.5, height: 1.3, color: T.muted)),
+            ],
+          ),
+        ),
+      );
+}
+
+class _Shortcut {
+  final String label;
+  final IconData icon;
+  final int count;
+  final VoidCallback onTap;
+  const _Shortcut(this.label, this.icon, this.count, this.onTap);
 }

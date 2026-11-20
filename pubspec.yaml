@@ -1,7 +1,7 @@
 name: yemen_seloo
 description: تطبيق Yemen Seloo — تسوّق من SHEIN وإضافة المنتجات إلى سلة سيلو.
 publish_to: "none"
-version: 1.0.0+1
+version: 1.0.486+486
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
