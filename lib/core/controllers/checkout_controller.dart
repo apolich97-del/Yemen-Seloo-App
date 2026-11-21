@@ -24,6 +24,7 @@ class CheckoutPayload {
   /// 'full' أو 'half_deferred'.
   final String paymentPlan;
   final double upfrontPercent;
+  final double walletUseSar;
 
   /// تفاصيل التوصيل المختارة.
   final Map<String, dynamic> shipping;
@@ -35,6 +36,7 @@ class CheckoutPayload {
     required this.estimate,
     this.paymentPlan = 'full',
     this.upfrontPercent = 100,
+    this.walletUseSar = 0,
     this.shipping = const <String, dynamic>{},
   });
 }
@@ -60,6 +62,8 @@ class CheckoutController extends GetxController {
   final couponMessage = ''.obs;
   final couponAccepted = false.obs;
   final busy = false.obs;
+  /// الخصم من رصيد المحفظة (0 = بلا خصم).
+  final walletUseSar = 0.0.obs;
   final loadingAddress = true.obs;
 
   final couponCtrl = TextEditingController();
@@ -255,6 +259,7 @@ class CheckoutController extends GetxController {
         upfrontPercent: Get.isRegistered<SettingsService>()
             ? Get.find<SettingsService>().settings.value.deferredUpfrontPercent
             : 50,
+        walletUseSar: walletUseSar.value,
       ),
     );
   }

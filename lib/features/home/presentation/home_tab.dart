@@ -1,7 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/services/review_service.dart';
 import 'main_tab_controller.dart';
 import '../../../core/widgets/brand_logo.dart';
 
@@ -114,6 +116,8 @@ class HomeTab extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(height: 20),
+              const _ApprovedReviews(),
               const SizedBox(height: 24),
               Row(
                 children: <Widget>[
@@ -300,6 +304,93 @@ class _ServiceTile extends StatelessWidget {
         ],
       ),
       ),
+    );
+  }
+}
+
+
+/// «آراء عملاؤنا في اليمن» — تقييمات معتمدة من الإدارة فقط.
+class _ApprovedReviews extends StatelessWidget {
+  const _ApprovedReviews();
+
+  @override
+  Widget build(BuildContext context) {
+    final svc = Get.put(ReviewService(), permanent: false);
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: svc.approved(),
+      builder: (context, snap) {
+        final docs = snap.data?.docs ?? const [];
+        if (docs.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text('آراء عملاؤنا في اليمن',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      color: T.text)),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 132,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: docs.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (_, i) {
+                  final d = docs[i].data();
+                  final rating = ((d['rating'] as num?) ?? 5).toInt();
+                  return Container(
+                    width: 210,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: T.card,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: T.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          ...List.generate(
+                              5,
+                              (s) => Icon(
+                                  s < rating ? Icons.star : Icons.star_border,
+                                  size: 12,
+                                  color: T.warning)),
+                          const Spacer(),
+                          Text('${d['governorate'] ?? ''}',
+                              style:
+                                  TextStyle(fontSize: 9, color: T.muted)),
+                        ]),
+                        const SizedBox(height: 4),
+                        Expanded(
+                          child: Text(
+                            ((d['text'] ?? '') as String).isEmpty
+                                ? 'تجربة ممتازة مع يمن سيلو'
+                                : d['text'] as String,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                TextStyle(fontSize: 10.5, color: T.text),
+                          ),
+                        ),
+                        Text(
+                            ((d['customerName'] ?? '') as String).isEmpty
+                                ? 'عميل يمن سيلو'
+                                : d['customerName'] as String,
+                            style: TextStyle(fontSize: 9, color: T.primary)),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

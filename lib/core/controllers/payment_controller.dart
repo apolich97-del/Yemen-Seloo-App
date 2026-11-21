@@ -15,6 +15,8 @@ import '../../features/orders/order_confirmed_screen.dart';
 import '../services/auth_service.dart';
 import '../models/cart.dart';
 import '../services/order_service.dart';
+import '../services/wallet_service.dart';
+import '../services/settings_service.dart';
 import 'checkout_controller.dart';
 
 /// بيانات الحوالة كما يدخلها العميل في نافذة «بيانات الحوالة».
@@ -286,6 +288,19 @@ class PaymentController extends GetxController {
               .value,
         },
       );
+      if (payload.walletUseSar > 0 &&
+          Get.isRegistered<WalletService>()) {
+        await Get.find<WalletService>().debit(
+          amountSar: payload.walletUseSar,
+          amountLocal: payload.walletUseSar *
+              (Get.isRegistered<SettingsService>()
+                  ? (currency == AppCurrency.north
+                      ? Get.find<SettingsService>().settings.value.rateNorth
+                      : Get.find<SettingsService>().settings.value.rateSouth)
+                  : 1),
+          note: 'خصم من المحفظة — طلب $orderNo',
+        );
+      }
       _cart.clear();
       final buf = StringBuffer()
         ..writeln('طلب جديد من تطبيق يمن سيلو')

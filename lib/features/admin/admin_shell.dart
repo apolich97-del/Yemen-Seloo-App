@@ -11,6 +11,8 @@ import 'support_tab.dart';
 import 'settings_tab.dart';
 import 'shipping_tab.dart';
 import '../catalog/presentation/catalog_studio_tab.dart';
+import 'reviews_tab.dart';
+import 'wallet_requests_tab.dart';
 
 /// المرحلة 5 — لوحة الإدارة (تعمل على الويب والجوال بنفس الكود).
 /// الأدوار: manager / support / shipping / courier / accounting
@@ -41,6 +43,8 @@ class _AdminShellState extends State<AdminShell> {
     const ship = _TabDef('الشحن', Icons.local_shipping_outlined);
     const settings = _TabDef('الإعدادات', Icons.settings_outlined);
     const catalog = _TabDef('استوديو الكتالوج', Icons.inventory_2_outlined);
+    const reviews = _TabDef('آراء العملاء', Icons.rate_review_outlined);
+    const withdrawals = _TabDef('طلبات السحب', Icons.savings_outlined);
     switch (role) {
       case 'accounting':
         return [pays, receipts, orders];
@@ -53,7 +57,7 @@ class _AdminShellState extends State<AdminShell> {
         // مسوّق الكتالوج: الاستوديو والطلبات فقط — بلا مدفوعات أو إعدادات أو فريق.
         return [catalog, orders];
       default:
-        return [dash, orders, catalog, pays, receipts, support, ship, settings];
+        return [dash, orders, catalog, pays, receipts, withdrawals, reviews, support, ship, settings];
     }
   }
 
@@ -83,6 +87,8 @@ class _AdminShellState extends State<AdminShell> {
         'دعم العملاء' => const AdminSupportTab(),
         'الشحن' => const ShippingTab(),
         'استوديو الكتالوج' => const CatalogStudioTab(),
+        'آراء العملاء' => const AdminReviewsTab(),
+        'طلبات السحب' => const WalletRequestsTab(),
         _ => const SettingsTab(),
       };
       if (wide) {

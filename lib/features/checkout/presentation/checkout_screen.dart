@@ -11,6 +11,7 @@ import '../../../core/services/order_documents.dart';
 import '../../../core/services/settings_service.dart';
 import '../../cart/presentation/cart_share_card.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/services/wallet_service.dart';
 
 /// المرحلة 1 — «ملخص الطلب / إكمال الطلب»
 class CheckoutScreen extends GetView<CheckoutController> {
@@ -74,6 +75,8 @@ class CheckoutScreen extends GetView<CheckoutController> {
             _currencyCard(context),
             const SizedBox(height: 12),
             _planCard(context),
+            const SizedBox(height: 12),
+            _walletCard(context),
             const SizedBox(height: 12),
             _summaryCard(context),
             const SizedBox(height: 12),
@@ -643,6 +646,71 @@ class CheckoutScreen extends GetView<CheckoutController> {
           ],
         );
       }),
+    );
+  }
+
+  /// الخصم من رصيد المحفظة (كلياً أو جزئياً).
+  Widget _walletCard(BuildContext context) {
+    final controller = Get.find<CheckoutController>();
+    final wallet = Get.put(WalletService(), permanent: false);
+    final amount = TextEditingController();
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: wallet.watch(),
+      builder: (context, snap) {
+        final bal = ((snap.data?['balanceSar'] as num?) ?? 0).toDouble();
+        if (bal <= 0) return const SizedBox.shrink();
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: T.card,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: T.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Icon(Icons.account_balance_wallet_outlined,
+                    size: 18, color: T.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('الخصم من رصيد المحفظة',
+                      style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                          color: T.text)),
+                ),
+                Text('${bal.toStringAsFixed(2)} ر.س',
+                    style: TextStyle(fontSize: 11, color: T.muted)),
+              ]),
+              Row(children: [
+                Expanded(
+                  child: TextField(
+                    controller: amount,
+                    keyboardType: TextInputType.number,
+                    onChanged: (v) {
+                      final x = double.tryParse(v.trim()) ?? 0;
+                      controller.walletUseSar.value =
+                          x > bal ? bal : (x < 0 ? 0 : x);
+                    },
+                    decoration: const InputDecoration(
+                        labelText: 'المبلغ المخصوم (اختياري)',
+                        isDense: true),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: () {
+                    amount.text = bal.toStringAsFixed(2);
+                    controller.walletUseSar.value = bal;
+                  },
+                  child: const Text('الكل', style: TextStyle(fontSize: 11)),
+                ),
+              ]),
+            ],
+          ),
+        );
+      },
     );
   }
 

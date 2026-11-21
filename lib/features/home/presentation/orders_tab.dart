@@ -9,6 +9,8 @@ import '../../../core/models/order.dart';
 import '../../../core/models/refund.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../orders/refund_detail_screen.dart';
+import '../../reviews/review_dialog.dart';
+import '../../../core/services/review_service.dart';
 
 /// تبويب «طلباتي» للعميل: بحث + طلبات + إرجاع/استرداد الأموال.
 class OrdersTab extends StatefulWidget {
@@ -81,6 +83,7 @@ class _OrdersTabState extends State<OrdersTab>
           tabs: const [
             Tab(text: 'طلباتي'),
             Tab(text: 'إرجاع / استرداد الأموال'),
+            Tab(text: 'تعليق'),
           ],
         ),
       ),
@@ -136,6 +139,7 @@ class _OrdersTabState extends State<OrdersTab>
                   children: [
                     _list(rows, onlyWithRefunds: false),
                     _list(rows, onlyWithRefunds: true),
+                    _pendingReview(rows),
                   ],
                 );
               },
@@ -146,7 +150,91 @@ class _OrdersTabState extends State<OrdersTab>
     );
   }
 
-  Widget _list(List<_Row> rows, {required bool onlyWithRefunds}) {
+  /// تبويب «تعليق»: طلبات سُلّمت ولم تُقيّم بعد.
+  Widget _pendingReview(List<_Row> rows) {
+    final delivered = rows
+        .where((r) => r.order.status == OrderStatus.delivered)
+        .toList();
+    final svc = Get.put(ReviewService(), permanent: false);
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: svc.mine(),
+      builder: (context, snap) {
+        final reviewed = (snap.data?.docs ?? const [])
+            .map((d) => (d.data()['orderId'] ?? '') as String)
+            .toSet();
+        final pending =
+            delivered.where((r) => !reviewed.contains(r.order.id)).toList();
+        if (pending.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.rate_review_outlined, size: 54, color: T.muted),
+                  const SizedBox(height: 10),
+                  Text('لا توجد طلبات بانتظار تقييمك',
+                      style: TextStyle(fontSize: 12.5, color: T.muted)),
+                ],
+              ),
+            ),
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(12, 6, 12, 16),
+          itemCount: pending.length,
+          itemBuilder: (_, i) {
+            final o = pending[i].order;
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: T.card,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: T.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Icon(Icons.check_circle_outline,
+                        size: 16, color: T.success),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(o.orderNo,
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                              color: T.primary)),
+                    ),
+                    Text('تم التسليم',
+                        style: TextStyle(fontSize: 10, color: T.success)),
+                  ]),
+                  const SizedBox(height: 4),
+                  Text('${o.items.length} قطعة · سجّل تجربتك وساعد غيرك',
+                      style: TextStyle(fontSize: 10.5, color: T.muted)),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => showReviewDialog(o),
+                      style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(0, 34)),
+                      icon: const Icon(Icons.star_border, size: 16),
+                      label: const Text('قيّم الآن',
+                          style: TextStyle(fontSize: 11)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _list(List<_Row> rows, {bool onlyWithRefunds = false}) {
     final list = onlyWithRefunds
         ? rows.where((r) => r.refunds.isNotEmpty).toList()
         : rows;

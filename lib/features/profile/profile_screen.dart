@@ -3,7 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/services/wallet_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../wallet/wallet_screen.dart';
 import '../../core/widgets/brand_header.dart';
 import '../../core/widgets/brand_logo.dart';
 import '../../core/theme/theme_controller.dart';
@@ -94,6 +96,8 @@ class ProfileScreen extends GetView<ProfileController> {
           padding: const EdgeInsets.all(16),
           children: [
             _identity(u),
+            const SizedBox(height: 12),
+            _walletCard(),
             const SizedBox(height: 12),
             const _OrderShortcuts(),
             const SizedBox(height: 12),
@@ -520,3 +524,49 @@ class _Shortcut {
   final VoidCallback onTap;
   const _Shortcut(this.label, this.icon, this.count, this.onTap);
 }
+
+
+  /// بطاقة «محفظتي» — الرصيد والحركات وطلب السحب.
+  Widget _walletCard() {
+    final svc = Get.put(WalletService(), permanent: false);
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: svc.watch(),
+      builder: (context, snap) {
+        final bal = ((snap.data?['balanceSar'] as num?) ?? 0).toDouble();
+        return InkWell(
+          onTap: () => Get.to(() => const WalletScreen()),
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: T.card,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: T.border),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.account_balance_wallet_outlined,
+                    size: 22, color: T.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('محفظتي',
+                          style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w900,
+                              color: T.text)),
+                      Text('الرصيد ${bal.toStringAsFixed(2)} ر.س',
+                          style: TextStyle(fontSize: 10.5, color: T.muted)),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_left, size: 18, color: T.muted),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }

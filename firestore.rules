@@ -146,6 +146,36 @@ service cloud.firestore {
         && request.resource.data.value == resource.data.value + 1;
       allow delete: if staff();
     }
+    // محفظة العميل: يقرأ رصيده، والفريق يضيف الرصيد
+    match /wallets/{uid} {
+      allow read: if auth() && (uid == me() || staff());
+      allow create, update: if staff();
+      // العميل يخصم من رصيده فقط (عند الشراء) دون زيادته
+      allow update: if auth() && uid == me()
+        && request.resource.data.balanceSar is number
+        && request.resource.data.balanceSar <= resource.data.balanceSar;
+      allow delete: if isMainManager();
+    }
+    // طلبات السحب النقدي
+    match /wallet_requests/{r} {
+      allow read: if auth() && (resource.data.userId == me() || staff());
+      allow create: if auth() && request.resource.data.userId == me()
+        && request.resource.data.status == 'pending'
+        && request.resource.data.amountSar is number
+        && request.resource.data.amountSar > 0;
+      allow update, delete: if staff();
+    }
+    // تقييمات العملاء: تُنشر بعد المراجعة فقط
+    match /reviews/{r} {
+      allow read: if true;
+      allow create: if auth() && request.resource.data.userId == me()
+        && request.resource.data.status == 'pending'
+        && request.resource.data.rating is number
+        && request.resource.data.photoUrl is string
+        && request.resource.data.photoUrl.size() > 0;
+      allow update: if staff();
+      allow delete: if staff();
+    }
     match /meta/{m} { allow read: if true; allow write: if staff(); }
     match /alerts/{a} { allow read, update: if staff(); allow create: if false; }
     // تنبيهات الموظفين (مثل إلغاء طلب مدفوع) — العميل ينشئ، الفريق يقرأ
