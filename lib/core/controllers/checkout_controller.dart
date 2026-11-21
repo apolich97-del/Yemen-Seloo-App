@@ -10,6 +10,7 @@ import '../models/order.dart';
 import '../routes/app_routes.dart';
 import '../services/auth_service.dart';
 import '../services/order_service.dart';
+import '../../features/cart/application/cart_counter.dart';
 import '../services/pricing_service.dart';
 import '../services/settings_service.dart';
 
@@ -62,7 +63,14 @@ class CheckoutController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    lines.assignAll(_cart.read());
+    final all = _cart.read();
+    // إن حدد العميل قطعاً في السلة تُحسب الفاتورة على المحدد فقط.
+    Set<String> sel = const <String>{};
+    if (Get.isRegistered<CartCounter>()) {
+      sel = Get.find<CartCounter>().selectedVariantKeys;
+    }
+    lines.assignAll(
+        sel.isEmpty ? all : all.where((l) => sel.contains(l.variantKey)).toList());
     currency.value = AppCurrencyX.fromKey(_store.read<String>(_currencyKey));
     _settings.displayCurrency.value = currency.value;
     _loadAddress();

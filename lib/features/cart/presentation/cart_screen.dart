@@ -14,6 +14,7 @@ import '../../shein/data/shein_image_resolver.dart';
 import '../application/cart_counter.dart';
 import '../data/seloo_cart_link.dart';
 import '../../../core/services/catalog_service.dart';
+import '../../catalog/data/catalog_repository.dart';
 import '../../../core/services/cart_share.dart';
 import '../../guide/interactive_guide.dart';
 import '../domain/cart_item.dart';
@@ -46,15 +47,14 @@ class _CartScreenState extends State<CartScreen> {
 
   bool _importing = false;
 
-  /// الأسطر المحددة للمشاركة أو الحذف
-  final Set<String> _selected = <String>{};
+  Set<String> get _selected => _cart.selected;
 
   bool _isSelected(CartItem item) => _selected.contains(item.lineId);
 
   void _toggleSelect(CartItem item) {
-    setState(() {
-      if (!_selected.add(item.lineId)) _selected.remove(item.lineId);
-    });
+    if (!_cart.selected.add(item.lineId)) {
+      _cart.selected.remove(item.lineId);
+    }
   }
 
   void _toggleSelectAll() {
@@ -69,8 +69,130 @@ class _CartScreenState extends State<CartScreen> {
     });
   }
 
-  List<CartItem> get _selectedItems =>
-      _cart.items.where((CartItem e) => _selected.contains(e.lineId)).toList();
+  List<CartItem> get _selectedItems => _cart.selectedItems;
+
+  /// نافذة سريعة لتغيير اللون أو المقاس دون مغادرة السلة.
+  Future<void> _editVariant(CartItem item) async {
+    final colorCtrl = TextEditingController(text: item.color);
+    final sizeCtrl = TextEditingController(text: item.size);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: T.card,
+        title: Text('تعديل اللون والمقاس',
+            style: TextStyle(fontSize: 14, color: T.text)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            TextField(
+              controller: colorCtrl,
+              style: TextStyle(color: T.text),
+              decoration: const InputDecoration(labelText: 'اللون'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: sizeCtrl,
+              style: TextStyle(color: T.text),
+              decoration: const InputDecoration(labelText: 'المقاس'),
+            ),
+          ],
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await _cart.updateVariant(item,
+        color: colorCtrl.text.trim(), size: sizeCtrl.text.trim());
+    _snack('تم تحديث اللون والمقاس');
+  }
+
+  /// منتجات مقاربة من كتالوج يمن سيلو + بحث مباشر في SHEIN.
+  Future<void> _showSimilar(CartItem item) async {
+    final words = item.title
+        .split(RegExp(r'\s+'))
+        .where((w) => w.length > 2)
+        .take(4)
+        .toList();
+    final query = words.join(' ');
+    final items = await Get.put(CatalogRepository(), permanent: false)
+        .activeItems()
+        .first;
+    final scored = items
+        .where((c) => words.any((w) => c.title.contains(w)))
+        .take(8)
+        .toList();
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: T.card,
+        title: Text('منتجات مشابهة',
+            style: TextStyle(fontSize: 14, color: T.text)),
+        content: SizedBox(
+          width: 340,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              if (scored.isEmpty)
+                Text('لا توجد قطع مقاربة في الكتالوج المحلي بعد',
+                    style: TextStyle(fontSize: 11.5, color: T.muted)),
+              for (final c in scored)
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(c.imageUrl,
+                        width: 42,
+                        height: 42,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Icon(
+                            Icons.image_not_supported_outlined,
+                            size: 20,
+                            color: T.muted)),
+                  ),
+                  title: Text(c.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 11.5, color: T.text)),
+                  subtitle: Text('${c.basePriceSar.toStringAsFixed(0)} ر.س',
+                      style: TextStyle(fontSize: 10.5, color: T.primary)),
+                ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => launchUrl(
+                    Uri.parse(
+                        'https://m.shein.com/ar/pdsearch/${Uri.encodeComponent(query)}/'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                  icon: const Icon(Icons.search, size: 16),
+                  label: const Text('ابحث عن مشابه في SHEIN',
+                      style: TextStyle(fontSize: 11.5)),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إغلاق'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -1107,6 +1229,8 @@ class _CartScreenState extends State<CartScreen> {
                         compact: true,
                       ),
                       const SizedBox(height: 12),
+                      _SelectedSummary(cart: _cart),
+                      const SizedBox(height: 10),
                       _buildImportSheinCartButton(),
                       const SizedBox(height: 10),
                       ..._cart.items.map(
@@ -1119,6 +1243,8 @@ class _CartScreenState extends State<CartScreen> {
                             onRemove: () => _run(() => _cart.remove(item)),
                             onEdit: () => _cart.startEditing(item),
                             onBrowse: () => _browseProduct(item),
+                            onVariant: () => _editVariant(item),
+                            onSimilar: () => _showSimilar(item),
                             selected: _isSelected(item),
                             onSelect: () => _toggleSelect(item),
                           ),
@@ -1418,6 +1544,8 @@ class _CartLineTile extends StatelessWidget {
     required this.onBrowse,
     required this.selected,
     required this.onSelect,
+    required this.onVariant,
+    required this.onSimilar,
   });
 
   final CartItem item;
@@ -1427,6 +1555,8 @@ class _CartLineTile extends StatelessWidget {
   final VoidCallback onBrowse;
   final bool selected;
   final VoidCallback onSelect;
+  final VoidCallback onVariant;
+  final VoidCallback onSimilar;
 
   /// سعر المنتج بعملة المنطقة المختارة — يتغير تلقائياً مع تغيير المنطقة
   String _localPrice(CartItem item) {
@@ -1556,17 +1686,34 @@ class _CartLineTile extends StatelessWidget {
                           runSpacing: 4,
                           children: <Widget>[
                             if (item.color.isNotEmpty)
-                              _InfoChip(
-                                label: 'اللون',
-                                value: item.color,
-                                color: _purple,
+                              InkWell(
+                                onTap: onVariant,
+                                borderRadius: BorderRadius.circular(20),
+                                child: _InfoChip(
+                                  label: 'اللون',
+                                  value: item.color,
+                                  color: _purple,
+                                ),
                               ),
                             if (item.size.isNotEmpty)
-                              _InfoChip(
-                                label: 'المقاس',
-                                value: item.size,
-                                color: _orange,
+                              InkWell(
+                                onTap: onVariant,
+                                borderRadius: BorderRadius.circular(20),
+                                child: _InfoChip(
+                                  label: 'المقاس',
+                                  value: item.size,
+                                  color: _orange,
+                                ),
                               ),
+                            InkWell(
+                              onTap: onVariant,
+                              borderRadius: BorderRadius.circular(20),
+                              child: _InfoChip(
+                                label: 'تعديل',
+                                value: 'اللون/المقاس',
+                                color: T.primary,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -1616,6 +1763,18 @@ class _CartLineTile extends StatelessWidget {
                 onTap: () => onQuantity(item.quantity + 1),
               ),
               const Spacer(),
+              TextButton.icon(
+                onPressed: onSimilar,
+                style: TextButton.styleFrom(
+                  foregroundColor: T.primary,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  minimumSize: const Size(0, 32),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                icon: const Icon(Icons.auto_awesome_outlined, size: 15),
+                label: const Text('منتجات مشابهة',
+                    style: TextStyle(fontSize: 10.5)),
+              ),
               IconButton(
                 onPressed: onEdit,
                 icon: const Icon(
@@ -2260,5 +2419,82 @@ class ShippingProgressBar extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+
+/// ملخص القطع المحددة فقط: الإجمالي الصافي وشريط التقدم نحو الشحن المجاني.
+class _SelectedSummary extends StatelessWidget {
+  const _SelectedSummary({required this.cart});
+
+  final CartCounter cart;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final sel = cart.selectedItems;
+      final sar = sel.fold<double>(0, (a, e) => a + e.sourcePrice * e.quantity);
+      final local =
+          sel.fold<double>(0, (a, e) => a + e.unitPriceLocal * e.quantity);
+      final threshold = Get.isRegistered<SettingsService>()
+          ? Get.find<SettingsService>().settings.value.freeShippingThresholdSar
+          : 300;
+      final progress = threshold <= 0 ? 1.0 : (sar / threshold).clamp(0.0, 1.0);
+      final remaining = (threshold - sar).clamp(0.0, threshold);
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: T.card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: T.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Icon(Icons.check_circle_outline, size: 16, color: T.primary),
+                const SizedBox(width: 6),
+                Text('المحدد للفاتورة: ${sel.length} قطعة',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: T.text)),
+                const Spacer(),
+                Text('${sar.toStringAsFixed(2)} ر.س',
+                    style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w900,
+                        color: T.primary)),
+              ],
+            ),
+            if (local > 0) ...[
+              const SizedBox(height: 2),
+              Text('ما يعادلها: ${local.toStringAsFixed(0)}',
+                  style: TextStyle(fontSize: 10.5, color: T.muted)),
+            ],
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 7,
+                backgroundColor: T.border,
+                color: T.primary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              remaining <= 0
+                  ? 'أهلية الشحن المجاني والدفع الآجل 50% مؤكدة لهذه القطع'
+                  : 'أضف ${remaining.toStringAsFixed(0)} ر.س من المحدد للشحن المجاني',
+              style: TextStyle(
+                  fontSize: 10.5,
+                  color: remaining <= 0 ? T.success : T.muted),
+            ),
+          ],
+        ),
+      );
+    });
   }
 }

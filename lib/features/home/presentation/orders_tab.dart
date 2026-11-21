@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../core/models/currency.dart';
+import '../../../core/routes/app_routes.dart';
 import '../../../core/models/order.dart';
 import '../../../core/models/refund.dart';
 import '../../../core/theme/app_theme.dart';
@@ -251,6 +252,29 @@ class _OrdersTabState extends State<OrdersTab>
                   style: TextStyle(fontSize: 10, color: T.muted)),
             ],
           ),
+          // زر «إيصال» للطلبات الآجلة — متابعة الدفعات بضغطة واحدة
+          if (o.paymentPlan == 'deferred' || o.hasRemaining) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => Get.toNamed(AppRoutes.myReceipts),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: T.primary,
+                  side: BorderSide(color: T.primary.withOpacity(.4)),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  minimumSize: const Size(0, 34),
+                ),
+                icon: const Icon(Icons.receipt_outlined, size: 15),
+                label: Text(
+                  o.hasRemaining
+                      ? 'إيصال · متبقي ${formatMoney(o.remainingLocal, o.currency)}'
+                      : 'إيصال',
+                  style: const TextStyle(fontSize: 10.5),
+                ),
+              ),
+            ),
+          ],
           if (r.refunds.isNotEmpty) ...[
             const SizedBox(height: 10),
             InkWell(

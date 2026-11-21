@@ -19,6 +19,48 @@ class CartCounter extends GetxService {
   static const String _kRegion = 'seloo_region';
 
   final RxList<CartItem> items = <CartItem>[].obs;
+
+  /// الأسطر المحددة للفاتورة/المشاركة/الحذف (lineId).
+  final RxSet<String> selected = <String>{}.obs;
+
+  /// القطع المحددة فقط — هي ما يدخل في الفاتورة والتقدم نحو الشحن المجاني.
+  List<CartItem> get selectedItems =>
+      items.where((e) => selected.contains(e.lineId)).toList();
+
+  /// مفاتيح المحدد بصيغة goodsId|color|size لمطابقة أسطر الفاتورة.
+  Set<String> get selectedVariantKeys => selectedItems
+      .map((e) => '${e.goodsId.trim()}|${e.color.trim()}|${e.size.trim()}')
+      .toSet();
+
+  /// تغيير اللون أو المقاس داخل السلة دون مغادرتها.
+  Future<void> updateVariant(CartItem item,
+      {String? color, String? size}) async {
+    final list = _service.loadItems();
+    final i = list.indexWhere((e) => e.lineId == item.lineId);
+    if (i < 0) return;
+    final old = list[i];
+    list[i] = CartItem(
+      lineId: old.lineId,
+      goodsId: old.goodsId,
+      title: old.title,
+      imageUrl: old.imageUrl,
+      sourceUrl: old.sourceUrl,
+      sourcePrice: old.sourcePrice,
+      sourceCurrency: old.sourceCurrency,
+      exchangeRate: old.exchangeRate,
+      quantity: old.quantity,
+      color: color ?? old.color,
+      size: size ?? old.size,
+      options: old.options,
+      sourceStore: old.sourceStore,
+      deliveryLocal: old.deliveryLocal,
+      sku: old.sku,
+      variantId: old.variantId,
+    );
+    await _service.saveItems(list);
+    items.assignAll(list);
+    await _reload();
+  }
   final Rx<CartQuote?> quote = Rx<CartQuote?>(null);
   final RxBool busy = false.obs;
   final RxnString lastError = RxnString();
