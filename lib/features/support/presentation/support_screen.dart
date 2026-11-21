@@ -56,11 +56,11 @@ class _SupportScreenState extends State<SupportScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: Text(title),
-          bottom: const TabBar(
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white70,
-            indicatorColor: AppColors.accent,
-            tabs: [
+          bottom: TabBar(
+            labelColor: T.primary,
+            unselectedLabelColor: T.muted,
+            indicatorColor: T.primary,
+            tabs: const [
               Tab(text: 'الدليل الإرشادي', icon: Icon(Icons.menu_book, size: 18)),
               Tab(text: 'المساعد والدردشة', icon: Icon(Icons.chat_bubble_outline, size: 18)),
             ],

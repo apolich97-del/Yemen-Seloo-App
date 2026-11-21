@@ -8,6 +8,7 @@ import '../../core/services/auth_service.dart';
 import '../../core/services/order_service.dart';
 import '../../core/theme/app_theme.dart';
 import 'order_preview_sheet.dart';
+import '../orders/order_detail_screen.dart';
 import 'role_guard.dart';
 
 /// إدارة الطلبات: تغيير الحالة + رقم التتبع + تعيين المندوب.
@@ -107,7 +108,7 @@ class _OrdersTabState extends State<OrdersTab> {
                 children: [
                   Expanded(
                     child: InkWell(
-                      onTap: () => showOrderPreview(o),
+                      onTap: () => Get.to(() => const OrderDetailScreen(), arguments: o.id),
                       child: Row(
                         children: [
                           Flexible(

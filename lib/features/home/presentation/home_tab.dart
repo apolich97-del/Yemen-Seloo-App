@@ -139,6 +139,26 @@ class HomeTab extends StatelessWidget {
                 children: <Widget>[
                   Expanded(
                     child: _ServiceTile(
+                      icon: Icons.receipt_long_outlined,
+                      title: 'طلباتي',
+                      onTap: () => Get.find<MainTabController>().goTo(3),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _ServiceTile(
+                      icon: Icons.picture_as_pdf_outlined,
+                      title: 'إيصال',
+                      onTap: () => Get.toNamed(AppRoutes.myReceipts),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: _ServiceTile(
                       icon: Icons.local_shipping_outlined,
                       title: 'شحن موثوق',
                       onTap: () => Get.find<MainTabController>().goTo(3),

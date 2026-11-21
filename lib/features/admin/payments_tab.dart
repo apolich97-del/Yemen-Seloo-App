@@ -7,7 +7,7 @@ import '../../core/models/currency.dart';
 import '../../core/models/order.dart';
 import '../../core/services/order_service.dart';
 import '../../core/theme/app_theme.dart';
-import 'order_preview_sheet.dart';
+import '../orders/order_detail_screen.dart';
 import 'role_guard.dart';
 
 /// مراجعة الحوالات: العميل أدخل اسم المرسل ورقم العملية ← المحاسب يؤكد أو يرفض.
@@ -69,7 +69,7 @@ class PaymentsTab extends StatelessWidget {
                       Row(
                         children: [
                           InkWell(
-                            onTap: () => showOrderPreview(o),
+                            onTap: () => Get.to(() => const OrderDetailScreen(), arguments: o.id),
                             child: Text(o.orderNo,
                                 style: TextStyle(
                                     fontSize: 14,

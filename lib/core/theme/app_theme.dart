@@ -51,6 +51,13 @@ class T {
       dark ? const Color(0xFFE0C264) : AppColors.accent;
 
   /// سطح أعلى قليلاً (حقول، قوائم).
+  // ألوان دلالية متجاوبة مع الوضعين النهاري والليلي.
+  static Color get success => dark ? const Color(0xFF4ADE80) : const Color(0xFF15803D);
+  static Color get warning => dark ? const Color(0xFFFBBF24) : const Color(0xFFB26A00);
+  static Color get danger => dark ? const Color(0xFFF87171) : const Color(0xFFB91C1C);
+  static Color get info => dark ? const Color(0xFF7DD3FC) : const Color(0xFF1A56DB);
+  static Color get whatsapp => const Color(0xFF25D366);
+
   /// سطح الأشرطة والألواح (الشريط السفلي، التبويبات) — يتبدّل مع الثيم.
   static Color get surface => dark ? const Color(0xFF1A1233) : const Color(0xFFFFFFFF);
 

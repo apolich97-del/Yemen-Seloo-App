@@ -11,7 +11,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../features/cart/application/cart_counter.dart';
 import '../config/payment_accounts.dart';
 import '../models/currency.dart';
-import '../routes/app_routes.dart';
+import '../../features/orders/order_confirmed_screen.dart';
 import '../services/auth_service.dart';
 import '../models/cart.dart';
 import '../services/order_service.dart';
@@ -286,12 +286,28 @@ class PaymentController extends GetxController {
         },
       );
       _cart.clear();
-      Get.offAllNamed(AppRoutes.orders);
-      Get.snackbar(
-        'تم إرسال الطلب',
-        'رقم الطلب $orderNo — سيُفعّل بعد تأكيد الحوالة من المحاسبة',
-        duration: const Duration(seconds: 5),
-      );
+      final buf = StringBuffer()
+        ..writeln('طلب جديد من تطبيق يمن سيلو')
+        ..writeln('رقم الطلب: $orderNo')
+        ..writeln('العميل: ${payload.address.receiverName} — ${payload.address.phone}')
+        ..writeln('العنوان: ${payload.address.fullAr}')
+        ..writeln('القطع:');
+      for (final l in payload.lines) {
+        buf.writeln('• ${l.titleAr}'
+            '${l.color.isEmpty ? '' : ' | لون: ${l.color}'}'
+            '${l.size.isEmpty ? '' : ' | مقاس: ${l.size}'}'
+            ' × ${l.qty} = ${l.unitPriceSar.toStringAsFixed(2)} SAR');
+      }
+      buf
+        ..writeln('الإجمالي: ${payload.estimate.totalLocal.toStringAsFixed(0)} '
+            '(${currency.key})')
+        ..writeln('خطة السداد: ${payload.paymentPlan}');
+      Get.offAll(() => OrderConfirmedScreen(
+            orderNo: orderNo,
+            summary: buf.toString(),
+            totalLocal: payload.estimate.totalLocal,
+            currencyKey: currency.key,
+          ));
     } catch (e) {
       final msg = '$e';
       final hint = msg.contains('permission')

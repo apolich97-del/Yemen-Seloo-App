@@ -154,8 +154,8 @@ class ProfileScreen extends GetView<ProfileController> {
             const SizedBox(height: 12),
             TextButton.icon(
               onPressed: controller.signOut,
-              icon: const Icon(Icons.logout, color: AppColors.danger, size: 18),
-              label: const Text('تسجيل الخروج', style: TextStyle(color: AppColors.danger)),
+              icon: Icon(Icons.logout, color: T.danger, size: 18),
+              label: Text('تسجيل الخروج', style: TextStyle(color: T.danger)),
             ),
             const SizedBox(height: 24),
           ],
@@ -295,7 +295,7 @@ class ProfileScreen extends GetView<ProfileController> {
                       subtitle: Text(a.fullAr,
                           style: TextStyle(fontSize: 11.5, color: T.muted)),
                       trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.danger),
+                        icon: Icon(Icons.delete_outline, size: 18, color: T.danger),
                         onPressed: () => controller.deleteAddress(a.id),
                       ),
                     ))
@@ -487,7 +487,7 @@ class _OrderShortcuts extends StatelessWidget {
                             horizontal: 5, vertical: 1),
                         constraints: const BoxConstraints(minWidth: 17),
                         decoration: BoxDecoration(
-                          color: AppColors.danger,
+                          color: T.danger,
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: T.card, width: 1.4),
                         ),
