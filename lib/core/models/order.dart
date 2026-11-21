@@ -310,6 +310,30 @@ class Order {
   final OrderStatus status;
   final List<TimelineEvent> timeline;
   final PaymentInfo payment;
+  // ═══ تفاصيل التوصيل ═══
+  /// home | governorate | driver
+  final String shippingMode;
+  final String shippingGovernorate;
+  final String shippingOffice;
+  /// preferred | seloo
+  final String shippingOfficeChoice;
+  final String receiverName;
+  final String receiverPhone;
+  final String driverName;
+  final String driverPhone;
+  final String driverMeetPoint;
+
+  /// أجور نقل المحافظات المتفق عليها لاحقاً (بالعملة المحلية).
+  final double transportFeeLocal;
+  /// office (تُدفع عند الاستلام لمكتب النقل) | invoice (تُضاف لمتبقي الفاتورة)
+  final String transportFeeCollect;
+
+  String get shippingModeAr => switch (shippingMode) {
+        'governorate' => 'شحن للمحافظات عبر مكتب نقل',
+        'driver' => 'سائق خاص بالعميل',
+        _ => 'توصيل محلي للمنزل',
+      };
+
   final String trackingNo;
   final String courierName;
   final String proofImageUrl;
@@ -357,6 +381,17 @@ class Order {
     required this.updatedAt,
     this.couponCode = '',
     this.payment = const PaymentInfo(),
+    this.shippingMode = 'home',
+    this.shippingGovernorate = '',
+    this.shippingOffice = '',
+    this.shippingOfficeChoice = 'seloo',
+    this.receiverName = '',
+    this.receiverPhone = '',
+    this.driverName = '',
+    this.driverPhone = '',
+    this.driverMeetPoint = '',
+    this.transportFeeLocal = 0,
+    this.transportFeeCollect = 'office',
     this.trackingNo = '',
     this.courierName = '',
     this.proofImageUrl = '',
@@ -455,6 +490,17 @@ class Order {
       status: OrderStatusX.fromKey(m['status'] as String?),
       timeline: tl,
       payment: PaymentInfo.fromMap(m['payment'] == null ? null : Map<String, dynamic>.from(m['payment'] as Map)),
+      shippingMode: (m['shippingMode'] ?? 'home') as String,
+      shippingGovernorate: (m['shippingGovernorate'] ?? '') as String,
+      shippingOffice: (m['shippingOffice'] ?? '') as String,
+      shippingOfficeChoice: (m['shippingOfficeChoice'] ?? 'seloo') as String,
+      receiverName: (m['receiverName'] ?? '') as String,
+      receiverPhone: (m['receiverPhone'] ?? '') as String,
+      driverName: (m['driverName'] ?? '') as String,
+      driverPhone: (m['driverPhone'] ?? '') as String,
+      driverMeetPoint: (m['driverMeetPoint'] ?? '') as String,
+      transportFeeLocal: (m['transportFeeLocal'] as num?)?.toDouble() ?? 0,
+      transportFeeCollect: (m['transportFeeCollect'] ?? 'office') as String,
       trackingNo: (m['trackingNo'] ?? '') as String,
       courierName: (m['courierName'] ?? '') as String,
       proofImageUrl: (m['proofImageUrl'] ?? '') as String,

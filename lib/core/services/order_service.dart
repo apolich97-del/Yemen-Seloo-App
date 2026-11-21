@@ -68,6 +68,7 @@ class OrderService extends GetxService {
     PriceEstimate? estimate,
     String paymentPlan = 'full',
     double upfrontPercent = 100,
+    Map<String, dynamic> shipping = const <String, dynamic>{},
   }) async {
     if (lines.isEmpty) throw 'السلة فارغة';
     if (estimate == null) throw 'أعد فتح شاشة الملخص لحساب الإجمالي';
@@ -104,6 +105,17 @@ class OrderService extends GetxService {
             'unitPriceSar': l.unitPriceSar,
             'productUrl': '',
           }).toList(),
+      'shippingMode': shipping['mode'] ?? 'home',
+      'shippingGovernorate': shipping['governorate'] ?? '',
+      'shippingOffice': shipping['office'] ?? '',
+      'shippingOfficeChoice': shipping['officeChoice'] ?? 'seloo',
+      'receiverName': shipping['receiverName'] ?? address.receiverName,
+      'receiverPhone': shipping['receiverPhone'] ?? address.phone,
+      'driverName': shipping['driverName'] ?? '',
+      'driverPhone': shipping['driverPhone'] ?? '',
+      'driverMeetPoint': shipping['meetPoint'] ?? '',
+      'transportFeeLocal': 0,
+      'transportFeeCollect': 'office',
       'deliveryMinDays': 15,
       'deliveryMaxDays': 20,
       'subtotalSar': e.subtotalSar,
@@ -196,6 +208,30 @@ class OrderService extends GetxService {
       'at': Timestamp.now(),
       'byName': _email,
       'note': note,
+    });
+  }
+
+  /// اتفاق نقل المحافظات: السعر المتفق عليه وطريقة التحصيل.
+  Future<void> setTransportFee({
+    required String orderId,
+    required double feeLocal,
+    required String collect,
+  }) async {
+    final r = _db.collection('orders').doc(orderId);
+    final d = await r.get();
+    final remaining = (d.data()?['remainingLocal'] as num?)?.toDouble() ?? 0;
+    await r.update({
+      'transportFeeLocal': feeLocal,
+      'transportFeeCollect': collect,
+      if (collect == 'invoice') 'remainingLocal': remaining + feeLocal,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    await r.collection('events').add({
+      'status': d.data()?['status'] ?? '',
+      'at': Timestamp.now(),
+      'byName': _email,
+      'note': 'اتفاق نقل المحافظات: $feeLocal — '
+          '${collect == 'office' ? 'تُدفع لمكتب النقل' : 'أُضيفت للمتبقي'}',
     });
   }
 

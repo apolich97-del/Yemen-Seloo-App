@@ -370,6 +370,24 @@ class OrderDocuments {
             kv('المستلم', o.address.receiverName),
             kv('الهاتف', o.address.phone),
             kv('العنوان', o.address.fullAr),
+            kv('طريقة التوصيل', o.shippingModeAr),
+            if (o.shippingMode == 'governorate') ...[
+              kv('المحافظة', o.shippingGovernorate),
+              kv('مكتب النقل',
+                  o.shippingOffice.isEmpty ? 'يمن سيلو يختار' : o.shippingOffice),
+              if (o.receiverName.isNotEmpty)
+                kv('المستلم بالمكتب', '${o.receiverName} — ${o.receiverPhone}'),
+              kv('أجور النقل',
+                  o.transportFeeLocal > 0
+                      ? '${o.transportFeeLocal.toStringAsFixed(0)} — '
+                          '${o.transportFeeCollect == 'office' ? 'عند الاستلام لمكتب النقل' : 'على المتبقي'}'
+                      : 'بالاتفاق مع مكتب الشحن'),
+            ],
+            if (o.shippingMode == 'driver') ...[
+              kv('السائق', o.driverName),
+              kv('هاتف السائق', o.driverPhone),
+              kv('نقطة الالتقاء', o.driverMeetPoint),
+            ],
             kv('نوع العنوان', o.address.label),
             if (o.trackingNo.isNotEmpty) kv('رقم التتبع', o.trackingNo),
             if (o.courierName.isNotEmpty) kv('المندوب', o.courierName),

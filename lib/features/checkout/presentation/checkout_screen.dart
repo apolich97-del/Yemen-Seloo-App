@@ -67,6 +67,8 @@ class CheckoutScreen extends GetView<CheckoutController> {
             const SizedBox(height: 12),
             _addressCard(context),
             const SizedBox(height: 12),
+            _shippingCard(context),
+            const SizedBox(height: 12),
             _orderDetailsCard(context),
             const SizedBox(height: 12),
             _currencyCard(context),
@@ -223,6 +225,155 @@ class CheckoutScreen extends GetView<CheckoutController> {
           ],
         );
       }),
+    );
+  }
+
+  Widget _shippingCard(BuildContext context) {
+    final c = controller;
+    Widget opt(String key, String title, IconData icon) => Obx(() {
+          final on = c.shippingMode.value == key;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => c.shippingMode.value = key,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                decoration: BoxDecoration(
+                  color: on ? T.primary.withOpacity(.08) : T.soft,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: on ? T.primary : T.border,
+                      width: on ? 1.4 : 1),
+                ),
+                child: Row(
+                  children: [
+                    Icon(icon, size: 17, color: on ? T.primary : T.muted),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(title,
+                          style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: on ? T.primary : T.text)),
+                    ),
+                    Icon(on ? Icons.radio_button_checked : Icons.radio_button_off,
+                        size: 16, color: on ? T.primary : T.muted),
+                  ],
+                ),
+              ),
+            ),
+          );
+        });
+
+    Widget textField(TextEditingController ctrl, String label) => Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: TextField(
+            controller: ctrl,
+            decoration: InputDecoration(
+              labelText: label,
+              isDense: true,
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+        );
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: T.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: T.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(Icons.local_shipping_outlined, size: 18, color: T.primary),
+            const SizedBox(width: 8),
+            Text('طريقة التوصيل',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: T.text)),
+          ]),
+          const SizedBox(height: 10),
+          opt('home', 'توصيل محلي للمنزل (داخل المدينة)', Icons.home_outlined),
+          opt('governorate', 'شحن للمحافظات عبر مكتب نقل', Icons.warehouse_outlined),
+          opt('driver', 'سائق خاص بالعميل', Icons.person_pin_circle_outlined),
+          Obx(() {
+            switch (c.shippingMode.value) {
+              case 'governorate':
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: TextField(
+                        onChanged: (v) => c.shippingGovernorate.value = v,
+                        decoration: InputDecoration(
+                          labelText: 'المحافظة',
+                          isDense: true,
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: TextField(
+                        onChanged: (v) => c.shippingOffice.value = v,
+                        decoration: InputDecoration(
+                          labelText: 'اسم مكتب النقل المفضل (اختياري)',
+                          isDense: true,
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
+                    Obx(() => CheckboxListTile(
+                          value: c.shippingOfficeChoice.value == 'seloo',
+                          onChanged: (v) => c.shippingOfficeChoice.value =
+                              v == true ? 'seloo' : 'preferred',
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          title: Text('يمن سيلو يختار أنسب مكتب',
+                              style: TextStyle(fontSize: 11, color: T.text)),
+                        )),
+                    textField(c.receiverNameCtrl, 'اسم المستلم'),
+                    textField(c.receiverPhoneCtrl, 'رقم المستلم'),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(9),
+                      decoration: BoxDecoration(
+                        color: T.warning.withOpacity(.10),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: T.warning.withOpacity(.35)),
+                      ),
+                      child: Text(
+                        'رسوم نقل المحافظات تُحدَّد بالاتفاق مع يمن سيلو ومكتب الشحن، ولا تُدفع مسبقاً.',
+                        style: TextStyle(
+                            fontSize: 10.5, height: 1.5, color: T.text),
+                      ),
+                    ),
+                  ],
+                );
+              case 'driver':
+                return Column(
+                  children: [
+                    textField(c.driverNameCtrl, 'اسم السائق'),
+                    textField(c.driverPhoneCtrl, 'رقم هاتف السائق'),
+                    textField(c.meetPointCtrl, 'نقطة الالتقاء'),
+                  ],
+                );
+              default:
+                return const SizedBox.shrink();
+            }
+          }),
+        ],
+      ),
     );
   }
 

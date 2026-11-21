@@ -249,6 +249,7 @@ class PaymentController extends GetxController {
         estimate: payload.estimate,
         paymentPlan: payload.paymentPlan,
         upfrontPercent: payload.upfrontPercent,
+        shipping: payload.shipping,
         payment: {
           'accountId': acc.id,
           'accountTitleAr': acc.titleAr,
@@ -298,7 +299,9 @@ class PaymentController extends GetxController {
             '${l.size.isEmpty ? '' : ' | مقاس: ${l.size}'}'
             ' × ${l.qty} = ${l.unitPriceSar.toStringAsFixed(2)} SAR');
       }
+      final sm = payload.shipping;
       buf
+        ..writeln('التوصيل: ${sm['mode'] == 'governorate' ? 'مكتب نقل — ${sm['governorate']} — ${(sm['office'] as String).isEmpty ? 'يمن سيلو يختار أنسب مكتب' : sm['office']}' : sm['mode'] == 'driver' ? 'سائق خاص: ${sm['driverName']} — ${sm['driverPhone']} — التقاء: ${sm['meetPoint']}' : 'توصيل محلي للمنزل'}')
         ..writeln('الإجمالي: ${payload.estimate.totalLocal.toStringAsFixed(0)} '
             '(${currency.key})')
         ..writeln('خطة السداد: ${payload.paymentPlan}');

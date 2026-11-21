@@ -143,6 +143,8 @@ class OrderDetailScreen extends StatelessWidget {
                       : 'طلب تسريع الشحن'),
                 ),
               ],
+              ShippingDetailsCard(order: o),
+              const SizedBox(height: 12),
               RefundsSection(order: o),
               const SizedBox(height: 12),
               _CancelCard(order: o),
@@ -1212,5 +1214,172 @@ class _CancelCardState extends State<_CancelCard> {
     } catch (e) {
       Get.snackbar('تعذر الإلغاء', '$e');
     }
+  }
+}
+
+
+/// تفاصيل التوصيل + صندوق اتفاق نقل المحافظات للموظف.
+class ShippingDetailsCard extends StatefulWidget {
+  const ShippingDetailsCard({super.key, required this.order});
+  final Order order;
+
+  @override
+  State<ShippingDetailsCard> createState() => _ShippingDetailsCardState();
+}
+
+class _ShippingDetailsCardState extends State<ShippingDetailsCard> {
+  final _fee = TextEditingController();
+  String _collect = 'office';
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _fee.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final v = double.tryParse(_fee.text.trim()) ?? 0;
+    if (v <= 0) {
+      Get.snackbar('المبلغ مطلوب', 'أدخل سعر النقل المتفق عليه');
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await Get.find<OrderService>().setTransportFee(
+        orderId: widget.order.id,
+        feeLocal: v,
+        collect: _collect,
+      );
+      Get.snackbar('تم', 'تم حفظ اتفاق النقل');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final o = widget.order;
+    final isStaff =
+        Get.isRegistered<AuthService>() && Get.find<AuthService>().isStaff;
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: T.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: T.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(Icons.local_shipping_outlined, size: 17, color: T.primary),
+            const SizedBox(width: 6),
+            Text('التوصيل',
+                style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w900,
+                    color: T.text)),
+          ]),
+          const SizedBox(height: 6),
+          Text(o.shippingModeAr,
+              style: TextStyle(fontSize: 11.5, color: T.text)),
+          if (o.shippingMode == 'governorate') ...[
+            const SizedBox(height: 4),
+            Text(
+                'المحافظة: ${o.shippingGovernorate.isEmpty ? '—' : o.shippingGovernorate}'
+                ' · المكتب: ${o.shippingOffice.isEmpty ? 'يمن سيلو يختار أنسب مكتب' : o.shippingOffice}',
+                style: TextStyle(fontSize: 11, color: T.muted)),
+            if (o.receiverName.isNotEmpty)
+              Text('المستلم: ${o.receiverName} — ${o.receiverPhone}',
+                  style: TextStyle(fontSize: 11, color: T.muted)),
+            const SizedBox(height: 4),
+            Text(
+                o.transportFeeLocal > 0
+                    ? 'أجور النقل: ${o.transportFeeLocal.toStringAsFixed(0)} — ${o.transportFeeCollect == 'office' ? 'تُدفع لمكتب النقل' : 'أُضيفت للمتبقي'}'
+                    : 'أجور النقل تُحدَّد بالاتفاق مع يمن سيلو ومكتب الشحن',
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: o.transportFeeLocal > 0 ? T.success : T.warning)),
+          ],
+          if (o.shippingMode == 'driver') ...[
+            const SizedBox(height: 4),
+            Text('السائق: ${o.driverName} — ${o.driverPhone}',
+                style: TextStyle(fontSize: 11, color: T.text)),
+            Text('نقطة الالتقاء: ${o.driverMeetPoint}',
+                style: TextStyle(fontSize: 11, color: T.muted)),
+            const SizedBox(height: 6),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => launchUrl(Uri.parse('tel:${o.driverPhone}')),
+                  icon: const Icon(Icons.call, size: 15),
+                  label: const Text('اتصال', style: TextStyle(fontSize: 11)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => launchUrl(Uri.parse(
+                      'https://wa.me/${o.driverPhone.replaceAll(RegExp(r'[^0-9]'), '')}')),
+                  style: OutlinedButton.styleFrom(
+                      foregroundColor: T.whatsapp),
+                  icon: const Icon(Icons.chat, size: 15),
+                  label: const Text('واتساب', style: TextStyle(fontSize: 11)),
+                ),
+              ),
+            ]),
+          ],
+          if (isStaff && o.shippingMode == 'governorate') ...[
+            const SizedBox(height: 10),
+            Divider(color: T.border, height: 1),
+            const SizedBox(height: 8),
+            Text('اتفاق نقل المحافظات',
+                style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w900,
+                    color: T.primary)),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _fee,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'سعر النقل المتفق عليه',
+                isDense: true,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+            RadioListTile<String>(
+              value: 'office',
+              groupValue: _collect,
+              onChanged: (v) => setState(() => _collect = v ?? 'office'),
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text('تُدفع عند الاستلام مباشرة لمكتب النقل',
+                  style: TextStyle(fontSize: 11, color: T.text)),
+            ),
+            RadioListTile<String>(
+              value: 'invoice',
+              groupValue: _collect,
+              onChanged: (v) => setState(() => _collect = v ?? 'office'),
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text('تُضاف لمتبقي الفاتورة',
+                  style: TextStyle(fontSize: 11, color: T.text)),
+            ),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _saving ? null : _save,
+                child: Text(_saving ? 'جارٍ الحفظ…' : 'حفظ اتفاق النقل'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }

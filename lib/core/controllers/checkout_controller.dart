@@ -25,6 +25,9 @@ class CheckoutPayload {
   final String paymentPlan;
   final double upfrontPercent;
 
+  /// تفاصيل التوصيل المختارة.
+  final Map<String, dynamic> shipping;
+
   const CheckoutPayload({
     required this.lines,
     required this.currency,
@@ -32,6 +35,7 @@ class CheckoutPayload {
     required this.estimate,
     this.paymentPlan = 'full',
     this.upfrontPercent = 100,
+    this.shipping = const <String, dynamic>{},
   });
 }
 
@@ -59,6 +63,29 @@ class CheckoutController extends GetxController {
   final loadingAddress = true.obs;
 
   final couponCtrl = TextEditingController();
+
+  /// تفاصيل التوصيل: home | governorate | driver
+  final shippingMode = 'home'.obs;
+  final shippingGovernorate = ''.obs;
+  final shippingOffice = ''.obs;
+  final shippingOfficeChoice = 'seloo'.obs;
+  final receiverNameCtrl = TextEditingController();
+  final receiverPhoneCtrl = TextEditingController();
+  final driverNameCtrl = TextEditingController();
+  final driverPhoneCtrl = TextEditingController();
+  final meetPointCtrl = TextEditingController();
+
+  Map<String, dynamic> get shippingMap => <String, dynamic>{
+        'mode': shippingMode.value,
+        'governorate': shippingGovernorate.value.trim(),
+        'office': shippingOffice.value.trim(),
+        'officeChoice': shippingOfficeChoice.value,
+        'receiverName': receiverNameCtrl.text.trim(),
+        'receiverPhone': receiverPhoneCtrl.text.trim(),
+        'driverName': driverNameCtrl.text.trim(),
+        'driverPhone': driverPhoneCtrl.text.trim(),
+        'meetPoint': meetPointCtrl.text.trim(),
+      };
 
   @override
   void onInit() {
@@ -224,6 +251,7 @@ class CheckoutController extends GetxController {
         address: address.value!,
         estimate: estimate.value!,
         paymentPlan: paymentPlan.value,
+        shipping: shippingMap,
         upfrontPercent: Get.isRegistered<SettingsService>()
             ? Get.find<SettingsService>().settings.value.deferredUpfrontPercent
             : 50,
