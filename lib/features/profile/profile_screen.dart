@@ -1,25 +1,42 @@
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-
-import '../../core/services/wallet_service.dart';
-import '../../core/theme/app_theme.dart';
-import '../wallet/wallet_screen.dart';
-import '../../core/widgets/brand_header.dart';
-import '../../core/widgets/brand_logo.dart';
-import '../../core/theme/theme_controller.dart';
-import '../guide/interactive_guide.dart';
 
 import '../../core/controllers/profile_controller.dart';
 import '../../core/routes/app_routes.dart';
+import '../../core/services/auth_service.dart';
+import '../../core/services/review_service.dart';
+import '../../core/services/wallet_service.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/theme_controller.dart';
+import '../../core/widgets/brand_header.dart';
+import '../../core/widgets/brand_logo.dart';
+import '../guide/interactive_guide.dart';
 import '../home/presentation/main_tab_controller.dart';
 import '../support/data/support_models.dart';
 import '../support/data/support_service.dart';
-import '../../core/services/auth_service.dart';
+import '../wallet/wallet_screen.dart';
 import 'address_form_screen.dart';
 
-/// المرحلة 4 — «حسابي»
+void _goMainTab(BuildContext context, int tab, {String? ordersFilter}) {
+  if (Get.isRegistered<MainTabController>()) {
+    final ctrl = Get.find<MainTabController>();
+    if (tab == 3 && ordersFilter != null) {
+      ctrl.goToOrders(ordersFilter);
+    } else {
+      ctrl.goTo(tab);
+    }
+  }
+  if (Navigator.of(context).canPop()) {
+    Navigator.of(context).pop();
+  }
+}
+
+/// المرحلة 4 — «حسابي» بنمط SHEIN:
+/// شريط 4 خانات (محفظة، إيصال، نقاط، كوبونات) + بانر المحفظة السريع
+/// + اختصارات «طلبي» (5 أيقونات مع عدادات حية منها «تعليق»).
 class ProfileScreen extends GetView<ProfileController> {
   const ProfileScreen({super.key});
 
@@ -97,7 +114,7 @@ class ProfileScreen extends GetView<ProfileController> {
           children: [
             _identity(u),
             const SizedBox(height: 12),
-            _walletCard(),
+            _sheinStatsBar(context),
             const SizedBox(height: 12),
             const _OrderShortcuts(),
             const SizedBox(height: 12),
@@ -141,7 +158,7 @@ class ProfileScreen extends GetView<ProfileController> {
               ),
             ),
             const SizedBox(height: 12),
-            _menu(),
+            _menu(context),
             const SizedBox(height: 12),
             _addresses(),
             if (u.isStaff) ...[
@@ -179,7 +196,7 @@ class ProfileScreen extends GetView<ProfileController> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
+              gradient: const LinearGradient(
                 colors: [AppColors.primary, AppColors.primaryDark],
                 begin: Alignment.topRight,
                 end: Alignment.bottomLeft,
@@ -215,19 +232,21 @@ class ProfileScreen extends GetView<ProfileController> {
                     children: [
                       Text(
                           u.displayName.isEmpty ? 'مستخدم جديد' : u.displayName,
-                      style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white)),
-                  const SizedBox(height: 2),
-                  Text(u.phone ?? u.email ?? '',
-                      style: const TextStyle(fontSize: 12, color: Colors.white70)),
-                  const SizedBox(height: 6),
-                  const Text('وسيطك الموثوق للتسوق العالمي',
-                      style: TextStyle(fontSize: 10.5, color: Colors.white60)),
-                ],
-              ),
-            ),
+                          style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white)),
+                      const SizedBox(height: 2),
+                      Text(u.phone ?? u.email ?? '',
+                          style: const TextStyle(
+                              fontSize: 12, color: Colors.white70)),
+                      const SizedBox(height: 6),
+                      const Text('وسيطك الموثوق للتسوق العالمي',
+                          style:
+                              TextStyle(fontSize: 10.5, color: Colors.white60)),
+                    ],
+                  ),
+                ),
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
@@ -242,21 +261,309 @@ class ProfileScreen extends GetView<ProfileController> {
         ],
       );
 
-  Widget _menu() => Card(
+  /// شريط SHEIN الرباعي: محفظة · إيصال · نقاط · كوبونات + بانر الرصيد المتاح.
+  Widget _sheinStatsBar(BuildContext context) {
+    final walletSvc = Get.put(WalletService(), permanent: false);
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final ordersStream = uid == null
+        ? const Stream<QuerySnapshot<Map<String, dynamic>>>.empty()
+        : FirebaseFirestore.instance
+            .collection('orders')
+            .where('userId', isEqualTo: uid)
+            .snapshots();
+    final couponsStream = FirebaseFirestore.instance
+        .collection('coupons')
+        .where('active', isEqualTo: true)
+        .snapshots();
+
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: walletSvc.watch(),
+      builder: (context, wSnap) {
+        final bal = ((wSnap.data?['balanceSar'] as num?) ?? 0).toDouble();
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: ordersStream,
+          builder: (context, oSnap) {
+            final deliveredCount = (oSnap.data?.docs ?? const [])
+                .where((d) => (d.data()['status'] ?? '') == 'delivered')
+                .length;
+            final points = deliveredCount * 15;
+            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: couponsStream,
+              builder: (context, cSnap) {
+                final couponDocs = cSnap.data?.docs ?? const [];
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: T.card,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: T.border),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _statCell(
+                              value: 'SAR ${bal.toStringAsFixed(2)}',
+                              label: 'محفظة',
+                              icon: Icons.account_balance_wallet_outlined,
+                              highlight: bal > 0,
+                              onTap: () =>
+                                  Get.to(() => const WalletScreen()),
+                            ),
+                          ),
+                          Expanded(
+                            child: _statCell(
+                              value: 'سجل',
+                              label: 'إيصال',
+                              icon: Icons.receipt_long_outlined,
+                              onTap: () => Get.toNamed(AppRoutes.myReceipts),
+                            ),
+                          ),
+                          Expanded(
+                            child: _statCell(
+                              value: '$points',
+                              label: 'نقاط',
+                              icon: Icons.stars_outlined,
+                              onTap: () => _goMainTab(context, 3,
+                                  ordersFilter: 'reviews'),
+                            ),
+                          ),
+                          Expanded(
+                            child: _statCell(
+                              value: '${couponDocs.length}',
+                              label: 'كوبونات',
+                              icon: Icons.local_offer_outlined,
+                              onTap: () =>
+                                  _showCouponsSheet(context, couponDocs),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (bal > 0) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: T.soft,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: T.softBorder),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.account_balance_wallet,
+                                      size: 16, color: T.primary),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      'لديك رصيد متاح: ${bal.toStringAsFixed(2)} ر.س — يمكنك استخدامه في طلبك أو طلب سحبه',
+                                      style: TextStyle(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: T.text),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: () => Get.to(
+                                          () => const WalletScreen()),
+                                      style: OutlinedButton.styleFrom(
+                                          minimumSize: const Size(0, 34)),
+                                      child: const Text('طلب سحب نقدي',
+                                          style: TextStyle(fontSize: 11)),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: () =>
+                                          _goMainTab(context, 1),
+                                      style: ElevatedButton.styleFrom(
+                                          minimumSize: const Size(0, 34)),
+                                      child: const Text('استخدم في طلب',
+                                          style: TextStyle(fontSize: 11)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _statCell({
+    required String value,
+    required String label,
+    required IconData icon,
+    required VoidCallback onTap,
+    bool highlight = false,
+  }) =>
+      InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+          child: Column(
+            children: [
+              Icon(icon, size: 19, color: highlight ? T.success : T.primary),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  color: highlight ? T.success : T.text,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 10.5, color: T.muted)),
+            ],
+          ),
+        ),
+      );
+
+  void _showCouponsSheet(
+    BuildContext context,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: T.card,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('الكوبونات المتاحة',
+                style: TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w900, color: T.text)),
+            const SizedBox(height: 4),
+            Text('اضغط على أي كوبون لنسخه واستخدامه عند الدفع',
+                style: TextStyle(fontSize: 11, color: T.muted)),
+            const SizedBox(height: 12),
+            if (docs.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Center(
+                  child: Text('لا توجد كوبونات فعّالة حالياً',
+                      style: TextStyle(fontSize: 12, color: T.muted)),
+                ),
+              )
+            else
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 280),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: docs.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (_, i) {
+                    final doc = docs[i];
+                    final d = doc.data();
+                    final type = (d['type'] ?? 'percent') as String;
+                    final val = ((d['value'] as num?) ?? 0).toDouble();
+                    final minSar =
+                        ((d['minOrderSar'] as num?) ?? 0).toDouble();
+                    final desc = type == 'percent'
+                        ? 'خصم ${val.toStringAsFixed(0)}%'
+                        : 'خصم ${val.toStringAsFixed(2)} ر.س';
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: doc.id));
+                        Get.back();
+                        Get.snackbar('تم النسخ', 'تم نسخ الكود ${doc.id}');
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: T.soft,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: T.softBorder),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.local_offer_outlined,
+                                size: 18, color: T.primary),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(doc.id,
+                                      style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w900,
+                                          color: T.primary)),
+                                  Text(
+                                    minSar > 0
+                                        ? '$desc · للطلبات فوق ${minSar.toStringAsFixed(0)} ر.س'
+                                        : desc,
+                                    style: TextStyle(
+                                        fontSize: 11, color: T.muted),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text('نسخ',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: T.primary)),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _menu(BuildContext context) => Card(
         child: Column(
           children: [
-            _tile(Icons.shopping_cart_outlined, 'سلة التسوق', () => Get.toNamed(AppRoutes.cart)),
-            _tile(Icons.favorite_border, 'المفضلة', () {
-              Get.snackbar('المفضلة', 'الشاشة مرتبطة بـ WishlistController في مشروعك');
-            }),
-            _tile(Icons.receipt_long_outlined, 'طلباتي', () => Get.toNamed(AppRoutes.orders)),
+            _tile(Icons.shopping_cart_outlined, 'سلة التسوق',
+                () => Get.toNamed(AppRoutes.cart)),
+            _tile(Icons.account_balance_wallet_outlined, 'محفظتي والسحب النقدي',
+                () => Get.to(() => const WalletScreen())),
+            _tile(Icons.receipt_long_outlined, 'طلباتي',
+                () => _goMainTab(context, 3, ordersFilter: 'all')),
+            _tile(Icons.rate_review_outlined, 'تعليقاتي وتقييم الطلبات',
+                () => _goMainTab(context, 3, ordersFilter: 'reviews')),
             _tile(Icons.request_quote_outlined, 'إيصالات السداد',
                 () => Get.toNamed(AppRoutes.myReceipts)),
-            _tile(Icons.headset_mic_outlined, 'خدمة العملاء', () {
-              Get.snackbar('خدمة العملاء', 'افتح واتساب على رقم الدعم من الإعدادات');
-            }),
-
-              _appSettingsCard(),
+            _tile(Icons.headset_mic_outlined, 'خدمة العملاء',
+                () => _goMainTab(context, 4)),
+            _appSettingsCard(),
           ],
         ),
       );
@@ -294,12 +601,15 @@ class ProfileScreen extends GetView<ProfileController> {
             children: controller.addresses
                 .map((a) => ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.location_on_outlined, color: AppColors.primary),
-                      title: Text(a.label, style: const TextStyle(fontSize: 13)),
+                      leading: const Icon(Icons.location_on_outlined,
+                          color: AppColors.primary),
+                      title:
+                          Text(a.label, style: const TextStyle(fontSize: 13)),
                       subtitle: Text(a.fullAr,
                           style: TextStyle(fontSize: 11.5, color: T.muted)),
                       trailing: IconButton(
-                        icon: Icon(Icons.delete_outline, size: 18, color: T.danger),
+                        icon: Icon(Icons.delete_outline,
+                            size: 18, color: T.danger),
                         onPressed: () => controller.deleteAddress(a.id),
                       ),
                     ))
@@ -309,10 +619,10 @@ class ProfileScreen extends GetView<ProfileController> {
       );
 }
 
-
 /// بطاقة إعدادات التطبيق: الثيم والإرشادات.
 Widget _appSettingsCard() {
-  final tc = Get.isRegistered<ThemeController>() ? Get.find<ThemeController>() : null;
+  final tc =
+      Get.isRegistered<ThemeController>() ? Get.find<ThemeController>() : null;
   final gc = Get.isRegistered<InteractiveGuideController>()
       ? Get.find<InteractiveGuideController>()
       : null;
@@ -322,7 +632,8 @@ Widget _appSettingsCard() {
     decoration: BoxDecoration(
       color: Get.isDarkMode ? const Color(0xFF130F24) : Colors.white,
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: Get.isDarkMode ? const Color(0xFF2D2354) : T.border),
+      border: Border.all(
+          color: Get.isDarkMode ? const Color(0xFF2D2354) : T.border),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -337,7 +648,9 @@ Widget _appSettingsCard() {
                 title: const Text('الثيم الليلي (أسود)',
                     style: TextStyle(fontSize: 12.5)),
                 subtitle: Text(
-                    tc.isDark.value ? 'المظهر الحالي: ليلي' : 'المظهر الحالي: نهاري',
+                    tc.isDark.value
+                        ? 'المظهر الحالي: ليلي'
+                        : 'المظهر الحالي: نهاري',
                     style: const TextStyle(fontSize: 11)),
                 onChanged: (v) => tc.setDark(v),
               )),
@@ -347,7 +660,8 @@ Widget _appSettingsCard() {
                 value: gc.enabled.value,
                 title: const Text('الإشعارات الإرشادية التفاعلية',
                     style: TextStyle(fontSize: 12.5)),
-                subtitle: const Text('بطاقات توضيحية تظهر مرة واحدة لكل صفحة وزر',
+                subtitle: const Text(
+                    'بطاقات توضيحية تظهر مرة واحدة لكل صفحة وزر',
                     style: TextStyle(fontSize: 11)),
                 onChanged: (v) => gc.setEnabled(v),
               )),
@@ -365,96 +679,212 @@ Widget _appSettingsCard() {
   );
 }
 
-
-/// صف اختصارات «طلبي»: 5 أيقونات بعدّادات حيّة من Firestore.
+/// صف اختصارات «طلبي» بنمط SHEIN:
+/// 5 أيقونات (غير مدفوع · قيد التجهيز · تم الشحن · تعليق · المنتجات المسترجعة)
+/// + شريط خدمة العملاء والإيصال.
 class _OrderShortcuts extends StatelessWidget {
   const _OrderShortcuts();
 
-  Stream<Map<String, int>> _counts() {
+  Stream<QuerySnapshot<Map<String, dynamic>>> _ordersStream() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return Stream.value(const <String, int>{});
+    if (uid == null) {
+      return const Stream<QuerySnapshot<Map<String, dynamic>>>.empty();
+    }
     return FirebaseFirestore.instance
         .collection('orders')
         .where('userId', isEqualTo: uid)
-        .snapshots()
-        .map((s) {
-      var unpaid = 0, processing = 0, shipped = 0, refunds = 0;
-      for (final d in s.docs) {
-        final st = (d.data()['status'] ?? '').toString();
-        if (st == 'unpaid') unpaid++;
-        if (st == 'processing') processing++;
-        if (st == 'shipped') shipped++;
-        final list = (d.data()['refunds'] as List?) ?? const [];
-        refunds += list.length;
-      }
-      return <String, int>{
-        'unpaid': unpaid,
-        'processing': processing,
-        'shipped': shipped,
-        'refunds': refunds,
-      };
-    });
-  }
-
-  void _go(int tab) {
-    if (Get.isRegistered<MainTabController>()) {
-      Get.find<MainTabController>().goTo(tab);
-    }
+        .snapshots();
   }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<Map<String, int>>(
-      stream: _counts(),
-      builder: (context, snap) {
-        final c = snap.data ?? const <String, int>{};
-        final support = Get.isRegistered<SupportService>()
-            ? Get.find<SupportService>()
-            : Get.put(SupportService(), permanent: false);
-        return StreamBuilder<List<SupportThread>>(
-          stream: support.myThreads(),
-          builder: (context, ts) {
-            final open = (ts.data ?? const <SupportThread>[])
-                .where((t) => t.mode != 'closed')
-                .length;
-            final items = <_Shortcut>[
-              _Shortcut('غير مدفوع', Icons.schedule, c['unpaid'] ?? 0,
-                  () => _go(3)),
-              _Shortcut('قيد التجهيز', Icons.inventory_2_outlined,
-                  c['processing'] ?? 0, () => _go(3)),
-              _Shortcut('تم الشحن', Icons.local_shipping_outlined,
-                  c['shipped'] ?? 0, () => _go(3)),
-              _Shortcut('المنتجات المسترجعة',
-                  Icons.assignment_return_outlined, c['refunds'] ?? 0,
-                  () => _go(3)),
-              _Shortcut('خدمة العملاء', Icons.support_agent, open,
-                  () => _go(4)),
-            ];
-            return Container(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
-              decoration: BoxDecoration(
-                color: T.card,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: T.border),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8, bottom: 8),
-                    child: Text('طلبي',
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                            color: T.text)),
+    final reviewSvc = Get.put(ReviewService(), permanent: false);
+    final support = Get.isRegistered<SupportService>()
+        ? Get.find<SupportService>()
+        : Get.put(SupportService(), permanent: false);
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _ordersStream(),
+      builder: (context, oSnap) {
+        final orderDocs = oSnap.data?.docs ?? const [];
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: reviewSvc.mine(),
+          builder: (context, rSnap) {
+            final reviewedIds = (rSnap.data?.docs ?? const [])
+                .map((d) => (d.data()['orderId'] ?? '') as String)
+                .toSet();
+            var unpaid = 0,
+                processing = 0,
+                shipped = 0,
+                pendingReviews = 0,
+                refunds = 0;
+            for (final d in orderDocs) {
+              final data = d.data();
+              final st = (data['status'] ?? '').toString();
+              if (st == 'unpaid' || st == 'verifying') unpaid++;
+              if (st == 'processing') processing++;
+              if (st == 'shipped' || st == 'outForDelivery') shipped++;
+              if (st == 'delivered' && !reviewedIds.contains(d.id)) {
+                pendingReviews++;
+              }
+              final list = (data['refunds'] as List?) ?? const [];
+              refunds += list.length;
+            }
+
+            return StreamBuilder<List<SupportThread>>(
+              stream: support.myThreads(),
+              builder: (context, ts) {
+                final open = (ts.data ?? const <SupportThread>[])
+                    .where((t) => t.mode != 'closed')
+                    .length;
+
+                final items = <_Shortcut>[
+                  _Shortcut(
+                    'غير مدفوع',
+                    Icons.credit_card_outlined,
+                    unpaid,
+                    () => _goMainTab(context, 3, ordersFilter: 'unpaid'),
                   ),
-                  Row(
-                    children: items
-                        .map((s) => Expanded(child: _tile(s)))
-                        .toList(),
+                  _Shortcut(
+                    'قيد التجهيز',
+                    Icons.inventory_2_outlined,
+                    processing,
+                    () => _goMainTab(context, 3, ordersFilter: 'processing'),
                   ),
-                ],
-              ),
+                  _Shortcut(
+                    'تم الشحن',
+                    Icons.local_shipping_outlined,
+                    shipped,
+                    () => _goMainTab(context, 3, ordersFilter: 'shipped'),
+                  ),
+                  _Shortcut(
+                    'تعليق',
+                    Icons.chat_bubble_outline,
+                    pendingReviews,
+                    () => _goMainTab(context, 3, ordersFilter: 'reviews'),
+                  ),
+                  _Shortcut(
+                    'المنتجات المسترجعة',
+                    Icons.assignment_return_outlined,
+                    refunds,
+                    () => _goMainTab(context, 3, ordersFilter: 'refunds'),
+                  ),
+                ];
+
+                return Container(
+                  padding: const EdgeInsets.fromLTRB(8, 12, 8, 10),
+                  decoration: BoxDecoration(
+                    color: T.card,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: T.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
+                        child: Row(
+                          children: [
+                            Text('طلبي',
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w900,
+                                    color: T.text)),
+                            const Spacer(),
+                            InkWell(
+                              borderRadius: BorderRadius.circular(8),
+                              onTap: () => _goMainTab(context, 3,
+                                  ordersFilter: 'all'),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 4, vertical: 2),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text('عرض الكل',
+                                        style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: T.muted)),
+                                    Icon(Icons.chevron_left,
+                                        size: 16, color: T.muted),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Row(
+                        children: items
+                            .map((s) => Expanded(child: _tile(s)))
+                            .toList(),
+                      ),
+                      const SizedBox(height: 8),
+                      Divider(color: T.border, height: 1),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(10),
+                              onTap: () => _goMainTab(context, 4),
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 6),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.support_agent,
+                                        size: 16, color: T.primary),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      open > 0
+                                          ? 'خدمة العملاء ($open)'
+                                          : 'خدمة العملاء',
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: T.text),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          Container(
+                              width: 1, height: 18, color: T.border),
+                          Expanded(
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(10),
+                              onTap: () => Get.toNamed(AppRoutes.myReceipts),
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 6),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.receipt_outlined,
+                                        size: 16, color: T.primary),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'إيصال وسجل الدفعات',
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: T.text),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
             );
           },
         );
@@ -524,49 +954,3 @@ class _Shortcut {
   final VoidCallback onTap;
   const _Shortcut(this.label, this.icon, this.count, this.onTap);
 }
-
-
-  /// بطاقة «محفظتي» — الرصيد والحركات وطلب السحب.
-  Widget _walletCard() {
-    final svc = Get.put(WalletService(), permanent: false);
-    return StreamBuilder<Map<String, dynamic>?>(
-      stream: svc.watch(),
-      builder: (context, snap) {
-        final bal = ((snap.data?['balanceSar'] as num?) ?? 0).toDouble();
-        return InkWell(
-          onTap: () => Get.to(() => const WalletScreen()),
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: T.card,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: T.border),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.account_balance_wallet_outlined,
-                    size: 22, color: T.primary),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('محفظتي',
-                          style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w900,
-                              color: T.text)),
-                      Text('الرصيد ${bal.toStringAsFixed(2)} ر.س',
-                          style: TextStyle(fontSize: 10.5, color: T.muted)),
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_left, size: 18, color: T.muted),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
