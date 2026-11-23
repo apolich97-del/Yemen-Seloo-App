@@ -394,7 +394,7 @@ class _TransferSheet extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.warning_amber_rounded,
+                    Icon(Icons.warning_amber_rounded,
                         size: 18, color: T.warning),
                     const SizedBox(width: 8),
                     Expanded(
