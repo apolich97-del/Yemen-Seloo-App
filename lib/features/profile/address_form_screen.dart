@@ -42,6 +42,9 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
       final u = Get.find<AuthService>().user.value;
       _phone.text = u?.phone ?? '';
       _receiver.text = u?.displayName ?? '';
+      _city.text = u?.city ?? '';
+      _district.text = u?.district ?? '';
+      _line.text = u?.addressLine ?? '';
     }
   }
 
@@ -88,6 +91,17 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
         'createdAt': FieldValue.serverTimestamp(),
       };
       await doc.set(data, SetOptions(merge: true));
+      // مزامنة العنوان مع سجل العميل في قاعدة بيانات عملاء يمن سيلو
+      try {
+        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+          'city': _city.text.trim(),
+          'district': _district.text.trim(),
+          'addressLine': _line.text.trim(),
+          if (_phone.text.trim().isNotEmpty) 'phone': _phone.text.trim(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        await auth.refreshProfile();
+      } catch (_) {}
       Get.back(result: Address.fromMap({'id': doc.id, ...data}));
       Get.snackbar('تم', 'تم حفظ العنوان');
     } catch (e) {

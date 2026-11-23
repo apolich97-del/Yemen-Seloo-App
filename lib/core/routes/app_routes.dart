@@ -7,6 +7,7 @@ import '../../features/orders/my_orders_screen.dart';
 import '../../features/orders/order_detail_screen.dart';
 import '../../features/payment/payment_screen.dart';
 import '../../features/profile/address_form_screen.dart';
+import '../../features/profile/account_statement_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/receipts/presentation/my_receipts_screen.dart';
 import '../../features/admin/admin_shell.dart';
@@ -31,6 +32,7 @@ class AppRoutes {
   static const orders = '/orders';
   static const orderDetail = '/order';
   static const profile = '/profile';
+  static const accountStatement = '/account-statement';
   static const addressForm = '/address-form';
   static const login = '/login';
   static const myReceipts = '/my-receipts';
@@ -78,6 +80,7 @@ class AppPages {
       binding: BindingsBuilder(() => Get.lazyPut(() => ProfileController())),
     ),
     GetPage(name: AppRoutes.addressForm, page: () => const AddressFormScreen()),
+    GetPage(name: AppRoutes.accountStatement, page: () => const AccountStatementScreen()),
     GetPage(name: AppRoutes.login, page: () => const LoginScreen()),
     GetPage(
       name: AppRoutes.myReceipts,

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:get/get.dart';
 
 import '../../../core/config/seloo_config.dart';
+import '../../../core/models/order.dart';
 import '../application/cart_counter.dart';
 import '../domain/cart_item.dart';
 import 'seloo_cart_service.dart';
@@ -192,6 +193,57 @@ class CartRepository {
 
   /// عدد الأسطر المميّزة.
   int count(List<CartLine> lines) => lines.length;
+
+  /// إعادة طلب عناصر طلب سابق وإضافتها مباشرة إلى السلة.
+  Future<int> reorderOrderItems(List<OrderItem> orderItems) async {
+    if (orderItems.isEmpty) return 0;
+    final List<CartItem> existing = List<CartItem>.from(_service.loadItems());
+    final List<String> addedLineIds = <String>[];
+    final int nowMs = DateTime.now().millisecondsSinceEpoch;
+    int idx = 0;
+
+    for (final OrderItem it in orderItems) {
+      idx++;
+      final String goodsId = it.goodsId.trim();
+      final String color = it.color.trim();
+      final String size = it.size.trim();
+      final int existingIdx = existing.indexWhere((e) =>
+          e.goodsId.trim() == goodsId &&
+          e.color.trim() == color &&
+          e.size.trim() == size);
+      if (existingIdx >= 0) {
+        final CartItem prev = existing[existingIdx];
+        final int mergedQty = math.min(maxQtyPerLine, prev.quantity + it.qty);
+        existing[existingIdx] = prev.copyWith(quantity: mergedQty);
+        addedLineIds.add(prev.lineId);
+      } else {
+        final String lid = 're_${nowMs}_$idx';
+        existing.add(CartItem(
+          lineId: lid,
+          goodsId: goodsId.isNotEmpty ? goodsId : '$nowMs$idx',
+          title: it.title,
+          imageUrl: it.imageUrl,
+          sourceUrl: it.productUrl,
+          sourcePrice: it.unitPriceSar > 0 ? it.unitPriceSar : 1,
+          sourceCurrency: 'SAR',
+          exchangeRate: 1,
+          quantity: _normalizeQty(it.qty),
+          color: color,
+          size: size,
+          sku: it.sku,
+        ));
+        addedLineIds.add(lid);
+      }
+    }
+
+    await _service.saveItems(existing);
+    try {
+      final CartCounter cart = Get.find<CartCounter>();
+      await cart.onItemAdded();
+      cart.selected.addAll(addedLineIds);
+    } catch (_) {}
+    return orderItems.length;
+  }
 
   /// تفريغ السلة الحقيقية (التخزين + الذاكرة إن كان CartCounter مسجّلاً).
   Future<void> clear() async {

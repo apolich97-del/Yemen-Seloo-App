@@ -11,8 +11,11 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../models/cart.dart';
 import '../models/currency.dart';
+import 'auth_service.dart';
 import 'cart_share.dart';
+import 'customer_accounting_service.dart';
 import '../models/order.dart';
 import '../models/receipt.dart';
 import 'settings_service.dart';
@@ -541,6 +544,385 @@ class OrderDocuments {
 
     final dir = await getTemporaryDirectory();
     final f = File('${dir.path}/Yemen-Seloo-${o.orderNo}.pdf');
+    await f.writeAsBytes(await doc.save());
+    return f;
+  }
+
+  /// استمارة تأكيد طلب رسمية عبر واتساب بهوية يمن سيلو (كاش أو آجل).
+  static String officialWhatsAppForm({
+    required String orderNo,
+    required String customerName,
+    required String customerPhone,
+    required String addressAr,
+    required String shippingSummary,
+    required List<CartLine> lines,
+    required AppCurrency currency,
+    required double totalLocal,
+    String paymentPlan = 'full',
+    double upfrontDueLocal = 0,
+    double paidLocal = 0,
+    double remainingLocal = 0,
+    String accountTitleAr = '',
+    String refNo = '',
+  }) {
+    final now = DateTime.now();
+    final dateStr =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} '
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    final isDeferred = paymentPlan == 'half_deferred';
+    final planLabel = isDeferred ? 'طلب آجل (السداد بالنصف 50%)' : 'دفع كامل (كاش 100%)';
+    final totalPieces = lines.fold<int>(0, (s, l) => s + l.qty);
+    final shareLink = CartShare.buildFromLines(lines);
+
+    final b = StringBuffer()
+      ..writeln('╔══════════════════════════════╗')
+      ..writeln('   *استمارة تأكيد طلب — يمن سيلو*')
+      ..writeln('╚══════════════════════════════╝')
+      ..writeln('• *رقم الطلب:* $orderNo')
+      ..writeln('• *التاريخ:* $dateStr')
+      ..writeln('• *خطة السداد:* $planLabel')
+      ..writeln('──────────────────────────────')
+      ..writeln('👤 *بيانات العميل والتوصيل:*')
+      ..writeln('• الاسم: $customerName')
+      ..writeln('• الهاتف: $customerPhone')
+      ..writeln('• العنوان: $addressAr')
+      ..writeln('• طريقة التوصيل: $shippingSummary')
+      ..writeln('──────────────────────────────')
+      ..writeln('🛍️ *المنتجات ($totalPieces قطعة):*');
+
+    for (var i = 0; i < lines.length; i++) {
+      final l = lines[i];
+      final meta = [
+        if (l.color.isNotEmpty) 'لون: ${l.color}',
+        if (l.size.isNotEmpty) 'مقاس: ${l.size}',
+      ].join(' | ');
+      b.writeln('${i + 1}. ${l.titleAr}${meta.isEmpty ? '' : ' ($meta)'} × ${l.qty} — ${l.unitPriceSar.toStringAsFixed(2)} SAR');
+    }
+
+    if (shareLink.isNotEmpty) {
+      b
+        ..writeln('──────────────────────────────')
+        ..writeln('🔗 *رابط السلة الموحّد:* $shareLink');
+    }
+
+    b
+      ..writeln('──────────────────────────────')
+      ..writeln('💳 *الملخص المالي:*')
+      ..writeln('• الإجمالي النهائي: ${formatMoney(totalLocal, currency)}');
+    if (isDeferred) {
+      b.writeln('• الدفعة الأولى المطلوبة: ${formatMoney(upfrontDueLocal, currency)}');
+    }
+    if (paidLocal > 0) {
+      b.writeln('• المدفوع المرسل: ${formatMoney(paidLocal, currency)}');
+    } else if (isDeferred) {
+      b.writeln('• المدفوع الآن: 0 (تأكيد طلب آجل)');
+    }
+    if (remainingLocal > 0.5) {
+      b.writeln('• المتبقي في ذمة العميل: ${formatMoney(remainingLocal, currency)}');
+    }
+    if (accountTitleAr.isNotEmpty) {
+      b.writeln('• الحساب المحوَّل إليه: $accountTitleAr');
+    }
+    if (refNo.isNotEmpty) {
+      b.writeln('• رقم مرجع الحوالة: $refNo');
+    }
+    b
+      ..writeln('══════════════════════════════')
+      ..writeln('يمن سيلو · وسيطك الموثوق للتسوق العالمي ✓');
+    return b.toString();
+  }
+
+  /// كشف حساب العميل المحاسبي الكامل (PDF A4 RTL).
+  static Future<File> buildStatementPdf({
+    required AppUser? customer,
+    required AccountingStatementReport report,
+    double walletBalanceSar = 0,
+  }) async {
+    final reg = pw.Font.ttf(await rootBundle.load('assets/fonts/Tajawal-Regular.ttf'));
+    final bold = pw.Font.ttf(await rootBundle.load('assets/fonts/Tajawal-Bold.ttf'));
+    final logo = pw.MemoryImage(
+        (await rootBundle.load('assets/images/logo.png')).buffer.asUint8List());
+
+    pw.TextStyle t(double size, {bool b = false, PdfColor? c}) => pw.TextStyle(
+          font: b ? bold : reg,
+          fontSize: size,
+          color: c ?? _ink,
+        );
+
+    String fmtDate(DateTime d) =>
+        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+    String fmtSar(double v) => '${v.toStringAsFixed(2)} SAR';
+
+    final periodLabel = report.periodStart != null || report.periodEnd != null
+        ? 'من ${report.periodStart != null ? fmtDate(report.periodStart!) : 'البداية'} إلى ${report.periodEnd != null ? fmtDate(report.periodEnd!) : 'الآن'}'
+        : 'كامل السجل المالي';
+
+    // جلب أول 6 صور حوالات (إن وجدت) بشكل آمن
+    final List<MapEntry<StatementTransferPhoto, pw.MemoryImage>> fetchedPhotos = [];
+    for (final p in report.transferPhotos.take(6)) {
+      final img = await fetchImage(p.url);
+      if (img != null) fetchedPhotos.add(MapEntry(p, img));
+    }
+
+    final doc = pw.Document(
+      title: 'كشف حساب العميل — يمن سيلو',
+      author: 'يمن سيلو',
+    );
+
+    pw.Widget kpiBox(String title, String val, {PdfColor? color}) => pw.Expanded(
+          child: pw.Container(
+            padding: const pw.EdgeInsets.all(8),
+            decoration: pw.BoxDecoration(
+              color: _soft,
+              borderRadius: pw.BorderRadius.circular(8),
+              border: pw.Border.all(color: PdfColor.fromInt(0xFFE4DDF5)),
+            ),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                pw.Text(title, style: t(8.5, c: _muted)),
+                pw.SizedBox(height: 3),
+                pw.Text(val, style: t(10.5, b: true, c: color ?? _violetDark)),
+              ],
+            ),
+          ),
+        );
+
+    doc.addPage(
+      pw.MultiPage(
+        pageTheme: pw.PageTheme(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(22),
+          textDirection: pw.TextDirection.rtl,
+          theme: pw.ThemeData.withFont(base: reg, bold: bold),
+        ),
+        build: (ctx) => [
+          _decorHeader(
+            logo: logo,
+            title: 'كشف الحساب المحاسبي للعميل',
+            subtitle: 'المدة: $periodLabel',
+            badge: customer?.effectiveCode ?? 'عميل يمن سيلو',
+            t: (sz, bl, cl) => t(sz, b: bl, c: cl),
+          ),
+          pw.SizedBox(height: 10),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(10),
+            decoration: pw.BoxDecoration(
+              color: _soft,
+              borderRadius: pw.BorderRadius.circular(8),
+              border: pw.Border.all(color: _gold),
+            ),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  'المحفظة: ${fmtSar(walletBalanceSar)} · مستردات الفترة: ${fmtSar(report.totalRefundedSar)}',
+                  style: t(9.5, b: true, c: _violetDark),
+                ),
+                pw.Text(
+                  '${customer?.displayName.isNotEmpty == true ? customer!.displayName : 'عميل يمن سيلو'} · ${customer?.phone ?? ''} · ${customer?.fullAddressAr ?? ''}',
+                  style: t(9.5, c: _ink),
+                ),
+              ],
+            ),
+          ),
+          pw.SizedBox(height: 10),
+          pw.Row(
+            children: [
+              kpiBox('الرصيد الختامي', fmtSar(report.closingBalanceSar),
+                  color: report.closingBalanceSar > 0.5
+                      ? PdfColor.fromInt(0xFFB3261E)
+                      : PdfColor.fromInt(0xFF15803D)),
+              pw.SizedBox(width: 6),
+              kpiBox('إجمالي الدائن', fmtSar(report.periodCreditSar),
+                  color: PdfColor.fromInt(0xFF15803D)),
+              pw.SizedBox(width: 6),
+              kpiBox('إجمالي المدين', fmtSar(report.periodDebitSar)),
+              pw.SizedBox(width: 6),
+              kpiBox('الرصيد الافتتاحي', fmtSar(report.openingBalanceSar)),
+            ],
+          ),
+          pw.SizedBox(height: 12),
+          pw.Text('دفتر الأستاذ — القيود المحاسبية',
+              style: t(12, b: true, c: _violetDark)),
+          pw.SizedBox(height: 6),
+          pw.Table(
+            border: pw.TableBorder.all(color: PdfColor.fromInt(0xFFDCD5EE), width: 0.6),
+            columnWidths: const {
+              0: pw.FlexColumnWidth(1.3),
+              1: pw.FlexColumnWidth(1.2),
+              2: pw.FlexColumnWidth(1.2),
+              3: pw.FlexColumnWidth(3.0),
+              4: pw.FlexColumnWidth(1.5),
+              5: pw.FlexColumnWidth(1.4),
+              6: pw.FlexColumnWidth(0.5),
+            },
+            children: [
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: _violetDark),
+                children: [
+                  'الرصيد',
+                  'دائن',
+                  'مدين',
+                  'البيان',
+                  'المستند',
+                  'التاريخ',
+                  'م',
+                ]
+                    .map((h) => pw.Padding(
+                          padding: const pw.EdgeInsets.all(5),
+                          child: pw.Text(h,
+                              textAlign: pw.TextAlign.center,
+                              style: t(8.5, b: true, c: PdfColors.white)),
+                        ))
+                    .toList(),
+              ),
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: _soft),
+                children: [
+                  pw.Padding(
+                      padding: const pw.EdgeInsets.all(5),
+                      child: pw.Text(fmtSar(report.openingBalanceSar),
+                          style: t(8.5, b: true))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('—', style: t(8.5))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('—', style: t(8.5))),
+                  pw.Padding(
+                      padding: const pw.EdgeInsets.all(5),
+                      child: pw.Text('الرصيد الافتتاحي المرحّل', style: t(8.5, b: true))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('OPEN', style: t(8.5))),
+                  pw.Padding(
+                      padding: const pw.EdgeInsets.all(5),
+                      child: pw.Text(
+                          report.periodStart != null ? fmtDate(report.periodStart!) : '—',
+                          style: t(8.5))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('0', style: t(8.5))),
+                ],
+              ),
+              ...report.entries.map((e) => pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(4.5),
+                        child: pw.Text(fmtSar(e.runningBalanceSar), style: t(8, b: true)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(4.5),
+                        child: pw.Text(
+                            e.creditSar > 0 ? e.creditSar.toStringAsFixed(2) : '—',
+                            style: t(8,
+                                c: e.creditSar > 0
+                                    ? PdfColor.fromInt(0xFF15803D)
+                                    : _muted)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(4.5),
+                        child: pw.Text(
+                            e.debitSar > 0 ? e.debitSar.toStringAsFixed(2) : '—',
+                            style: t(8,
+                                c: e.debitSar > 0
+                                    ? PdfColor.fromInt(0xFFB3261E)
+                                    : _muted)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(4.5),
+                        child: pw.Text(e.description, style: t(8)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(4.5),
+                        child: pw.Text('${e.entryTypeLabel}\n${e.docNo}', style: t(7.5)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(4.5),
+                        child: pw.Text(fmtDate(e.date), style: t(8)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(4.5),
+                        child: pw.Text('${e.seq}', style: t(8)),
+                      ),
+                    ],
+                  )),
+            ],
+          ),
+          if (report.refunds.isNotEmpty) ...[
+            pw.SizedBox(height: 14),
+            pw.Text('سجل عمليات الاسترداد (${report.refunds.length})',
+                style: t(11.5, b: true, c: _violetDark)),
+            pw.SizedBox(height: 6),
+            ...report.refunds.map((r) => pw.Container(
+                  margin: const pw.EdgeInsets.only(bottom: 5),
+                  padding: const pw.EdgeInsets.all(8),
+                  decoration: pw.BoxDecoration(
+                    color: _soft,
+                    borderRadius: pw.BorderRadius.circular(8),
+                  ),
+                  child: pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text(
+                        '${fmtSar(r.amountSar)} (${r.statusAr})',
+                        style: t(9, b: true, c: _violetDark),
+                      ),
+                      pw.Text(
+                        'طلب ${r.orderNo} · ${r.refundRefNo} · ${r.reasonAr} · ${r.methodAr}',
+                        style: t(9),
+                      ),
+                    ],
+                  ),
+                )),
+          ],
+          if (fetchedPhotos.isNotEmpty) ...[
+            pw.SizedBox(height: 14),
+            pw.Text('أرشيف صور الحوالات وإثباتات التحويل',
+                style: t(11.5, b: true, c: _violetDark)),
+            pw.SizedBox(height: 6),
+            pw.Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: fetchedPhotos
+                  .map((pair) => pw.Container(
+                        width: 155,
+                        padding: const pw.EdgeInsets.all(6),
+                        decoration: pw.BoxDecoration(
+                          border: pw.Border.all(color: PdfColor.fromInt(0xFFDCD5EE)),
+                          borderRadius: pw.BorderRadius.circular(8),
+                        ),
+                        child: pw.Column(
+                          children: [
+                            pw.Image(pair.value, height: 110, fit: pw.BoxFit.cover),
+                            pw.SizedBox(height: 4),
+                            pw.Text(pair.key.title, style: t(8, b: true)),
+                            pw.Text(
+                              '${fmtSar(pair.key.amountSar)} · ${pair.key.refNo}',
+                              style: t(7.5, c: _muted),
+                            ),
+                          ],
+                        ),
+                      ))
+                  .toList(),
+            ),
+          ],
+          pw.SizedBox(height: 14),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(10),
+            decoration: pw.BoxDecoration(
+              color: _violet,
+              borderRadius: pw.BorderRadius.circular(8),
+            ),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text('يمن سيلو · كشف حساب معتمد', style: t(9.5, b: true, c: PdfColors.white)),
+                pw.Text('تاريخ الإصدار: ${fmtDate(DateTime.now())}',
+                    style: t(9, c: PdfColors.white)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    final dir = await getTemporaryDirectory();
+    final f = File('${dir.path}/Yemen-Seloo-Statement-${DateTime.now().millisecondsSinceEpoch}.pdf');
     await f.writeAsBytes(await doc.save());
     return f;
   }

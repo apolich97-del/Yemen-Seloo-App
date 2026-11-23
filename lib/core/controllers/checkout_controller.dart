@@ -8,11 +8,15 @@ import '../models/cart.dart';
 import '../models/currency.dart';
 import '../models/order.dart';
 import '../routes/app_routes.dart';
+import '../../features/orders/order_confirmed_screen.dart';
 import '../services/auth_service.dart';
+import '../services/customer_accounting_service.dart';
+import '../services/order_documents.dart';
 import '../services/order_service.dart';
 import '../../features/cart/application/cart_counter.dart';
 import '../services/pricing_service.dart';
 import '../services/settings_service.dart';
+import '../services/wallet_service.dart';
 
 /// الحمولة المنقولة من شاشة الملخص إلى شاشة الدفع.
 class CheckoutPayload {
@@ -65,6 +69,7 @@ class CheckoutController extends GetxController {
   /// الخصم من رصيد المحفظة (0 = بلا خصم).
   final walletUseSar = 0.0.obs;
   final loadingAddress = true.obs;
+  final activeDeferredRemainingSar = 0.0.obs;
 
   final couponCtrl = TextEditingController();
 
@@ -105,6 +110,7 @@ class CheckoutController extends GetxController {
     currency.value = AppCurrencyX.fromKey(_store.read<String>(_currencyKey));
     _settings.displayCurrency.value = currency.value;
     _loadAddress();
+    _loadCustomerDeferredUsage();
     recompute();
   }
 
@@ -162,6 +168,19 @@ class CheckoutController extends GetxController {
           address.value = Address.fromMap(
             {'id': snap.docs.first.id, ...snap.docs.first.data()},
           );
+        } else {
+          final u = _auth.user.value;
+          if (u != null && u.city.trim().isNotEmpty) {
+            address.value = Address(
+              id: 'profile_default',
+              label: 'المنزل',
+              city: u.city.trim(),
+              district: u.district.trim(),
+              line: u.addressLine.trim(),
+              phone: (u.phone ?? '').trim(),
+              receiverName: u.displayName.isNotEmpty ? u.displayName : 'العميل',
+            );
+          }
         }
       }
     } catch (_) {
@@ -234,6 +253,57 @@ class CheckoutController extends GetxController {
     }
   }
 
+  Future<void> _loadCustomerDeferredUsage() async {
+    final uid = _auth.uid;
+    if (uid == null) return;
+    try {
+      final snap = await _db
+          .collection('orders')
+          .where('userId', isEqualTo: uid)
+          .limit(80)
+          .get();
+      double sumSar = 0;
+      for (final d in snap.docs) {
+        final o = Order.fromDoc(d.id, d.data());
+        if (o.status != OrderStatus.cancelled && o.hasRemaining) {
+          sumSar += o.remainingSar;
+        }
+      }
+      activeDeferredRemainingSar.value = sumSar;
+    } catch (_) {}
+  }
+
+  CustomerTier get customerTier =>
+      _auth.user.value?.tier ?? CustomerTier.normal;
+
+  double get deferredCreditLimitSar =>
+      _auth.user.value?.effectiveCreditLimitSar ??
+      CustomerTier.normal.defaultCreditLimitSar;
+
+  double get availableDeferredCreditSar =>
+      (deferredCreditLimitSar - activeDeferredRemainingSar.value)
+          .clamp(0.0, double.infinity);
+
+  String? deferredRestrictionReason(PriceEstimate est, AppSettings sf) {
+    if (!sf.deferredEnabled) return 'الطلب الآجل غير مفعّل حالياً';
+    if (customerTier == CustomerTier.blockedDeferred) {
+      return 'الطلب الآجل موقوف لهذا الحساب — يرجى السداد الكامل أو التواصل مع الدعم';
+    }
+    if (est.subtotalSar < sf.deferredThresholdSar) {
+      return 'قيمة السلة أقل من الحد الأدنى (${sf.deferredThresholdSar.toStringAsFixed(0)} ر.س)';
+    }
+    final pct = sf.deferredUpfrontPercent / 100.0;
+    final candidateRemainingSar = est.totalSar * (1.0 - pct);
+    if (activeDeferredRemainingSar.value + candidateRemainingSar >
+        deferredCreditLimitSar + 0.5) {
+      return 'يتجاوز الحد الائتماني الآجل المتاح (${availableDeferredCreditSar.toStringAsFixed(0)} ر.س متاح من ${deferredCreditLimitSar.toStringAsFixed(0)} ر.س)';
+    }
+    return null;
+  }
+
+  bool canUseDeferredPlan(PriceEstimate est, AppSettings sf) =>
+      deferredRestrictionReason(est, sf) == null;
+
   void continueToPayment() {
     if (lines.isEmpty) {
       Get.snackbar('السلة فارغة', 'أضف منتجاً واحداً على الأقل');
@@ -247,20 +317,129 @@ class CheckoutController extends GetxController {
       Get.toNamed(AppRoutes.login);
       return;
     }
+    final est = estimate.value;
+    if (est == null) return;
+    if (paymentPlan.value == 'half_deferred') {
+      final sf = _settings.settings.value;
+      final reason = deferredRestrictionReason(est, sf);
+      if (reason != null) {
+        Get.snackbar('تعذر استخدام الآجل', reason);
+        return;
+      }
+    }
     Get.toNamed(
       AppRoutes.payment,
       arguments: CheckoutPayload(
         lines: lines,
         currency: currency.value,
         address: address.value!,
-        estimate: estimate.value!,
+        estimate: est,
         paymentPlan: paymentPlan.value,
         shipping: shippingMap,
-        upfrontPercent: Get.isRegistered<SettingsService>()
-            ? Get.find<SettingsService>().settings.value.deferredUpfrontPercent
-            : 50,
+        upfrontPercent: _settings.settings.value.deferredUpfrontPercent,
         walletUseSar: walletUseSar.value,
       ),
     );
+  }
+
+  /// تأكيد الطلب الآجل مباشرة + التحويل لمسار استمارة واتساب الإجباري.
+  Future<void> confirmDeferredWithoutDeposit() async {
+    if (lines.isEmpty) {
+      Get.snackbar('السلة فارغة', 'أضف منتجاً واحداً على الأقل');
+      return;
+    }
+    if (address.value == null) {
+      Get.snackbar('العنوان مطلوب', 'أضف عنوان التوصيل للمتابعة');
+      return;
+    }
+    if (!_auth.isSignedIn) {
+      Get.toNamed(AppRoutes.login);
+      return;
+    }
+    final est = estimate.value;
+    if (est == null) return;
+    final sf = _settings.settings.value;
+    final reason = deferredRestrictionReason(est, sf);
+    if (reason != null) {
+      Get.snackbar('تعذر تأكيد الآجل', reason);
+      return;
+    }
+
+    busy.value = true;
+    try {
+      final cc = Get.isRegistered<CartCounter>() ? Get.find<CartCounter>() : null;
+      final upfrontPct = sf.deferredUpfrontPercent;
+      final sub = await _orders.submitOrder(
+        lines: lines,
+        currency: currency.value,
+        address: address.value!,
+        couponCode: est.couponCode,
+        estimate: est,
+        paymentPlan: 'half_deferred',
+        upfrontPercent: upfrontPct,
+        shipping: shippingMap,
+        payment: null,
+        commission: cc == null
+            ? null
+            : <String, dynamic>{
+                'perPieceSar': cc.commissionPerPiece.value,
+                'approved': cc.commissionApproved.value,
+              },
+      );
+
+      if (walletUseSar.value > 0 && Get.isRegistered<WalletService>()) {
+        await Get.find<WalletService>().debit(
+          amountSar: walletUseSar.value,
+          amountLocal: walletUseSar.value * est.rate,
+          note: 'خصم من المحفظة — طلب آجل ${sub.orderNo}',
+        );
+      }
+
+      await _cart.clear();
+      final upfrontLocal =
+          roundMoney(est.totalLocal * (upfrontPct / 100), currency.value);
+      final sm = shippingMap;
+      final shippingText = sm['mode'] == 'governorate'
+          ? 'مكتب نقل — ${sm['governorate']} — ${(sm['office'] as String? ?? '').isEmpty ? 'يمن سيلو يختار أنسب مكتب' : sm['office']}'
+          : sm['mode'] == 'driver'
+              ? 'سائق خاص: ${sm['driverName'] ?? ''} — ${sm['driverPhone'] ?? ''}'
+              : 'توصيل محلي للمنزل';
+
+      final form = OrderDocuments.officialWhatsAppForm(
+        orderNo: sub.orderNo,
+        customerName: address.value!.receiverName,
+        customerPhone: address.value!.phone,
+        addressAr: address.value!.fullAr,
+        shippingSummary: shippingText,
+        lines: lines,
+        currency: currency.value,
+        totalLocal: est.totalLocal,
+        paymentPlan: 'half_deferred',
+        upfrontDueLocal: upfrontLocal,
+        paidLocal: 0,
+        remainingLocal: est.totalLocal,
+      );
+
+      Get.offAll(() => OrderConfirmedScreen(
+            orderNo: sub.orderNo,
+            orderId: sub.id,
+            summary: form,
+            totalLocal: est.totalLocal,
+            currencyKey: currency.value.key,
+            paymentPlan: 'half_deferred',
+            upfrontDueLocal: upfrontLocal,
+            paidLocal: 0,
+            remainingLocal: est.totalLocal,
+            customerName: address.value!.receiverName,
+            customerPhone: address.value!.phone,
+            addressAr: address.value!.fullAr,
+            itemsCount: pieces,
+          ));
+    } catch (e) {
+      Get.snackbar('تعذر إرسال الطلب الآجل', '$e',
+          duration: const Duration(seconds: 5));
+    } finally {
+      busy.value = false;
+    }
   }
 }

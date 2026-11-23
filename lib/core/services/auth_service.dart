@@ -7,7 +7,21 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-/// مستخدم التطبيق + دوره (يُقرأ من custom claims ويُخزّن في users/{uid}).
+import 'customer_accounting_service.dart';
+
+DateTime? _parseAuthDate(dynamic v) {
+  if (v == null) return null;
+  if (v is DateTime) return v;
+  if (v is Timestamp) return v.toDate();
+  if (v is String) return DateTime.tryParse(v);
+  try {
+    return (v as dynamic).toDate() as DateTime;
+  } catch (_) {
+    return null;
+  }
+}
+
+/// مستخدم التطبيق + دوره + بيانات قاعدة عملاء يمن سيلو.
 class AppUser {
   final String uid;
   final String? email;
@@ -16,6 +30,16 @@ class AppUser {
   final String lastName;
   final String role; // customer | manager | support | shipping | courier | accounting
   final List<String> addressesCount;
+  final String customerCode;
+  final String city;
+  final String district;
+  final String addressLine;
+  final String preferredCurrency;
+  final String staffNotes;
+  final String customerTier;
+  final double? deferredCreditLimitSar;
+  final DateTime? lastOrderAt;
+  final DateTime? createdAt;
 
   const AppUser({
     required this.uid,
@@ -25,10 +49,40 @@ class AppUser {
     this.lastName = '',
     this.role = 'customer',
     this.addressesCount = const [],
+    this.customerCode = '',
+    this.city = '',
+    this.district = '',
+    this.addressLine = '',
+    this.preferredCurrency = 'south',
+    this.staffNotes = '',
+    this.customerTier = 'normal',
+    this.deferredCreditLimitSar,
+    this.lastOrderAt,
+    this.createdAt,
   });
 
   String get displayName =>
       [firstName, lastName].where((e) => e.trim().isNotEmpty).join(' ').trim();
+
+  String get effectiveCode =>
+      customerCode.isNotEmpty
+          ? customerCode
+          : 'YS-C-${uid.substring(0, uid.length >= 4 ? 4 : uid.length).toUpperCase()}';
+
+  String get fullAddressAr =>
+      [city, district, addressLine].where((e) => e.trim().isNotEmpty).join(' — ');
+
+  CustomerTier get tier => CustomerTierX.fromKey(customerTier);
+
+  double get effectiveCreditLimitSar =>
+      deferredCreditLimitSar ?? tier.defaultCreditLimitSar;
+
+  bool get hasCompleteCustomerProfile =>
+      firstName.trim().isNotEmpty &&
+      (phone ?? '').replaceAll(RegExp(r'\D'), '').length >= 9 &&
+      city.trim().isNotEmpty &&
+      district.trim().isNotEmpty &&
+      addressLine.trim().isNotEmpty;
 
   /// واتساب يحتاج الرقم بصيغة دولية بلا رموز.
   String get whatsappNumber {
@@ -40,7 +94,19 @@ class AppUser {
 
   bool get isStaff => role != 'customer';
 
-  AppUser copyWith({String? firstName, String? lastName, String? phone}) => AppUser(
+  AppUser copyWith({
+    String? firstName,
+    String? lastName,
+    String? phone,
+    String? city,
+    String? district,
+    String? addressLine,
+    String? preferredCurrency,
+    String? staffNotes,
+    String? customerTier,
+    double? deferredCreditLimitSar,
+  }) =>
+      AppUser(
         uid: uid,
         email: email,
         phone: phone ?? this.phone,
@@ -48,6 +114,16 @@ class AppUser {
         lastName: lastName ?? this.lastName,
         role: role,
         addressesCount: addressesCount,
+        customerCode: customerCode,
+        city: city ?? this.city,
+        district: district ?? this.district,
+        addressLine: addressLine ?? this.addressLine,
+        preferredCurrency: preferredCurrency ?? this.preferredCurrency,
+        staffNotes: staffNotes ?? this.staffNotes,
+        customerTier: customerTier ?? this.customerTier,
+        deferredCreditLimitSar: deferredCreditLimitSar ?? this.deferredCreditLimitSar,
+        lastOrderAt: lastOrderAt,
+        createdAt: createdAt,
       );
 }
 
@@ -202,29 +278,159 @@ class AuthService extends GetxService {
           // تعذّر القراءة (قواعد/شبكة) — يبقى العميل عميلاً.
         }
       }
+      final rawPhone = ((d['phone'] as String?) ?? '').trim();
+      final resolvedPhone = rawPhone.isNotEmpty ? rawPhone : (u.phoneNumber ?? '');
+      final rawCode = ((d['customerCode'] as String?) ?? '').trim();
+      final resolvedCode = rawCode.isNotEmpty
+          ? rawCode
+          : 'YS-C-${u.uid.substring(0, u.uid.length >= 4 ? 4 : u.uid.length).toUpperCase()}';
       user.value = AppUser(
         uid: u.uid,
-        email: u.email,
-        phone: u.phoneNumber ?? (d['phone'] as String?),
+        email: u.email ?? (d['email'] as String?),
+        phone: resolvedPhone,
         firstName: (d['firstName'] ?? '') as String,
         lastName: (d['lastName'] ?? '') as String,
         role: role,
+        customerCode: resolvedCode,
+        city: (d['city'] ?? '') as String,
+        district: (d['district'] ?? '') as String,
+        addressLine: (d['addressLine'] ?? '') as String,
+        preferredCurrency: (d['preferredCurrency'] ?? 'south') as String,
+        staffNotes: (d['staffNotes'] ?? '') as String,
+        customerTier: (d['customerTier'] ?? 'normal') as String,
+        deferredCreditLimitSar:
+            (d['deferredCreditLimitSar'] as num?)?.toDouble(),
+        lastOrderAt: _parseAuthDate(d['lastOrderAt']),
+        createdAt: _parseAuthDate(d['createdAt']),
       );
     } catch (e) {
       debugPrint('refreshProfile: $e');
     }
   }
 
-  Future<void> saveProfile({required String firstName, required String lastName, String? phone}) async {
+  String _codeFor(String uid) =>
+      'YS-C-${uid.substring(0, uid.length >= 4 ? 4 : uid.length).toUpperCase()}';
+
+  Future<void> saveProfile({
+    required String firstName,
+    required String lastName,
+    String? phone,
+    String? city,
+    String? district,
+    String? addressLine,
+    String? preferredCurrency,
+  }) async {
     final u = _auth.currentUser;
     if (u == null) throw 'غير مسجل الدخول';
-    await _db.collection('users').doc(u.uid).set({
-      'firstName': firstName,
-      'lastName': lastName,
-      'phone': phone ?? '',
+    final docRef = _db.collection('users').doc(u.uid);
+    final payload = <String, dynamic>{
+      'firstName': firstName.trim(),
+      'lastName': lastName.trim(),
+      'phone': (phone ?? '').trim(),
+      'customerCode': user.value?.customerCode.isNotEmpty == true
+          ? user.value!.customerCode
+          : _codeFor(u.uid),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    if (city != null) payload['city'] = city.trim();
+    if (district != null) payload['district'] = district.trim();
+    if (addressLine != null) payload['addressLine'] = addressLine.trim();
+    if (preferredCurrency != null) {
+      payload['preferredCurrency'] = preferredCurrency.trim();
+    }
+    await docRef.set(payload, SetOptions(merge: true));
+    await refreshProfile();
+  }
+
+  /// مزامنة بيانات التسجيل الإلزامية في قاعدة عملاء يمن سيلو + إنشاء عنوان افتراضي عند عدم وجود عنوان.
+  Future<void> syncCustomerRegistration({
+    required String firstName,
+    required String lastName,
+    required String phone,
+    required String city,
+    required String district,
+    required String addressLine,
+  }) async {
+    final u = _auth.currentUser;
+    if (u == null) return;
+    final cleanFirst = firstName.trim();
+    final cleanLast = lastName.trim();
+    final cleanPhone = phone.trim();
+    final cleanCity = city.trim();
+    final cleanDistrict = district.trim();
+    final cleanLine = addressLine.trim();
+
+    final ref = _db.collection('users').doc(u.uid);
+    final existing = await ref.get();
+    final data = existing.data() ?? <String, dynamic>{};
+
+    final resolvedCode = ((data['customerCode'] as String?) ?? '').isNotEmpty
+        ? data['customerCode']
+        : _codeFor(u.uid);
+
+    await ref.set({
+      'firstName': cleanFirst,
+      'lastName': cleanLast,
+      'phone': cleanPhone,
+      'city': cleanCity,
+      'district': cleanDistrict,
+      'addressLine': cleanLine,
+      'email': u.email ?? (data['email'] ?? ''),
+      'customerCode': resolvedCode,
+      if (!existing.exists || data['createdAt'] == null)
+        'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+
+    // إنشاء عنوان افتراضي للعميل إن لم يكن لديه عنوان محفوظ
+    try {
+      final addrCol = ref.collection('addresses');
+      final addrSnap = await addrCol.limit(1).get();
+      if (addrSnap.docs.isEmpty && cleanCity.isNotEmpty) {
+        final fullName = '$cleanFirst $cleanLast'.trim();
+        await addrCol.add({
+          'label': 'المنزل',
+          'city': cleanCity,
+          'district': cleanDistrict,
+          'line': cleanLine,
+          'phone': cleanPhone,
+          'receiverName': fullName.isEmpty ? 'العميل' : fullName,
+          'isDefault': true,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (_) {}
+
     await refreshProfile();
+  }
+
+  /// تحديث فئة العميل والحد الائتماني الآجل (من لوحة العملاء للإدارة).
+  Future<void> updateCustomerCreditSettings({
+    required String targetUid,
+    required CustomerTier tier,
+    required double creditLimitSar,
+  }) async {
+    await _db.collection('users').doc(targetUid).set({
+      'customerTier': tier.key,
+      'deferredCreditLimitSar': creditLimitSar < 0 ? 0.0 : creditLimitSar,
+      'notesUpdatedAt': FieldValue.serverTimestamp(),
+      'notesUpdatedBy': user.value?.displayName.isNotEmpty == true
+          ? user.value!.displayName
+          : (user.value?.email ?? 'staff'),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> updateCustomerStaffNotes({
+    required String targetUid,
+    required String notes,
+  }) async {
+    await _db.collection('users').doc(targetUid).set({
+      'staffNotes': notes.trim(),
+      'notesUpdatedAt': FieldValue.serverTimestamp(),
+      'notesUpdatedBy': user.value?.displayName.isNotEmpty == true
+          ? user.value!.displayName
+          : (user.value?.email ?? 'staff'),
+    }, SetOptions(merge: true));
   }
 
   Future<void> signInWithGoogle() async {
@@ -241,10 +447,8 @@ class AuthService extends GetxService {
       );
       await _auth.signInWithCredential(cred);
       await _db.collection('users').doc(_auth.currentUser!.uid).set({
-        'firstName': account.displayName?.split(' ').first ?? '',
-        'lastName': account.displayName?.split(' ').skip(1).join(' ') ?? '',
         'email': account.email,
-        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } on FirebaseAuthException catch (e) {
       error.value = _ar(e.code);

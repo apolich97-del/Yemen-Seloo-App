@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../core/services/auth_service.dart';
 import '../../core/theme/app_theme.dart';
+import 'customers_tab.dart';
 import 'dashboard_tab.dart';
 import 'orders_tab.dart';
 import 'payments_tab.dart';
@@ -36,6 +37,7 @@ class _AdminShellState extends State<AdminShell> {
   /// تبويبات كل دور: المحاسب، الشحن، خدمة العملاء، المدير.
   static List<_TabDef> _tabsFor(String role) {
     const dash = _TabDef('لوحة المعلومات', Icons.dashboard_outlined);
+    const customers = _TabDef('العملاء', Icons.people_outline);
     const orders = _TabDef('الطلبات', Icons.receipt_long_outlined);
     const pays = _TabDef('المدفوعات', Icons.account_balance_wallet_outlined);
     const receipts = _TabDef('إيصال', Icons.qr_code_2_outlined);
@@ -47,17 +49,17 @@ class _AdminShellState extends State<AdminShell> {
     const withdrawals = _TabDef('طلبات السحب', Icons.savings_outlined);
     switch (role) {
       case 'accounting':
-        return [pays, receipts, orders];
+        return [pays, receipts, orders, customers];
       case 'shipping':
       case 'courier':
         return [ship, orders];
       case 'support':
-        return [support, orders, receipts];
+        return [support, orders, receipts, customers];
       case 'marketer':
         // مسوّق الكتالوج: الاستوديو والطلبات فقط — بلا مدفوعات أو إعدادات أو فريق.
         return [catalog, orders];
       default:
-        return [dash, orders, catalog, pays, receipts, withdrawals, reviews, support, ship, settings];
+        return [dash, orders, customers, catalog, pays, receipts, withdrawals, reviews, support, ship, settings];
     }
   }
 
@@ -81,6 +83,7 @@ class _AdminShellState extends State<AdminShell> {
       final idx = (found < 0 ? 0 : found).clamp(0, tabs.length - 1);
       final body = switch (tabs[idx].label) {
         'لوحة المعلومات' => const DashboardTab(),
+        'العملاء' => const CustomersTab(),
         'الطلبات' => const OrdersTab(),
         'المدفوعات' => const PaymentsTab(),
         'إيصال' => const ReceiptsTab(),

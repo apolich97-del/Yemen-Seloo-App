@@ -43,6 +43,10 @@ service cloud.firestore {
         && request.resource.data.role in ['customer','marketer','manager','accounting','shipping','courier','support'];
       allow update: if isMainManager()
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
+      // الطاقم يحدّث ملاحظات العميل أو فئة العميل والحد الائتماني الآجل فقط
+      allow update: if staff()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['staffNotes', 'notesUpdatedAt', 'notesUpdatedBy', 'customerTier', 'deferredCreditLimitSar']);
       allow delete: if isMainManager();
       match /addresses/{a} { allow read, write: if auth() && (uid == me() || staff()); }
       match /cart/{c} { allow read: if auth() && uid == me(); allow write: if false; }
@@ -145,6 +149,12 @@ service cloud.firestore {
       allow update: if auth() && c == 'orders'
         && request.resource.data.value == resource.data.value + 1;
       allow delete: if staff();
+    }
+    // حجز أرقام الطلبات الفريدة (منع التكرار 100%)
+    match /order_numbers/{no} {
+      allow read: if auth();
+      allow create: if auth() && request.resource.data.userId == me();
+      allow update, delete: if false;
     }
     // محفظة العميل: يقرأ رصيده، والفريق يضيف الرصيد
     match /wallets/{uid} {

@@ -13,6 +13,9 @@ class ProfileController extends GetxController {
   final firstName = TextEditingController();
   final lastName = TextEditingController();
   final phone = TextEditingController();
+  final city = TextEditingController();
+  final district = TextEditingController();
+  final addressLine = TextEditingController();
 
   final addresses = <Address>[].obs;
   final busy = false.obs;
@@ -30,6 +33,9 @@ class ProfileController extends GetxController {
     firstName.text = u.firstName;
     lastName.text = u.lastName;
     phone.text = u.phone ?? '';
+    city.text = u.city;
+    district.text = u.district;
+    addressLine.text = u.addressLine;
   }
 
   @override
@@ -37,6 +43,9 @@ class ProfileController extends GetxController {
     firstName.dispose();
     lastName.dispose();
     phone.dispose();
+    city.dispose();
+    district.dispose();
+    addressLine.dispose();
     super.onClose();
   }
 
@@ -61,6 +70,9 @@ class ProfileController extends GetxController {
         firstName: firstName.text.trim(),
         lastName: lastName.text.trim(),
         phone: phone.text.trim(),
+        city: city.text.trim(),
+        district: district.text.trim(),
+        addressLine: addressLine.text.trim(),
       );
       Get.snackbar('تم الحفظ', 'تم تحديث بياناتك الشخصية');
     } catch (e) {

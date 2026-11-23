@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../core/models/cart.dart';
 import '../../../core/models/currency.dart';
 import '../../../core/models/order.dart';
 import '../../../core/models/refund.dart';
@@ -616,6 +617,29 @@ class _OrdersTabState extends State<OrdersTab>
                   Text('${o.items.length} قطعة',
                       style: TextStyle(fontSize: 10, color: T.muted)),
                 ],
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    try {
+                      final count = await Get.find<CartRepository>().reorderOrderItems(o.items);
+                      Get.snackbar('أُعيدت للسلة ✓', 'تمت إضافة $count منتجاً إلى سلة التسوق');
+                      if (Get.isRegistered<MainTabController>()) {
+                        Get.find<MainTabController>().goToCart();
+                      }
+                    } catch (e) {
+                      Get.snackbar('تعذر إعادة الطلب', '$e');
+                    }
+                  },
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 34),
+                    padding: const EdgeInsets.symmetric(vertical: 7),
+                  ),
+                  icon: const Icon(Icons.replay_outlined, size: 15),
+                  label: const Text('إعادة الطلب للسلة', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700)),
+                ),
               ),
               // زر «إيصال» للطلبات الآجلة — متابعة الدفعات بضغطة واحدة
               if (o.isDeferred ||

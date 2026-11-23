@@ -489,7 +489,23 @@ export function validatePayment(
   };
 }
 
-/** رقم الطلب: YS-2026-000123 — تسلسل ذرّي داخل معاملة. */
+const ORDER_MONTH_CODES = [
+  "JA", "FE", "MR", "AP", "MY", "JN",
+  "JL", "AU", "SE", "OC", "NV", "DE",
+];
+
+function formatSelooOrderNo(n: number): string {
+  const now = new Date();
+  const idx = Math.max(0, n - 1);
+  const week = Math.floor((now.getDate() - 1) / 7) + 1;
+  const letter = String.fromCharCode(65 + (idx % 26));
+  const seq = (idx % 1000) + 1;
+  const yy = String(now.getFullYear() % 100).padStart(2, "0");
+  const mm = ORDER_MONTH_CODES[now.getMonth()];
+  return `YS${yy}${mm}${week}-${letter}${String(seq).padStart(3, "0")}`;
+}
+
+/** رقم الطلب الفريد: تسلسل ذرّي + حجز في order_numbers لمنع التكرار 100%. */
 export async function nextOrderNo(
   db: Firestore,
   tx: admin.firestore.Transaction,
@@ -497,7 +513,29 @@ export async function nextOrderNo(
   const ref = db.collection(COUNTERS).doc("orders");
   const snap = await tx.get(ref);
   const last = snap.exists ? num((snap.data() as Record<string, unknown>).value, 0) : 0;
-  const next = last + 1;
+  let next = last + 1;
+  let chosen = formatSelooOrderNo(next);
+  let chosenRef = db.collection("order_numbers").doc(chosen);
+
+  for (let i = 0; i < 8; i++) {
+    const candidate = formatSelooOrderNo(next + i);
+    const lockRef = db.collection("order_numbers").doc(candidate);
+    const existing = await tx.get(lockRef);
+    if (!existing.exists) {
+      next = next + i;
+      chosen = candidate;
+      chosenRef = lockRef;
+      break;
+    }
+    if (i === 7) {
+      next = next + i + 1;
+      const salt = Math.floor(Math.random() * 90 + 10);
+      chosen = `${formatSelooOrderNo(next)}-${salt}`;
+      chosenRef = db.collection("order_numbers").doc(chosen);
+    }
+  }
+
   tx.set(ref, { value: next, updatedAt: FieldValue.serverTimestamp() });
-  return `YS-${new Date().getFullYear()}-${String(next).padStart(6, "0")}`;
+  tx.set(chosenRef, { orderNo: chosen, createdAt: FieldValue.serverTimestamp() });
+  return chosen;
 }

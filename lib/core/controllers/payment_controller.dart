@@ -14,6 +14,7 @@ import '../models/currency.dart';
 import '../../features/orders/order_confirmed_screen.dart';
 import '../services/auth_service.dart';
 import '../models/cart.dart';
+import '../services/order_documents.dart';
 import '../services/order_service.dart';
 import '../services/wallet_service.dart';
 import '../services/settings_service.dart';
@@ -60,7 +61,7 @@ class PaymentController extends GetxController {
     super.onInit();
     payload = Get.arguments as CheckoutPayload;
     accounts.assignAll(accountsForCurrency(payload.currency));
-    amountCtrl.text = payload.estimate.totalLocal
+    amountCtrl.text = requiredDueLocal
         .toStringAsFixed(payload.currency.decimals == 0 ? 0 : 2);
     if (accounts.length == 1) selected.value = accounts.first;
   }
@@ -75,8 +76,28 @@ class PaymentController extends GetxController {
   }
 
   AppCurrency get currency => payload.currency;
-  String get totalLabel => formatMoney(payload.estimate.totalLocal, currency);
+  bool get isDeferred => payload.paymentPlan == 'half_deferred';
+  double get requiredDueLocal => isDeferred
+      ? roundMoney(payload.estimate.totalLocal * (payload.upfrontPercent / 100),
+          currency)
+      : payload.estimate.totalLocal;
+  String get totalLabel => formatMoney(requiredDueLocal, currency);
   bool get proofAttached => proofImage.value.isNotEmpty;
+
+  /// تحذير فوري عند اكتشاف رقم مرجع حوالة مكرر في طلب سابق.
+  final duplicateRefWarning = ''.obs;
+
+  Future<void> checkDuplicateRef(String raw) async {
+    final clean = raw.trim();
+    if (clean.length < 4) {
+      duplicateRefWarning.value = '';
+      return;
+    }
+    final dupOrderNo = await _orders.findDuplicateTransferRef(clean);
+    duplicateRefWarning.value = dupOrderNo == null
+        ? ''
+        : 'تنبيه: رقم المرجع هذا استُخدم سابقاً في الطلب $dupOrderNo — تأكد من عدم تكرار الحوالة.';
+  }
 
   /// صورة الحوالة كـ data URI لعرضها للمستخدم قبل الإرسال.
   String get proofDataUri => proofImage.value;
@@ -84,7 +105,7 @@ class PaymentController extends GetxController {
   bool get canConfirm =>
       transfer.value != null &&
       transfer.value!.proofUrl.isNotEmpty &&
-      transfer.value!.amount + 0.01 >= payload.estimate.totalLocal &&
+      transfer.value!.amount + 0.01 >= requiredDueLocal &&
       !busy.value;
 
   void select(PaymentAccount a) => selected.value = a;
@@ -208,10 +229,7 @@ class PaymentController extends GetxController {
       Get.snackbar('المبلغ مطلوب', 'أدخل المبلغ الذي حوّلته فعلاً');
       return;
     }
-    final required = payload.paymentPlan == 'half_deferred'
-        ? roundMoney(payload.estimate.totalLocal * (payload.upfrontPercent / 100),
-            payload.currency)
-        : payload.estimate.totalLocal;
+    final required = requiredDueLocal;
     if (amount + 0.01 < required) {
       Get.snackbar(
         'المبلغ أقل من المطلوب',
@@ -243,7 +261,7 @@ class PaymentController extends GetxController {
     busy.value = true;
     try {
       final cc = _cartCounter;
-      final orderNo = await _orders.submitOrder(
+      final SubmittedOrderRef sub = await _orders.submitOrder(
         lines: payload.lines,
         currency: currency,
         address: payload.address,
@@ -257,7 +275,7 @@ class PaymentController extends GetxController {
           'accountTitleAr': acc.titleAr,
           'accountNumber': acc.primaryNumber,
           'amount': t.amount,
-          'requiredAmount': payload.estimate.totalLocal,
+          'requiredAmount': requiredDueLocal,
           'proofVerified': ocrDone.value && ocrAmountOk.value && ocrRefOk.value,
           'ocrChecks': <String, dynamic>{
             'read': ocrDone.value,
@@ -271,21 +289,13 @@ class PaymentController extends GetxController {
           'refNo': t.refNo,
           'note': t.note,
           'proofUrl': t.proofUrl,
-          // أي زيادة فوق قيمة الطلب والشحن تُسجَّل رصيداً للعميل.
-          // الفائض فوق إجمالي الطلب فقط يُسجّل رصيداً؛ وما بين الدفعة
-          // الأولى والإجمالي يُخصم من المتبقي.
           'creditLocal': t.amount > payload.estimate.totalLocal
               ? (t.amount - payload.estimate.totalLocal)
               : 0.0,
         },
-        // عمولة المندوب: بند داخلي لا يُضاف إلى إجمالي العميل.
         commission: <String, dynamic>{
-          'perPieceSar': cc
-              .commissionPerPiece
-              .value,
-          'approved': cc
-              .commissionApproved
-              .value,
+          'perPieceSar': cc.commissionPerPiece.value,
+          'approved': cc.commissionApproved.value,
         },
       );
       if (payload.walletUseSar > 0 &&
@@ -298,33 +308,51 @@ class PaymentController extends GetxController {
                       ? Get.find<SettingsService>().settings.value.rateNorth
                       : Get.find<SettingsService>().settings.value.rateSouth)
                   : 1),
-          note: 'خصم من المحفظة — طلب $orderNo',
+          note: 'خصم من المحفظة — طلب ${sub.orderNo}',
         );
       }
-      _cart.clear();
-      final buf = StringBuffer()
-        ..writeln('طلب جديد من تطبيق يمن سيلو')
-        ..writeln('رقم الطلب: $orderNo')
-        ..writeln('العميل: ${payload.address.receiverName} — ${payload.address.phone}')
-        ..writeln('العنوان: ${payload.address.fullAr}')
-        ..writeln('القطع:');
-      for (final l in payload.lines) {
-        buf.writeln('• ${l.titleAr}'
-            '${l.color.isEmpty ? '' : ' | لون: ${l.color}'}'
-            '${l.size.isEmpty ? '' : ' | مقاس: ${l.size}'}'
-            ' × ${l.qty} = ${l.unitPriceSar.toStringAsFixed(2)} SAR');
-      }
+      await _cart.clear();
       final sm = payload.shipping;
-      buf
-        ..writeln('التوصيل: ${sm['mode'] == 'governorate' ? 'مكتب نقل — ${sm['governorate']} — ${(sm['office'] as String).isEmpty ? 'يمن سيلو يختار أنسب مكتب' : sm['office']}' : sm['mode'] == 'driver' ? 'سائق خاص: ${sm['driverName']} — ${sm['driverPhone']} — التقاء: ${sm['meetPoint']}' : 'توصيل محلي للمنزل'}')
-        ..writeln('الإجمالي: ${payload.estimate.totalLocal.toStringAsFixed(0)} '
-            '(${currency.key})')
-        ..writeln('خطة السداد: ${payload.paymentPlan}');
+      final shippingText = sm['mode'] == 'governorate'
+          ? 'مكتب نقل — ${sm['governorate']} — ${(sm['office'] as String? ?? '').isEmpty ? 'يمن سيلو يختار أنسب مكتب' : sm['office']}'
+          : sm['mode'] == 'driver'
+              ? 'سائق خاص: ${sm['driverName'] ?? ''} — ${sm['driverPhone'] ?? ''} — التقاء: ${sm['meetPoint'] ?? ''}'
+              : 'توصيل محلي للمنزل';
+      final remainingLocal = (payload.estimate.totalLocal - t.amount)
+          .clamp(0.0, double.infinity);
+
+      final form = OrderDocuments.officialWhatsAppForm(
+        orderNo: sub.orderNo,
+        customerName: payload.address.receiverName,
+        customerPhone: payload.address.phone,
+        addressAr: payload.address.fullAr,
+        shippingSummary: shippingText,
+        lines: payload.lines,
+        currency: currency,
+        totalLocal: payload.estimate.totalLocal,
+        paymentPlan: payload.paymentPlan,
+        upfrontDueLocal: requiredDueLocal,
+        paidLocal: t.amount,
+        remainingLocal: remainingLocal,
+        accountTitleAr: acc.titleAr,
+        refNo: t.refNo,
+      );
+
+      final pieces = payload.lines.fold<int>(0, (s, l) => s + l.qty);
       Get.offAll(() => OrderConfirmedScreen(
-            orderNo: orderNo,
-            summary: buf.toString(),
+            orderNo: sub.orderNo,
+            orderId: sub.id,
+            summary: form,
             totalLocal: payload.estimate.totalLocal,
             currencyKey: currency.key,
+            paymentPlan: payload.paymentPlan,
+            upfrontDueLocal: requiredDueLocal,
+            paidLocal: t.amount,
+            remainingLocal: remainingLocal,
+            customerName: payload.address.receiverName,
+            customerPhone: payload.address.phone,
+            addressAr: payload.address.fullAr,
+            itemsCount: pieces,
           ));
     } catch (e) {
       final msg = '$e';

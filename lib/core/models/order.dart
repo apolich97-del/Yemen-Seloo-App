@@ -1,4 +1,5 @@
 import 'currency.dart';
+import 'refund.dart';
 
 /// حالات الطلب — نفس مفاتيح Firestore التي يستخدمها السيرفر واللوحة.
 /// الشريط الزمني في واجهة العميل يعرض: السداد → الرفع → التجهيز → الشحن → التوصيل → التسليم.
@@ -305,6 +306,8 @@ class Order {
 
   bool get isDeferred => paymentPlan == 'half_deferred';
   bool get hasRemaining => remainingLocal > 0.5;
+  double get paidTotalSar => exchangeRate > 0 ? paidTotalLocal / exchangeRate : paidTotalLocal;
+  double get remainingSar => exchangeRate > 0 ? remainingLocal / exchangeRate : remainingLocal;
   final String couponCode;
   final Address address;
   final OrderStatus status;
@@ -340,6 +343,8 @@ class Order {
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? expediteRequestedAt;
+  final List<RefundRecord> refunds;
+  final double refundedTotalSar;
 
   // ═══ فكرة يمن: نسخة واحدة معتمدة + سجل تعديلات داخلي ═══
   /// رقم النسخة الحالية. يزيد مع كل تعديل قبل الاعتماد النهائي.
@@ -396,6 +401,8 @@ class Order {
     this.courierName = '',
     this.proofImageUrl = '',
     this.expediteRequestedAt,
+    this.refunds = const <RefundRecord>[],
+    this.refundedTotalSar = 0,
     this.revision = 1,
     this.approvedAt,
     this.editingLocked = false,
@@ -464,6 +471,9 @@ class Order {
     final tl = ((m['timeline'] as List?) ?? const [])
         .map((e) => TimelineEvent.fromMap(Map<String, dynamic>.from(e as Map)))
         .toList();
+    final refList = ((m['refunds'] as List?) ?? const [])
+        .map((e) => RefundRecord.fromMap(Map<String, dynamic>.from(e as Map)))
+        .toList();
     return Order(
       id: id,
       orderNo: (m['orderNo'] ?? id) as String,
@@ -485,6 +495,10 @@ class Order {
       discountSar: (m['discountSar'] as num?)?.toDouble() ?? 0,
       totalSar: (m['totalSar'] as num?)?.toDouble() ?? 0,
       totalLocal: (m['totalLocal'] as num?)?.toDouble() ?? 0,
+      paymentPlan: (m['paymentPlan'] ?? 'full') as String,
+      upfrontDueLocal: (m['upfrontDueLocal'] as num?)?.toDouble() ?? 0,
+      paidTotalLocal: (m['paidTotalLocal'] as num?)?.toDouble() ?? 0,
+      remainingLocal: (m['remainingLocal'] as num?)?.toDouble() ?? 0,
       couponCode: (m['couponCode'] ?? '') as String,
       address: Address.fromMap(Map<String, dynamic>.from((m['address'] as Map?) ?? {})),
       status: OrderStatusX.fromKey(m['status'] as String?),
@@ -507,6 +521,8 @@ class Order {
       createdAt: _ts(m['createdAt']) ?? DateTime.now(),
       updatedAt: _ts(m['updatedAt']) ?? DateTime.now(),
       expediteRequestedAt: _ts(m['expediteRequestedAt']),
+      refunds: refList,
+      refundedTotalSar: (m['refundedTotalSar'] as num?)?.toDouble() ?? 0,
       revision: (m['revision'] as num?)?.toInt() ?? 1,
       approvedAt: _ts(m['approvedAt']),
       editingLocked: (m['editingLocked'] as bool?) ?? false,

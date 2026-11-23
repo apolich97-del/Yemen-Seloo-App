@@ -8,6 +8,13 @@ import '../models/currency.dart';
 import '../models/order.dart';
 import 'pricing_service.dart';
 
+/// مرجع الطلب المُرسل: معرّف المستند + رقم الطلب الفريد (YS...).
+class SubmittedOrderRef {
+  final String id;
+  final String orderNo;
+  const SubmittedOrderRef(this.id, this.orderNo);
+}
+
 /// كتابة مباشرة في Firestore (بلا Cloud Functions). القواعد تمنع تعديل
 /// الإجمالي أو الكتابة في طلبات الغير، والطاقم فقط يغيّر الحالة.
 class OrderService extends GetxService {
@@ -31,24 +38,9 @@ class OrderService extends GetxService {
     'JL', 'AU', 'SE', 'OC', 'NV', 'DE',
   ];
 
-  Future<String> _nextOrderNo() async {
-    final counter = _db.collection('counters').doc('orders');
-    int n;
-    try {
-      n = await _db.runTransaction<int>((tx) async {
-        final snap = await tx.get(counter);
-        final v = ((snap.data()?['value'] as num?)?.toInt() ?? 0) + 1;
-        tx.set(counter, {'value': v}, SetOptions(merge: true));
-        return v;
-      });
-    } catch (_) {
-      // احتياط: إن تعذّر العدّاد (قواعد غير منشورة) نستخدم عدّاداً زمنياً
-      // حتى لا يتوقف إنشاء الطلبات.
-      n = DateTime.now().millisecondsSinceEpoch % 26000;
-    }
-
+  String _formatOrderNo(int n) {
     final now = DateTime.now();
-    final idx = n - 1; // ROW()-ROW($A$2)
+    final idx = n > 0 ? n - 1 : 0;
     final week = ((now.day - 1) ~/ 7) + 1;
     final letter = String.fromCharCode(65 + (idx % 26));
     final seq = (idx % 1000) + 1;
@@ -58,7 +50,76 @@ class OrderService extends GetxService {
         '$letter${seq.toString().padLeft(3, '0')}';
   }
 
-  Future<String> submitOrder({
+  /// توليد رقم طلب فريد 100% مع حجز ذرّي في order_numbers/{orderNo} لمنع أي تكرار.
+  Future<String> _nextOrderNo(String uid) async {
+    final counter = _db.collection('counters').doc('orders');
+    try {
+      return await _db.runTransaction<String>((tx) async {
+        final snap = await tx.get(counter);
+        int base = ((snap.data()?['value'] as num?)?.toInt() ?? 0) + 1;
+        String chosen = _formatOrderNo(base);
+        DocumentReference<Map<String, dynamic>> lockRef =
+            _db.collection('order_numbers').doc(chosen);
+
+        for (int i = 0; i < 8; i++) {
+          final candidate = _formatOrderNo(base + i);
+          final candidateRef = _db.collection('order_numbers').doc(candidate);
+          final existing = await tx.get(candidateRef);
+          if (!existing.exists) {
+            base = base + i;
+            chosen = candidate;
+            lockRef = candidateRef;
+            break;
+          }
+          if (i == 7) {
+            base = base + i + 1;
+            final salt = (DateTime.now().millisecondsSinceEpoch % 89 + 10);
+            chosen = '${_formatOrderNo(base)}-$salt';
+            lockRef = _db.collection('order_numbers').doc(chosen);
+          }
+        }
+
+        tx.set(counter, {'value': base}, SetOptions(merge: true));
+        tx.set(lockRef, {
+          'orderNo': chosen,
+          'userId': uid,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        return chosen;
+      });
+    } catch (_) {
+      final ms = DateTime.now().millisecondsSinceEpoch;
+      final n = (ms % 26000) + 1;
+      final salt = (ms % 89 + 10);
+      return '${_formatOrderNo(n)}-$salt';
+    }
+  }
+
+  /// فحص رقم مرجع الحوالة قبل الإرسال لتنبيه العميل عند الاشتباه بتكرار حوالة سابقة.
+  Future<String?> findDuplicateTransferRef(String refNo) async {
+    final clean = refNo.trim();
+    if (clean.length < 4) return null;
+    try {
+      final uid = _auth.currentUser?.uid;
+      if (uid == null) return null;
+      final snap = await _db
+          .collection('orders')
+          .where('userId', isEqualTo: uid)
+          .limit(60)
+          .get();
+      for (final d in snap.docs) {
+        final data = d.data();
+        final pay = data['payment'] as Map?;
+        final prevRef = (pay?['refNo'] ?? '').toString().trim();
+        if (prevRef.isNotEmpty && prevRef.toLowerCase() == clean.toLowerCase()) {
+          return (data['orderNo'] ?? d.id).toString();
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<SubmittedOrderRef> submitOrder({
     required List<CartLine> lines,
     required AppCurrency currency,
     required Address address,
@@ -74,7 +135,7 @@ class OrderService extends GetxService {
     if (estimate == null) throw 'أعد فتح شاشة الملخص لحساب الإجمالي';
     final e = estimate;
     final ref = _db.collection('orders').doc();
-    final orderNo = await _nextOrderNo();
+    final orderNo = await _nextOrderNo(_uid);
     final st = payment != null ? 'verifying' : 'unpaid';
     final pieces = lines.fold<int>(0, (s, l) => s + l.qty);
     final perPiece = (commission?['perPieceSar'] as num?)?.toDouble() ?? 0;
@@ -154,7 +215,18 @@ class OrderService extends GetxService {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
-    return ref.id;
+    // تحديث آخر نشاط وتفاصيل العميل في قاعدة بيانات عملاء يمن سيلو تلقائياً
+    try {
+      await _db.collection('users').doc(_uid).set({
+        if (address.city.trim().isNotEmpty) 'city': address.city.trim(),
+        if (address.district.trim().isNotEmpty) 'district': address.district.trim(),
+        if (address.line.trim().isNotEmpty) 'addressLine': address.line.trim(),
+        if (address.phone.trim().isNotEmpty) 'phone': address.phone.trim(),
+        'lastOrderAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {}
+    return SubmittedOrderRef(ref.id, orderNo);
   }
 
   Future<void> attachPayment({

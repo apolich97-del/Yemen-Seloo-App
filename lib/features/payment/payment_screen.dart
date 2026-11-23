@@ -358,7 +358,7 @@ class _TransferSheet extends StatelessWidget {
               decoration: InputDecoration(
                 labelText: 'المبلغ المحوّل',
                 helperText:
-                    'المطلوب ${formatMoney(controller.payload.estimate.totalLocal, controller.currency)} — لا يُقبل أقل منه',
+                    'المطلوب ${formatMoney(controller.requiredDueLocal, controller.currency)} — لا يُقبل أقل منه',
                 suffixText: controller.currency.shortAr,
               ),
             ),
@@ -375,11 +375,39 @@ class _TransferSheet extends StatelessWidget {
             TextField(
               controller: controller.refCtrl,
               textInputAction: TextInputAction.next,
+              onChanged: controller.checkDuplicateRef,
               decoration: const InputDecoration(
                 labelText: 'رقم العملية (اختياري)',
                 hintText: 'إن لم يكن موجوداً اتركه فارغاً',
               ),
             ),
+            Obx(() {
+              final warn = controller.duplicateRefWarning.value;
+              if (warn.isEmpty) return const SizedBox.shrink();
+              return Container(
+                margin: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withOpacity(.14),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.warning.withOpacity(.5)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded,
+                        size: 18, color: AppColors.warning),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        warn,
+                        style: const TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
             const SizedBox(height: 12),
             TextField(
               controller: controller.noteCtrl,

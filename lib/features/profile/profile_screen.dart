@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import '../../core/controllers/profile_controller.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/services/customer_accounting_service.dart';
 import '../../core/services/review_service.dart';
 import '../../core/services/wallet_service.dart';
 import '../../core/theme/app_theme.dart';
@@ -149,6 +150,38 @@ class ProfileScreen extends GetView<ProfileController> {
                       helperText: 'يُستخدم للتواصل عبر واتساب بخصوص الطلب',
                     ),
                   ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: controller.city,
+                          decoration: const InputDecoration(
+                            labelText: 'المحافظة / المدينة',
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: controller.district,
+                          decoration: const InputDecoration(
+                            labelText: 'المديرية / الحي',
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: controller.addressLine,
+                    decoration: const InputDecoration(
+                      labelText: 'العنوان التفصيلي',
+                      isDense: true,
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   ElevatedButton(
                     onPressed: controller.busy.value ? null : controller.savePersonal,
@@ -190,7 +223,9 @@ class ProfileScreen extends GetView<ProfileController> {
           BrandHeader(
             title: u.displayName.isEmpty ? 'مستخدم جديد' : u.displayName,
             subtitle: u.phone ?? u.email ?? 'يمن سيلو · حسابك',
-            badge: u.role == 'customer' ? 'عميل' : u.role,
+            badge: u.role == 'customer'
+                ? '${u.effectiveCode} · ${u.tier.labelAr}'
+                : u.role,
           ),
           const SizedBox(height: 10),
           Container(
@@ -559,6 +594,8 @@ class ProfileScreen extends GetView<ProfileController> {
                 () => _goMainTab(context, 3, ordersFilter: 'all')),
             _tile(Icons.rate_review_outlined, 'تعليقاتي وتقييم الطلبات',
                 () => _goMainTab(context, 3, ordersFilter: 'reviews')),
+            _tile(Icons.account_balance_outlined, 'كشف الحساب المحاسبي والوثائق',
+                () => Get.toNamed(AppRoutes.accountStatement)),
             _tile(Icons.request_quote_outlined, 'إيصالات السداد',
                 () => Get.toNamed(AppRoutes.myReceipts)),
             _tile(Icons.headset_mic_outlined, 'خدمة العملاء',

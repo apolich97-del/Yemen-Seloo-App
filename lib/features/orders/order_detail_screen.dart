@@ -10,7 +10,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/models/cart.dart';
 import '../../core/models/currency.dart';
+import '../home/presentation/main_tab_controller.dart';
 import '../../core/models/order.dart';
 import '../../core/models/receipt.dart';
 import '../../core/services/cart_share.dart';
@@ -80,6 +82,26 @@ class OrderDetailScreen extends StatelessWidget {
                   onPressed: () => Get.to(() => const MyReceiptsScreen()),
                   icon: const Icon(Icons.receipt_long_outlined, size: 18),
                   label: const Text('إيصالات السداد الخاصة بي'),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    try {
+                      final count = await Get.find<CartRepository>().reorderOrderItems(o.items);
+                      Get.snackbar('أُعيدت للسلة ✓', 'تمت إضافة $count منتجاً إلى سلة التسوق');
+                      if (Get.isRegistered<MainTabController>()) {
+                        Get.find<MainTabController>().goToCart();
+                        Get.offAllNamed('/main');
+                      }
+                    } catch (e) {
+                      Get.snackbar('تعذر إعادة الطلب', '$e');
+                    }
+                  },
+                  icon: const Icon(Icons.replay_outlined, size: 18),
+                  label: const Text('إعادة الطلب للسلة'),
                 ),
               ),
               const SizedBox(height: 12),

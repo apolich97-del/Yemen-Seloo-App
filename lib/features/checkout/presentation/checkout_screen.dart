@@ -477,8 +477,8 @@ class CheckoutScreen extends GetView<CheckoutController> {
     return Obx(() {
       final est = controller.estimate.value;
       if (est == null) return const SizedBox.shrink();
-      final eligible = sf.deferredEnabled &&
-          est.subtotalSar >= sf.deferredThresholdSar;
+      final restriction = controller.deferredRestrictionReason(est, sf);
+      final eligible = restriction == null;
       final pct = sf.deferredUpfrontPercent.toStringAsFixed(0);
       final upfront = roundMoney(est.totalLocal * (sf.deferredUpfrontPercent / 100),
           est.currency);
@@ -568,12 +568,47 @@ class CheckoutScreen extends GetView<CheckoutController> {
               value: 'half_deferred',
               title: 'طلب آجل — السداد بالنصف $pct%',
               subtitle: eligible
-                  ? 'المطلوب الآن ${formatMoney(upfront, est.currency)} · '
-                      'المتبقي ${formatMoney(est.totalLocal - upfront, est.currency)}'
-                  : 'غير متاح: قيمة السلة أقل من الحد الأدنى '
-                      '${formatMoney(sf.deferredThresholdSar * (est.currency == AppCurrency.sar ? 1 : est.rate), est.currency)}',
+                  ? 'الدفعة الأولى ${formatMoney(upfront, est.currency)} · المتبقي ${formatMoney(est.totalLocal - upfront, est.currency)} (متاح لك: ${controller.availableDeferredCreditSar.toStringAsFixed(0)} ر.س)'
+                  : (restriction ?? 'الآجل غير متاح'),
               enabled: eligible,
             ),
+            if (controller.paymentPlan.value == 'half_deferred' && eligible) ...[
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(.06),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.primary.withOpacity(.25)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'خيار الآجل عبر استمارة واتساب الإجبارية:',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primaryDark),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'يمكنك متابعة دفع الدفعة الأولى الآن، أو تأكيد الطلب الآجل فوراً والانتقال لاستمارة تأكيد الطلب عبر واتساب.',
+                      style: TextStyle(fontSize: 10.5, color: T.muted, height: 1.5),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: controller.busy.value
+                          ? null
+                          : controller.confirmDeferredWithoutDeposit,
+                      icon: const Icon(Icons.chat_outlined, size: 17),
+                      label: const Text('تأكيد طلب آجل + استمارة واتساب',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       );

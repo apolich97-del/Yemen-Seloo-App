@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../core/models/currency.dart';
 import '../../../core/models/receipt.dart';
+import '../../../core/routes/app_routes.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/order_documents.dart';
 import '../../../core/services/order_service.dart';
@@ -24,7 +25,15 @@ class MyReceiptsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('إيصالات السداد'),
-        actions: const [ThemeToggleButton(), SizedBox(width: 6)],
+        actions: [
+          TextButton.icon(
+            onPressed: () => Get.toNamed(AppRoutes.accountStatement),
+            icon: const Icon(Icons.account_balance_outlined, size: 17),
+            label: const Text('كشف الحساب', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
+          ),
+          const ThemeToggleButton(),
+          const SizedBox(width: 6),
+        ],
       ),
       body: uid.isEmpty
           ? const Center(child: Text('سجّل الدخول لعرض إيصالاتك'))
