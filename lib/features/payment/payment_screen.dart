@@ -388,14 +388,14 @@ class _TransferSheet extends StatelessWidget {
                 margin: const EdgeInsets.only(top: 8),
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.warning.withOpacity(.14),
+                  color: T.warning.withOpacity(.14),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.warning.withOpacity(.5)),
+                  border: Border.all(color: T.warning.withOpacity(.5)),
                 ),
                 child: Row(
                   children: [
                     const Icon(Icons.warning_amber_rounded,
-                        size: 18, color: AppColors.warning),
+                        size: 18, color: T.warning),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
