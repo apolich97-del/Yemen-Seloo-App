@@ -239,8 +239,8 @@ class _CustomersTabState extends State<CustomersTab> {
                     backgroundColor: AppColors.primary.withOpacity(.12),
                     child: Text(
                       u.displayName.isEmpty ? '؟' : u.displayName.characters.first,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w900, color: AppColors.primaryDark),
+                      style: TextStyle(
+                          fontWeight: FontWeight.w900, color: T.primary),
                     ),
                   ),
                   const SizedBox(width: 10),

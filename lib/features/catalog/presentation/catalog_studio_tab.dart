@@ -1,8 +1,14 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/services/settings_service.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../cart/data/seloo_cart_service.dart';
+import '../../cart/domain/cart_item.dart';
+import '../../shein/data/shein_product_scraper.dart';
 import '../data/catalog_models.dart';
 import '../data/catalog_repository.dart';
 
@@ -22,6 +28,24 @@ class _CatalogStudioTabState extends State<CatalogStudioTab> {
 
   double get _rateSouth => _settings?.settings.value.rateSouth ?? 413;
   double get _rateNorth => _settings?.settings.value.rateNorth ?? 140;
+
+  Widget _catThumb(String src, double w, double h) {
+    if (src.isEmpty) {
+      return Container(
+          width: w, height: h, color: T.soft,
+          child: Icon(Icons.image_outlined, size: 20, color: T.muted));
+    }
+    if (src.startsWith('data:')) {
+      try {
+        final b64 = src.substring(src.indexOf(',') + 1);
+        return Image.memory(base64Decode(b64), width: w, height: h, fit: BoxFit.cover);
+      } catch (_) {}
+    }
+    return Image.network(src, width: w, height: h, fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+            width: w, height: h, color: T.soft,
+            child: Icon(Icons.broken_image_outlined, size: 20, color: T.muted)));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -112,24 +136,7 @@ class _CatalogStudioTabState extends State<CatalogStudioTab> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: it.imageUrl.isEmpty
-                  ? Container(
-                      width: 58,
-                      height: 58,
-                      color: T.soft,
-                      child: Icon(Icons.image_outlined,
-                          size: 20, color: T.muted))
-                  : Image.network(it.imageUrl,
-                      width: 58,
-                      height: 58,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                            width: 58,
-                            height: 58,
-                            color: T.soft,
-                            child: Icon(Icons.broken_image_outlined,
-                                size: 20, color: T.muted),
-                          )),
+              child: _catThumb(it.imageUrl, 58, 58),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -190,6 +197,8 @@ class _CatalogStudioTabState extends State<CatalogStudioTab> {
         text: (existing?.marginSar ?? 0).toStringAsFixed(2));
     var region = existing?.region ?? 'south';
     var badge = existing?.badge ?? '';
+    var scraping = false;
+    final List<CartItem> cartItems = SelooCartService.loadItems();
 
     final ok = await Get.dialog<bool>(
       AlertDialog(
@@ -201,27 +210,107 @@ class _CatalogStudioTabState extends State<CatalogStudioTab> {
             builder: (context, setLocal) {
               final priceSar =
                   (double.tryParse(base.text) ?? 0) + (double.tryParse(margin.text) ?? 0);
+
+              Future<void> runScrape() async {
+                final raw = link.text.trim();
+                if (raw.isEmpty || scraping) return;
+                setLocal(() => scraping = true);
+                try {
+                  final scraped = await SheinProductScraper.fetchFromInput(raw);
+                  if (scraped != null) {
+                    link.text = scraped.productUrl;
+                    if (scraped.title.isNotEmpty) title.text = scraped.title;
+                    if (scraped.imageUrl.isNotEmpty) image.text = scraped.imageUrl;
+                    if (scraped.priceSar > 0) base.text = scraped.priceSar.toStringAsFixed(2);
+                    if (colors.text.trim().isEmpty && scraped.colors.isNotEmpty) {
+                      colors.text = scraped.colors.join(', ');
+                    }
+                    if (sizes.text.trim().isEmpty && scraped.sizes.isNotEmpty) {
+                      sizes.text = scraped.sizes.join(', ');
+                    }
+                    Get.snackbar('تم الجلب ✓', 'جُلبت بيانات القطعة من شي إن بنجاح');
+                  } else {
+                    Get.snackbar('تعذر الجلب التلقائي',
+                        'أضف القطعة إلى السلة ثم اخترها من السلة أو ارفع صورتها يدوياً');
+                  }
+                } catch (_) {
+                  Get.snackbar('تعذر الجلب', 'تحقق من الرابط أو استورد من السلة');
+                } finally {
+                  setLocal(() => scraping = false);
+                }
+              }
+
+              Future<void> pickPhoto() async {
+                final x = await ImagePicker().pickImage(
+                    source: ImageSource.gallery, imageQuality: 45, maxWidth: 800, maxHeight: 800);
+                if (x == null) return;
+                final bytes = await x.readAsBytes();
+                final mime = x.path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+                image.text = 'data:$mime;base64,${base64Encode(bytes)}';
+                setLocal(() {});
+              }
+
               return SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    TextField(
-                      controller: link,
-                      textDirection: TextDirection.ltr,
-                      decoration: const InputDecoration(
-                          labelText: 'رابط أو كود منتج SHEIN', isDense: true),
-                      onChanged: (v) {
-                        final id = CatalogItem.extractGoodsId(v);
-                        if (id.isNotEmpty) {
-                          if (title.text.trim().isEmpty) {
-                            title.text = 'قطعة SHEIN $id';
-                          }
-                          if (image.text.trim().isEmpty) {
-                            image.text = CatalogItem.imageFromGoodsId(id);
-                          }
-                          setLocal(() {});
-                        }
-                      },
+                    if (cartItems.isNotEmpty) ...[
+                      Text('استيراد فوري من السلة الحالية (${cartItems.length})',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: T.primary)),
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        height: 36,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: cartItems.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 6),
+                          itemBuilder: (_, idx) {
+                            final ci = cartItems[idx];
+                            return ActionChip(
+                              label: Text(
+                                ci.title.length > 22 ? '${ci.title.substring(0, 22)}…' : ci.title,
+                                style: const TextStyle(fontSize: 10.5),
+                              ),
+                              onPressed: () {
+                                link.text = ci.sourceUrl.isNotEmpty
+                                    ? ci.sourceUrl
+                                    : 'https://ar.shein.com/-p-${ci.goodsId}.html';
+                                title.text = ci.title;
+                                image.text = ci.imageUrl;
+                                base.text = ci.sourcePrice.toStringAsFixed(2);
+                                if (ci.color.isNotEmpty) colors.text = ci.color;
+                                if (ci.size.isNotEmpty) sizes.text = ci.size;
+                                setLocal(() {});
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: link,
+                            textDirection: TextDirection.ltr,
+                            decoration: const InputDecoration(
+                                labelText: 'رابط أو كود منتج SHEIN', isDense: true),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        FilledButton.icon(
+                          onPressed: scraping ? null : runScrape,
+                          icon: scraping
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Icon(Icons.auto_fix_high, size: 15),
+                          label: const Text('جلب', style: TextStyle(fontSize: 11)),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 8),
                     TextField(
@@ -230,12 +319,35 @@ class _CatalogStudioTabState extends State<CatalogStudioTab> {
                           labelText: 'العنوان', isDense: true),
                     ),
                     const SizedBox(height: 8),
-                    TextField(
-                      controller: image,
-                      textDirection: TextDirection.ltr,
-                      decoration: const InputDecoration(
-                          labelText: 'رابط الصورة', isDense: true),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: image,
+                            textDirection: TextDirection.ltr,
+                            onChanged: (_) => setLocal(() {}),
+                            decoration: const InputDecoration(
+                                labelText: 'رابط الصورة أو مرفوعة', isDense: true),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        OutlinedButton.icon(
+                          onPressed: pickPhoto,
+                          icon: const Icon(Icons.photo_library_outlined, size: 15),
+                          label: const Text('صورة', style: TextStyle(fontSize: 11)),
+                        ),
+                      ],
                     ),
+                    if (image.text.trim().isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: _catThumb(image.text.trim(), 70, 70),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     Row(
                       children: [

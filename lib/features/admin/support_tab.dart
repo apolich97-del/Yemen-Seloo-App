@@ -31,8 +31,8 @@ class _AdminSupportTabState extends State<AdminSupportTab> {
       length: 2,
       child: Column(
         children: [
-          const TabBar(
-            labelColor: AppColors.primaryDark,
+          TabBar(
+            labelColor: T.primary,
             indicatorColor: AppColors.primary,
             tabs: [
               Tab(text: 'محادثات العملاء'),
@@ -121,8 +121,8 @@ class _AdminSupportTabState extends State<AdminSupportTab> {
               Text('آخر رسالة: ${t.lastMessage}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 10.5, color: AppColors.primaryDark)),
+                  style: TextStyle(
+                      fontSize: 10.5, color: T.primary)),
           ],
         ),
         trailing: const Icon(Icons.chevron_left, size: 18),

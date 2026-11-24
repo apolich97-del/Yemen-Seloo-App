@@ -40,6 +40,7 @@ class _SettingsTabState extends State<SettingsTab> {
   final _senderName = TextEditingController();
   final _waybillPhone = TextEditingController();
   final _whatsapp = TextEditingController();
+  final _whatsappAlt = TextEditingController();
   final _phone = TextEditingController();
 
   final _couponCode = TextEditingController();
@@ -56,7 +57,7 @@ class _SettingsTabState extends State<SettingsTab> {
       _defThreshold, _defPercent, _shipping, _delivery,
       _deliveryNorth, _deliverySouth, _freeOver,
       _serviceFee, _perPiece, _minDays, _maxDays,
-      _senderName, _waybillPhone, _whatsapp, _phone, _couponCode, _couponValue
+      _senderName, _waybillPhone, _whatsapp, _whatsappAlt, _phone, _couponCode, _couponValue
     ]) {
       c.dispose();
     }
@@ -84,6 +85,7 @@ class _SettingsTabState extends State<SettingsTab> {
     _senderName.text = s.senderName;
     _waybillPhone.text = s.waybillCompanyPhone;
     _whatsapp.text = s.supportWhatsApp;
+    _whatsappAlt.text = s.alternateWhatsApp;
     _phone.text = s.supportPhone;
     _loaded = true;
   }
@@ -109,6 +111,7 @@ class _SettingsTabState extends State<SettingsTab> {
         deliveryMinDays: int.tryParse(_minDays.text) ?? 15,
         deliveryMaxDays: int.tryParse(_maxDays.text) ?? 20,
         supportWhatsApp: _whatsapp.text.trim(),
+        alternateWhatsApp: _whatsappAlt.text.trim(),
         supportPhone: _phone.text.trim(),
         companyNameAr: 'يمن سيلو',
         senderName: _senderName.text.trim(),

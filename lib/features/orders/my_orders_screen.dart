@@ -36,7 +36,7 @@ class MyOrdersScreen extends GetView<OrdersController> {
                       selectedColor: AppColors.primary.withOpacity(.12),
                       labelStyle: TextStyle(
                         fontSize: 12.5,
-                        color: active ? AppColors.primaryDark : AppColors.ink,
+                        color: active ? T.primary : T.text,
                         fontWeight: active ? FontWeight.w700 : FontWeight.w500,
                       ),
                       onSelected: (_) => controller.selectTab(s),
@@ -114,8 +114,8 @@ class MyOrdersScreen extends GetView<OrdersController> {
                 Row(
                   children: [
                     Text(o.orderNo,
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.ink)),
+                        style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w800, color: T.text)),
                     const Spacer(),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -159,10 +159,10 @@ class MyOrdersScreen extends GetView<OrdersController> {
                       children: [
                         Text(
                           formatMoney(o.totalLocal, o.currency),
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w900,
-                              color: AppColors.primaryDark),
+                              color: T.primary),
                         ),
                         if (o.currency != AppCurrency.sar)
                           Text(

@@ -663,57 +663,60 @@ Widget _appSettingsCard() {
   final gc = Get.isRegistered<InteractiveGuideController>()
       ? Get.find<InteractiveGuideController>()
       : null;
-  return Container(
-    margin: const EdgeInsets.only(top: 12),
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: Get.isDarkMode ? const Color(0xFF130F24) : Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(
-          color: Get.isDarkMode ? const Color(0xFF2D2354) : T.border),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('إعدادات التطبيق',
-            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900)),
-        const SizedBox(height: 8),
-        if (tc != null)
-          Obx(() => SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: tc.isDark.value,
-                title: const Text('الثيم الليلي (أسود)',
-                    style: TextStyle(fontSize: 12.5)),
-                subtitle: Text(
-                    tc.isDark.value
-                        ? 'المظهر الحالي: ليلي'
-                        : 'المظهر الحالي: نهاري',
-                    style: const TextStyle(fontSize: 11)),
-                onChanged: (v) => tc.setDark(v),
-              )),
-        if (gc != null)
-          Obx(() => SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: gc.enabled.value,
-                title: const Text('الإشعارات الإرشادية التفاعلية',
-                    style: TextStyle(fontSize: 12.5)),
-                subtitle: const Text(
-                    'بطاقات توضيحية تظهر مرة واحدة لكل صفحة وزر',
-                    style: TextStyle(fontSize: 11)),
-                onChanged: (v) => gc.setEnabled(v),
-              )),
-        if (gc != null)
-          TextButton.icon(
-            onPressed: () {
-              gc.reset();
-              Get.snackbar('تم', 'سيعرض التطبيق الإرشادات من البداية');
-            },
-            icon: const Icon(Icons.restart_alt, size: 16),
-            label: const Text('إعادة تشغيل الدليل الإرشادي من البداية'),
-          ),
-      ],
-    ),
-  );
+  return Obx(() {
+    final bool isDark = tc?.isDark.value ?? T.dark;
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? AppDark.card : T.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isDark ? const Color(0xFF2D2354) : T.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('إعدادات التطبيق',
+              style: TextStyle(
+                  fontSize: 13.5, fontWeight: FontWeight.w900, color: T.text)),
+          const SizedBox(height: 8),
+          if (tc != null)
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: tc.isDark.value,
+              title: Text('الثيم الليلي (أسود)',
+                  style: TextStyle(fontSize: 12.5, color: T.text)),
+              subtitle: Text(
+                  tc.isDark.value
+                      ? 'المظهر الحالي: ليلي'
+                      : 'المظهر الحالي: نهاري',
+                  style: TextStyle(fontSize: 11, color: T.muted)),
+              onChanged: (v) => tc.setDark(v),
+            ),
+          if (gc != null)
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: gc.enabled.value,
+              title: Text('الإشعارات الإرشادية التفاعلية',
+                  style: TextStyle(fontSize: 12.5, color: T.text)),
+              subtitle: Text(
+                  'بطاقات توضيحية تظهر مرة واحدة لكل صفحة وزر',
+                  style: TextStyle(fontSize: 11, color: T.muted)),
+              onChanged: (v) => gc.setEnabled(v),
+            ),
+          if (gc != null)
+            TextButton.icon(
+              onPressed: () {
+                gc.reset();
+                Get.snackbar('تم', 'سيعرض التطبيق الإرشادات من البداية');
+              },
+              icon: const Icon(Icons.restart_alt, size: 16),
+              label: const Text('إعادة تشغيل الدليل الإرشادي من البداية'),
+            ),
+        ],
+      ),
+    );
+  });
 }
 
 /// صف اختصارات «طلبي» بنمط SHEIN:

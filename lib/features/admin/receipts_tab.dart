@@ -1,6 +1,9 @@
 import 'dart:convert';
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:get/get.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -29,6 +32,7 @@ class _ReceiptsTabState extends State<ReceiptsTab> {
   final _sender = TextEditingController();
   final _note = TextEditingController();
   Order? _picked;
+  String _proofDataUrl = '';
 
   @override
   void dispose() {
@@ -64,10 +68,10 @@ class _ReceiptsTabState extends State<ReceiptsTab> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(title,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w900,
-                    color: AppColors.primaryDark)),
+                    color: T.primary)),
             const SizedBox(height: 10),
             child,
           ],
@@ -108,10 +112,10 @@ class _ReceiptsTabState extends State<ReceiptsTab> {
                         fontSize: 12.5, fontWeight: FontWeight.w800)),
                 const Spacer(),
                 Text(formatMoney(r.amountLocal, AppCurrency.north),
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w900,
-                        color: AppColors.primaryDark)),
+                        color: T.primary)),
               ],
             ),
             const SizedBox(height: 4),
@@ -198,6 +202,35 @@ class _ReceiptsTabState extends State<ReceiptsTab> {
                 decoration: const InputDecoration(labelText: 'ملاحظة'),
               ),
               const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _pickAdminProof,
+                      icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
+                      label: Text(_proofDataUrl.isEmpty
+                          ? 'إرفاق صورة الإيصال (اختياري)'
+                          : 'تغيير صورة الإيصال ✓'),
+                    ),
+                  ),
+                  if (_proofDataUrl.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'حذف الصورة',
+                      onPressed: () => setState(() => _proofDataUrl = ''),
+                      icon: Icon(Icons.close, color: T.danger),
+                    ),
+                  ],
+                ],
+              ),
+              if (_proofDataUrl.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: _proofWidget(_proofDataUrl, height: 110),
+                ),
+              ],
+              const SizedBox(height: 10),
               ElevatedButton.icon(
                 onPressed: _issueAdmin,
                 icon: const Icon(Icons.receipt_long),
@@ -221,6 +254,18 @@ class _ReceiptsTabState extends State<ReceiptsTab> {
               return ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
+                leading: r.proofUrl.isEmpty
+                    ? null
+                    : GestureDetector(
+                        onTap: () => Get.dialog(AlertDialog(
+                          content: _proofWidget(r.proofUrl, height: 320),
+                          actions: [TextButton(onPressed: () => Get.back(), child: const Text('إغلاق'))],
+                        )),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: SizedBox(width: 40, height: 40, child: _proofWidget(r.proofUrl, height: 40)),
+                        ),
+                      ),
                 title: Text('${r.receiptNo} · ${r.orderNo}',
                     style: const TextStyle(
                         fontSize: 12.5, fontWeight: FontWeight.w700)),
@@ -299,6 +344,32 @@ class _ReceiptsTabState extends State<ReceiptsTab> {
     Get.snackbar('تم الرفض', 'لم يُعدّل رصيد الطلب');
   }
 
+  Future<void> _pickAdminProof() async {
+    final x = await ImagePicker().pickImage(
+        source: ImageSource.gallery, imageQuality: 30, maxWidth: 800, maxHeight: 800);
+    if (x == null) return;
+    final bytes = await x.readAsBytes();
+    if (bytes.length > 350 * 1024) {
+      Get.snackbar('الصورة كبيرة', 'يرجى اختيار صورة أصغر');
+      return;
+    }
+    final mime = x.path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+    setState(() => _proofDataUrl = 'data:$mime;base64,${base64Encode(bytes)}');
+  }
+
+  Widget _proofWidget(String src, {double height = 100}) {
+    if (src.startsWith('data:')) {
+      try {
+        final b64 = src.substring(src.indexOf(',') + 1);
+        return Image.memory(base64Decode(b64), height: height, fit: BoxFit.contain);
+      } catch (_) {
+        return const SizedBox.shrink();
+      }
+    }
+    return Image.network(src, height: height, fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => const SizedBox.shrink());
+  }
+
   Future<void> _issueAdmin() async {
     final o = _picked;
     final amount = double.tryParse(_amount.text.trim()) ?? 0;
@@ -313,7 +384,7 @@ class _ReceiptsTabState extends State<ReceiptsTab> {
         refNo: _ref.text.trim(),
         senderName: _sender.text.trim(),
         note: _note.text.trim().isEmpty ? 'إيصال من المحاسبة' : _note.text.trim(),
-        proofUrl: '',
+        proofUrl: _proofDataUrl,
         source: 'admin',
       );
       final fresh = await _orders.fetchOrder(o.id);
@@ -325,7 +396,10 @@ class _ReceiptsTabState extends State<ReceiptsTab> {
       _ref.clear();
       _sender.clear();
       _note.clear();
-      setState(() => _picked = null);
+      setState(() {
+        _picked = null;
+        _proofDataUrl = '';
+      });
       Get.snackbar('تم', 'أُصدر الإيصال $no وتم الخصم من المتبقي');
     } catch (e) {
       Get.snackbar('تعذر الإصدار', '$e');

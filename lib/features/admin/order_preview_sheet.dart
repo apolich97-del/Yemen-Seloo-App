@@ -193,6 +193,34 @@ class _OrderPreview extends StatelessWidget {
                     ),
                   ],
                 ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final f = await OrderDocuments.buildShippingWaybillPdf(o);
+                          await Share.shareXFiles([XFile(f.path)],
+                              text: 'بوليصة الشحن ${o.orderNo}');
+                        },
+                        icon: const Icon(Icons.local_shipping_outlined, size: 15),
+                        label: const Text('بوليصة الشحن', style: TextStyle(fontSize: 11)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final f = await OrderDocuments.buildDeliveryWaybillPdf(o);
+                          await Share.shareXFiles([XFile(f.path)],
+                              text: 'بوليصة التسليم ${o.orderNo}');
+                        },
+                        icon: const Icon(Icons.verified_outlined, size: 15),
+                        label: const Text('بوليصة التسليم', style: TextStyle(fontSize: 11)),
+                      ),
+                    ),
+                  ],
+                ),
                 if (_canEdit) ...[
                   const SizedBox(height: 8),
                   SizedBox(
@@ -512,8 +540,9 @@ class _OrderPreview extends StatelessWidget {
     try {
       final db = FirebaseFirestore.instance;
       final receipts = await db
+          .collection('orders')
+          .doc(o.id)
           .collection('receipts')
-          .where('orderId', isEqualTo: o.id)
           .get();
       for (final r in receipts.docs) {
         await r.reference.delete();

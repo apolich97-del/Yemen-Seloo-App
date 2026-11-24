@@ -3,18 +3,33 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function auth() { return request.auth != null; }
     function me() { return request.auth.uid; }
+    function myEmail() {
+      return auth() && request.auth.token.email is string
+        ? request.auth.token.email.lower()
+        : '';
+    }
     // المديران الرئيسيان فقط — كل الصلاحيات الإدارية.
     function isMainManager() {
-      return auth() && request.auth.token.email in [
+      return myEmail() in [
         'apolich97@gmail.com',
         'abode212k@gmail.com'
       ];
     }
-    // دور المستخدم من وثيقة users/{uid} (عميل إن لم توجد).
-    function roleOf() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+    function inviteRole() {
+      return myEmail() != ''
+          && exists(/databases/$(database)/documents/staff_invites/$(myEmail()))
+          && get(/databases/$(database)/documents/staff_invites/$(myEmail())).data.active != false
+        ? get(/databases/$(database)/documents/staff_invites/$(myEmail())).data.role
         : 'customer';
+    }
+    // دور المستخدم من وثيقة users/{uid} أو من سجل الفريق staff_invites/{email}.
+    function roleOf() {
+      return (exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in [
+            'manager', 'marketer', 'accounting', 'shipping', 'support', 'courier'
+          ])
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : inviteRole();
     }
     // فريق العمل: المديران الرئيسيان أو أي دور موزّع من لوحة الفريق.
     function staff() {
@@ -35,8 +50,19 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if auth() && (uid == me() || staff());
-      allow create: if auth() && uid == me() && !request.resource.data.keys().hasAny(['role']);
-      allow update: if auth() && uid == me() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role','fcmTokens']);
+      allow create: if auth() && uid == me() && (
+        !request.resource.data.keys().hasAny(['role'])
+        || request.resource.data.role == 'customer'
+        || (inviteRole() != 'customer' && request.resource.data.role == inviteRole())
+      );
+      allow update: if auth() && uid == me() && (
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role','fcmTokens'])
+        || (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['fcmTokens'])
+          && inviteRole() != 'customer'
+          && request.resource.data.role == inviteRole()
+        )
+      );
       // تغيير الأدوار والصلاحيات: المدير الرئيسي فقط
       allow update: if isMainManager()
         && request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])
@@ -123,11 +149,16 @@ service cloud.firestore {
     }
     match /support_faq_ignored/{f} { allow read, write: if staff(); }
 
-    // سجل الفريق: المدير الرئيسي يضيف/يعدّل/يزيل، والموظف يقرأ سجله فقط.
+    // سجل الفريق: المدير الرئيسي يضيف/يعدّل/يزيل، والموظف يقرأ سجله فقط (غير حساس لحالة الأحرف).
     match /staff_invites/{email} {
       allow read: if isMainManager() ||
-        (auth() && request.auth.token.email == email);
+        (auth() && myEmail() == email.lower());
       allow write: if isMainManager();
+    }
+
+    // استعلام collectionGroup('receipts') للعميل والمحاسبة
+    match /{path=**}/receipts/{r} {
+      allow read: if auth() && (resource.data.customerId == me() || staff());
     }
 
     match /products/{g} { allow read: if true; allow write: if staff(); }

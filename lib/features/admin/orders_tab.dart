@@ -110,13 +110,18 @@ class _OrdersTabState extends State<OrdersTab> {
                     child: InkWell(
                       onTap: () => Get.to(() => const OrderDetailScreen(), arguments: o.id),
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Flexible(
-                            child: Text(o.orderNo,
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w800,
-                                    color: T.text)),
+                            child: Text(
+                              o.orderNo,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  color: T.text),
+                            ),
                           ),
                           const SizedBox(width: 4),
                           Icon(Icons.open_in_new, size: 13, color: T.primary),
@@ -126,36 +131,25 @@ class _OrdersTabState extends State<OrdersTab> {
                   ),
                   IconButton(
                     tooltip: 'معاينة الطلب كاملة',
-                    icon: Icon(Icons.visibility_outlined, size: 16, color: T.primary),
+                    visualDensity: VisualDensity.compact,
+                    icon: Icon(Icons.visibility_outlined, size: 17, color: T.primary),
                     onPressed: () => showOrderPreview(o),
                   ),
                   IconButton(
                     tooltip: 'تعديل سريع',
-                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.edit_outlined, size: 17),
                     onPressed: () => _openEditor(o),
                   ),
-                  if (o.isDeferred) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.accent.withOpacity(.2),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppColors.accent),
-                      ),
-                      child: const Text('آجل 50%',
-                          style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xFF7A5E00))),
-                    ),
-                  ],
-                  const SizedBox(width: 8),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: Color(o.status.colorValue).withOpacity(.12),
+                      color: Color(o.status.colorValue).withOpacity(.14),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(o.status.labelAr,
@@ -164,9 +158,30 @@ class _OrdersTabState extends State<OrdersTab> {
                             fontWeight: FontWeight.w700,
                             color: Color(o.status.colorValue))),
                   ),
+                  if (o.isDeferred) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.accent.withOpacity(.2),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.accent),
+                      ),
+                      child: Text('آجل 50%',
+                          style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w900,
+                              color: T.dark ? AppDark.gold : const Color(0xFF7A5E00))),
+                    ),
+                  ],
                   const Spacer(),
-                  Text(formatMoney(o.totalLocal, o.currency),
-                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                  Text(
+                    formatMoney(o.totalLocal, o.currency),
+                    style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13.5,
+                        color: T.primary),
+                  ),
                 ],
               ),
               const SizedBox(height: 6),

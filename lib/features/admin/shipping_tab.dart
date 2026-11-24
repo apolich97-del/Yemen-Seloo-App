@@ -1,13 +1,19 @@
+import 'dart:convert';
+
+import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/models/currency.dart';
 import '../../core/models/order.dart';
+import '../../core/services/order_documents.dart';
 import '../../core/services/order_service.dart';
 import '../../core/theme/app_theme.dart';
 import 'role_guard.dart';
 
-/// الشحن: الطلبات الجاهزة للشحن + تعيين المندوب + إثبات التسليم.
+/// الشحن: الطلبات الجاهزة للشحن + بوليصة شحن المحافظات + بوليصة إثبات التسليم.
 class ShippingTab extends StatelessWidget {
   const ShippingTab({super.key});
 
@@ -24,7 +30,8 @@ class ShippingTab extends StatelessWidget {
               .where((o) =>
                   o.status == OrderStatus.processing ||
                   o.status == OrderStatus.shipped ||
-                  o.status == OrderStatus.outForDelivery)
+                  o.status == OrderStatus.outForDelivery ||
+                  o.status == OrderStatus.delivered)
               .toList();
           if (list.isEmpty) {
             return Center(
@@ -39,27 +46,87 @@ class ShippingTab extends StatelessWidget {
               final o = list[i];
               return Card(
                 margin: const EdgeInsets.only(bottom: 10),
-                child: ListTile(
-                  title: Row(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(o.orderNo,
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
-                      const SizedBox(width: 8),
-                      Text(o.status.labelAr,
-                          style: TextStyle(fontSize: 11, color: Color(o.status.colorValue))),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(o.orderNo,
+                                style: TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w900,
+                                    color: T.text)),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Color(o.status.colorValue).withOpacity(.14),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(o.status.labelAr,
+                                style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(o.status.colorValue))),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '${o.address.city} · ${o.address.receiverName} · ${o.totalPieces} قطعة\n'
+                        '${o.courierName.isEmpty ? 'بلا مندوب' : o.courierName}'
+                        '${o.trackingNo.isEmpty ? '' : ' · تتبع ${o.trackingNo}'}'
+                        ' · ${formatMoney(o.totalLocal, o.currency)}',
+                        style: TextStyle(fontSize: 11.5, height: 1.5, color: T.muted),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          if (!o.status.isTerminal)
+                            FilledButton.icon(
+                              onPressed: () => _advance(orders, o),
+                              icon: const Icon(Icons.update, size: 15),
+                              label: const Text('تحديث الحالة', style: TextStyle(fontSize: 11)),
+                            ),
+                          OutlinedButton.icon(
+                            onPressed: () => _editShippingWaybill(o),
+                            icon: const Icon(Icons.edit_document, size: 15),
+                            label: const Text('تعديل بوليصة الشحن', style: TextStyle(fontSize: 11)),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              try {
+                                final f = await OrderDocuments.buildShippingWaybillPdf(o);
+                                await Share.shareXFiles([XFile(f.path)],
+                                    text: 'بوليصة شحن المحافظات ${o.orderNo} — يمن سيلو');
+                              } catch (e) {
+                                Get.snackbar('تعذر الإصدار', '$e');
+                              }
+                            },
+                            icon: const Icon(Icons.local_shipping_outlined, size: 15),
+                            label: const Text('بوليصة الشحن PDF', style: TextStyle(fontSize: 11)),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              try {
+                                final f = await OrderDocuments.buildDeliveryWaybillPdf(o);
+                                await Share.shareXFiles([XFile(f.path)],
+                                    text: 'بوليصة إثبات التسليم ${o.orderNo} — يمن سيلو');
+                              } catch (e) {
+                                Get.snackbar('تعذر الإصدار', '$e');
+                              }
+                            },
+                            icon: const Icon(Icons.verified_outlined, size: 15),
+                            label: const Text('بوليصة التسليم PDF', style: TextStyle(fontSize: 11)),
+                          ),
+                        ],
+                      ),
                     ],
-                  ),
-                  subtitle: Text(
-                    '${o.address.city} · ${o.address.receiverName}\n'
-                    '${o.courierName.isEmpty ? 'بلا مندوب' : o.courierName}'
-                    '${o.trackingNo.isEmpty ? '' : ' · تتبع ${o.trackingNo}'}'
-                    ' · ${formatMoney(o.totalLocal, o.currency)}',
-                    style: TextStyle(fontSize: 11.5, height: 1.6, color: T.muted),
-                  ),
-                  isThreeLine: true,
-                  trailing: IconButton(
-                    icon: const Icon(Icons.arrow_forward_ios, size: 14),
-                    onPressed: () => _advance(orders, o),
                   ),
                 ),
               );
@@ -68,6 +135,93 @@ class ShippingTab extends StatelessWidget {
         },
       ),
     );
+  }
+
+  Future<void> _editShippingWaybill(Order o) async {
+    final sw = o.shippingWaybill;
+    final sender = TextEditingController(text: '${sw['senderName'] ?? 'يمن سيلو'}');
+    final phone = TextEditingController(text: '${sw['companyPhone'] ?? '770518757'}');
+    final gov = TextEditingController(
+        text: '${sw['governorate'] ?? (o.shippingGovernorate.isNotEmpty ? o.shippingGovernorate : o.address.city)}');
+    final office = TextEditingController(
+        text: '${sw['officeName'] ?? (o.shippingOffice.isNotEmpty ? o.shippingOffice : '')}');
+    final receiver = TextEditingController(
+        text: '${sw['receiverName'] ?? (o.receiverName.isNotEmpty ? o.receiverName : o.address.receiverName)}');
+    final rPhone = TextEditingController(
+        text: '${sw['receiverPhone'] ?? (o.receiverPhone.isNotEmpty ? o.receiverPhone : o.address.phone)}');
+    final notes = TextEditingController(text: '${sw['notes'] ?? ''}');
+    var voucherUrl = '${sw['voucherUrl'] ?? ''}';
+
+    final ok = await Get.dialog<bool>(
+      AlertDialog(
+        title: const Text('بيانات بوليصة الشحن للمحافظات', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
+        content: SizedBox(
+          width: 440,
+          child: StatefulBuilder(
+            builder: (ctx, setLocal) => SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(controller: sender, decoration: const InputDecoration(labelText: 'اسم المرسل', isDense: true)),
+                  const SizedBox(height: 8),
+                  TextField(controller: phone, decoration: const InputDecoration(labelText: 'هاتف الشركة', isDense: true)),
+                  const SizedBox(height: 8),
+                  TextField(controller: gov, decoration: const InputDecoration(labelText: 'المحافظة الوجهة', isDense: true)),
+                  const SizedBox(height: 8),
+                  TextField(controller: office, decoration: const InputDecoration(labelText: 'مكتب النقل', isDense: true)),
+                  const SizedBox(height: 8),
+                  TextField(controller: receiver, decoration: const InputDecoration(labelText: 'اسم المستلم', isDense: true)),
+                  const SizedBox(height: 8),
+                  TextField(controller: rPhone, decoration: const InputDecoration(labelText: 'هاتف المستلم', isDense: true)),
+                  const SizedBox(height: 8),
+                  TextField(controller: notes, decoration: const InputDecoration(labelText: 'ملاحظات (دون أي بيانات بنكية)', isDense: true)),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final x = await ImagePicker().pickImage(
+                          source: ImageSource.gallery, imageQuality: 30, maxWidth: 800, maxHeight: 800);
+                      if (x == null) return;
+                      final bytes = await x.readAsBytes();
+                      if (bytes.length > 350 * 1024) {
+                        Get.snackbar('الصورة كبيرة', 'اختر صورة أصغر من 350 ك.ب');
+                        return;
+                      }
+                      final mime = x.path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+                      setLocal(() => voucherUrl = 'data:$mime;base64,${base64Encode(bytes)}');
+                    },
+                    icon: const Icon(Icons.photo_camera_outlined, size: 17),
+                    label: Text(voucherUrl.isEmpty ? 'إرفاق صورة سند مكتب النقل' : 'تغيير صورة السند ✓'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(result: false), child: const Text('إلغاء')),
+          ElevatedButton(onPressed: () => Get.back(result: true), child: const Text('حفظ البوليصة')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await FirebaseFirestore.instance.collection('orders').doc(o.id).set({
+        'shippingWaybill': {
+          'senderName': sender.text.trim(),
+          'companyPhone': phone.text.trim(),
+          'governorate': gov.text.trim(),
+          'officeName': office.text.trim(),
+          'receiverName': receiver.text.trim(),
+          'receiverPhone': rPhone.text.trim(),
+          'notes': notes.text.trim(),
+          'voucherUrl': voucherUrl,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+      }, SetOptions(merge: true));
+      Get.snackbar('تم الحفظ', 'تم تحديث بوليصة الشحن للطلب ${o.orderNo}');
+    } catch (e) {
+      Get.snackbar('تعذر الحفظ', '$e');
+    }
   }
 
   Future<void> _advance(OrderService orders, Order o) async {

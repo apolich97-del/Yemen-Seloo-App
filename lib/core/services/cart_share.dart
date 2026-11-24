@@ -1,65 +1,104 @@
 import 'dart:convert';
 
+import '../../features/cart/data/seloo_cart_link.dart';
 import '../../features/cart/domain/cart_item.dart';
+import '../../features/shein/domain/shein_draft.dart';
 
-/// رابط «السلة كاملة»: يحمل كل منتجات السلة داخل الرابط بصيغة
-/// Base64URL لـ UTF-8، ويُستعاد بالكامل عند فتحه أو لصقه.
+/// رابط «السلة كاملة»: موحّد على صيغة `https://seloo-cart.vercel.app/#d=z...`
+/// مع دعم استيراد الروابط المختصرة (`tinyurl.com`, `is.gd`) والنسخة القديمة `#cart=`.
 class CartShare {
-  static const String host = 'https://yemenseloo.shop/cart';
-  static const String _version = 'v1';
+  static const String host = SelooCartLink.webBase;
 
-  /// يبني الرابط من منتجات السلة.
-  static String buildFromItems(List<CartItem> items) => _build([
+  static List<List<Object?>> _rowsFromItems(List<CartItem> items) => [
         for (final i in items)
-          [i.goodsId, _short(i.title), i.sourcePrice, i.quantity, i.color, i.size]
-      ]);
+          [
+            i.goodsId,
+            _short(i.title),
+            i.imageUrl,
+            i.sourcePrice,
+            i.color,
+            i.size,
+            i.quantity,
+          ]
+      ];
 
-  /// يبني الرابط من سطور السلة المطبَّعة (شاشة الملخص).
-  static String buildFromLines(List<dynamic> lines) => _build([
+  static List<List<Object?>> _rowsFromLines(List<dynamic> lines) => [
         for (final l in lines)
           [
-            l.goodsId as String,
-            _short(l.titleAr as String),
-            l.unitPriceSar as double,
-            l.qty as int,
-            l.color as String,
-            l.size as String,
+            '${l.goodsId ?? ''}',
+            _short('${l.titleAr ?? ''}'),
+            '${l.imageUrl ?? ''}',
+            (l.unitPriceSar as num?)?.toDouble() ?? 0.0,
+            '${l.color ?? ''}',
+            '${l.size ?? ''}',
+            (l.qty as num?)?.toInt() ?? 1,
           ]
-      ]);
+      ];
 
-  /// يبني الرابط من منتجات طلب منشأ (لأجل ملخص الطلب وإيصالاته).
-  static String fromOrderItems(dynamic order) {
+  static List<List<Object?>> _rowsFromOrder(dynamic order) {
     final items = order.items as List<dynamic>;
-    final rows = <List<dynamic>>[];
-    for (final it in items) {
-      rows.add(<dynamic>[
-        it.goodsId as String,
-        _short(it.title as String),
-        it.unitPriceSar as double,
-        it.qty as int,
-        it.color as String,
-        it.size as String,
-      ]);
+    return [
+      for (final it in items)
+        [
+          '${it.goodsId ?? ''}',
+          _short('${it.title ?? ''}'),
+          '${it.imageUrl ?? ''}',
+          (it.unitPriceSar as num?)?.toDouble() ?? 0.0,
+          '${it.color ?? ''}',
+          '${it.size ?? ''}',
+          (it.qty as num?)?.toInt() ?? 1,
+        ]
+    ];
+  }
+
+  /// يبني الرابط الكامل الموحد من منتجات السلة.
+  static String buildFromItems(List<CartItem> items) =>
+      items.isEmpty ? '' : SelooCartLink.webLinkFromRows(_rowsFromItems(items));
+
+  static String buildFromLines(List<dynamic> lines) =>
+      lines.isEmpty ? '' : SelooCartLink.webLinkFromRows(_rowsFromLines(lines));
+
+  static String fromOrderItems(dynamic order) {
+    final rows = _rowsFromOrder(order);
+    return rows.isEmpty ? '' : SelooCartLink.webLinkFromRows(rows);
+  }
+
+  /// يولّد رابطاً مختصراً (TinyURL / is.gd) مع Fallback تلقائي للرابط الكامل.
+  static Future<String> shortFromItems(List<CartItem> items) async =>
+      items.isEmpty ? '' : SelooCartLink.shortWebLinkFromRows(_rowsFromItems(items));
+
+  static Future<String> shortFromLines(List<dynamic> lines) async =>
+      lines.isEmpty ? '' : SelooCartLink.shortWebLinkFromRows(_rowsFromLines(lines));
+
+  static Future<String> shortFromOrder(dynamic order) async {
+    final rows = _rowsFromOrder(order);
+    return rows.isEmpty ? '' : SelooCartLink.shortWebLinkFromRows(rows);
+  }
+
+  static String _short(String t) {
+    final s = t.trim();
+    return s.length <= 90 ? s : '${s.substring(0, 88)}..';
+  }
+
+  /// هل النص رابط سلة يمن سيلو (طويل أو مختصر أو قديم) أو رمز سلة؟
+  static bool isCartLink(String input) {
+    final s = input.trim();
+    if (s.isEmpty) return false;
+    final low = s.toLowerCase();
+    if (low.contains('seloo-cart.vercel.app') ||
+        low.contains('yemenseloo://') ||
+        low.contains('tinyurl.com/') ||
+        low.contains('is.gd/') ||
+        s.contains('d=') ||
+        s.contains('cart=')) {
+      return true;
     }
-    return _build(rows);
+    if (RegExp(r'^z[A-Za-z0-9_-]{12,}$').hasMatch(s)) return true;
+    if (RegExp(r'^[A-Za-z0-9_-]{40,}$').hasMatch(s)) return true;
+    return false;
   }
 
-  /// يقتصر الاسم على 28 حرفاً — يُجلَب الاسم الكامل من الكتالوج.
-  static String _short(String t) =>
-      t.length <= 28 ? t : '${t.substring(0, 28)}…';
-
-  static String _build(List<List<dynamic>> rows) {
-    final Map<String, dynamic> payload = {'s': _version, 'i': rows};
-    final String token = base64Url
-        .encode(utf8.encode(jsonEncode(payload)))
-        .replaceAll('=', '');
-    return '$host#cart=$token';
-  }
-
-  /// هل النص رابط سلة كاملة (أو رمزه)؟
-  static bool isCartLink(String input) => _token(input) != null;
-
-  static String? _token(String raw) {
+  static String? _legacyToken(String raw) {
     final String s = raw.trim();
     if (s.isEmpty) return null;
     if (s.contains('cart=')) {
@@ -67,14 +106,36 @@ class CartShare {
       final String token = part.split('&').first.split('#').first.trim();
       return token.isEmpty ? null : token;
     }
-    // قد يكون الرمز وحده (بلا رابط)
-    if (RegExp(r'^[A-Za-z0-9_-]{40,}$').hasMatch(s)) return s;
+    if (!s.startsWith('z') && RegExp(r'^[A-Za-z0-9_-]{40,}$').hasMatch(s)) {
+      return s;
+    }
     return null;
   }
 
-  /// يفك تشفير الرابط أو الرمز. يرجع null إن لم يكن صالحاً.
+  /// يفك الرابط/الرمز محلياً (دون شبكة).
   static List<CartItem>? parse(String input, {double exchangeRate = 1}) {
-    final String? token = _token(input);
+    final drafts = SelooCartLink.draftsFromLink(input);
+    if (drafts.isNotEmpty) {
+      return drafts
+          .asMap()
+          .entries
+          .map((e) => CartItem(
+                lineId: 'shared_${DateTime.now().millisecondsSinceEpoch}_${e.key}',
+                goodsId: e.value.goodsId,
+                title: e.value.title,
+                imageUrl: e.value.imageUrl,
+                sourceUrl: e.value.productUrl,
+                sourcePrice: e.value.sourcePrice,
+                sourceCurrency: 'SAR',
+                exchangeRate: exchangeRate,
+                quantity: e.value.quantity,
+                color: e.value.color,
+                size: e.value.size,
+              ))
+          .toList();
+    }
+
+    final String? token = _legacyToken(input);
     if (token == null) return null;
     try {
       final String normalized = token.replaceAll('-', '+').replaceAll('_', '/');
@@ -122,17 +183,55 @@ class CartShare {
     }
   }
 
-  /// الرمز وحده (بلا رابط) — يُلصق في نافذة الاستيراد.
-  static String tokenFromUrl(String url) => _token(url) ?? '';
+  /// يحل الروابط المختصرة (مثل tinyurl.com) ثم يعيد عناصر السلة كاملة.
+  static Future<List<CartItem>?> parseAsync(String input,
+      {double exchangeRate = 1}) async {
+    final resolved = await SelooCartLink.resolveUrl(input);
+    return parse(resolved, exchangeRate: exchangeRate);
+  }
 
-  /// نص رسالة واتساب: بند «رابط السلة كاملة» مع بديل الرمز.
+  static Future<List<SheinDraft>> draftsAsync(String input) async {
+    final resolved = await SelooCartLink.resolveUrl(input);
+    final drafts = SelooCartLink.draftsFromLink(resolved);
+    if (drafts.isNotEmpty) return drafts;
+    final legacy = parse(resolved);
+    if (legacy == null || legacy.isEmpty) return const <SheinDraft>[];
+    return legacy
+        .map((i) => SheinDraft(
+              goodsId: i.goodsId,
+              productUrl: i.sourceUrl.isNotEmpty
+                  ? i.sourceUrl
+                  : 'https://ar.shein.com/-p-${i.goodsId}.html',
+              title: i.title,
+              imageUrl: i.imageUrl,
+              sourcePrice: i.sourcePrice > 0 ? i.sourcePrice : 0.01,
+              sourceCurrency: 'SAR',
+              quantity: i.quantity,
+              color: i.color,
+              size: i.size,
+              options: const <String, String>{},
+              sourceStore: 'SHEIN',
+              sku: i.sku,
+              variantId: '',
+              source: 'shared-cart-link',
+              clientTs: DateTime.now().toUtc(),
+            ))
+        .toList();
+  }
+
+  static String tokenFromUrl(String url) {
+    final m = RegExp(r'd=([^&#\s]+)').firstMatch(url);
+    if (m != null) return m.group(1)!;
+    return _legacyToken(url) ?? '';
+  }
+
   static String whatsappSection(String url) {
     final token = tokenFromUrl(url);
     final b = StringBuffer('\n🛒 رابط السلة كاملة:\n$url\n');
-    if (token.isNotEmpty) {
+    if (token.isNotEmpty && token.length <= 180) {
       b.writeln(
-          'إن لم يفتح الرابط: افتح التطبيق ← تبويب السلة ← «استيراد سلة شي ان» '
-          'والصق الرمز التالي:\n$token');
+          'إن لم يفتح الرابط: افتح التطبيق ← تبويب السلة ← «استيراد رابط السلة / شي إن» '
+          'والصق الرابط أو الرمز.');
     }
     return b.toString();
   }

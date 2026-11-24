@@ -17,6 +17,7 @@ class AppSettings {
   final double deliveryFeeSarLocal;
   final double freeShippingThresholdSar;
   final String supportWhatsApp;
+  final String alternateWhatsApp;
   final String supportPhone;
   final String companyNameAr;
   final bool codEnabled;
@@ -55,8 +56,9 @@ class AppSettings {
     this.deliveryFeeSouthLocal = 1000,
     this.deliveryFeeSarLocal = 0,
     this.freeShippingThresholdSar = 75,
-    this.supportWhatsApp = '',
-    this.supportPhone = '',
+    this.supportWhatsApp = '967770518757',
+    this.alternateWhatsApp = '967737383637',
+    this.supportPhone = '770518757',
     this.companyNameAr = 'يمن سيلو',
     this.codEnabled = false,
     this.serviceFeeSar = 1.22,
@@ -69,7 +71,7 @@ class AppSettings {
     this.deliveryMinDays = 15,
     this.deliveryMaxDays = 20,
     this.senderName = 'يمن سيلو',
-    this.waybillCompanyPhone = '',
+    this.waybillCompanyPhone = '770518757',
   });
 
   /// رسوم التوصيل بعملة العرض المختارة.
@@ -100,6 +102,7 @@ class AppSettings {
     double? deliveryFeeSarLocal,
     double? freeShippingThresholdSar,
     String? supportWhatsApp,
+    String? alternateWhatsApp,
     String? supportPhone,
     String? companyNameAr,
     bool? codEnabled,
@@ -124,6 +127,7 @@ class AppSettings {
         freeShippingThresholdSar:
             freeShippingThresholdSar ?? this.freeShippingThresholdSar,
         supportWhatsApp: supportWhatsApp ?? this.supportWhatsApp,
+        alternateWhatsApp: alternateWhatsApp ?? this.alternateWhatsApp,
         supportPhone: supportPhone ?? this.supportPhone,
         companyNameAr: companyNameAr ?? this.companyNameAr,
         senderName: senderName ?? this.senderName,
@@ -149,8 +153,15 @@ class AppSettings {
       deliveryFeeSouthLocal: d(m['deliveryFeeSouthLocal'], 1000),
       deliveryFeeSarLocal: d(m['deliveryFeeSarLocal'], 0),
       freeShippingThresholdSar: d(m['freeShippingThresholdSar'], 75),
-      supportWhatsApp: (m['supportWhatsApp'] ?? '') as String,
-      supportPhone: (m['supportPhone'] ?? '') as String,
+      supportWhatsApp: ((m['supportWhatsApp'] ?? '') as String).trim().isNotEmpty
+          ? (m['supportWhatsApp'] as String).trim()
+          : '967770518757',
+      alternateWhatsApp: ((m['alternateWhatsApp'] ?? '') as String).trim().isNotEmpty
+          ? (m['alternateWhatsApp'] as String).trim()
+          : '967737383637',
+      supportPhone: ((m['supportPhone'] ?? '') as String).trim().isNotEmpty
+          ? (m['supportPhone'] as String).trim()
+          : '770518757',
       companyNameAr: (m['companyNameAr'] ?? 'يمن سيلو') as String,
       codEnabled: (m['codEnabled'] ?? false) as bool,
       serviceFeeSar: d(m['serviceFeeSar'], 1.22),
@@ -158,7 +169,9 @@ class AppSettings {
       deliveryMinDays: (m['deliveryMinDays'] as num?)?.toInt() ?? 15,
       deliveryMaxDays: (m['deliveryMaxDays'] as num?)?.toInt() ?? 20,
       senderName: (m['senderName'] ?? 'يمن سيلو') as String,
-      waybillCompanyPhone: (m['waybillCompanyPhone'] ?? '') as String,
+      waybillCompanyPhone: ((m['waybillCompanyPhone'] ?? '') as String).trim().isNotEmpty
+          ? (m['waybillCompanyPhone'] as String).trim()
+          : '770518757',
     );
   }
 
@@ -177,6 +190,7 @@ class AppSettings {
         'deliveryFeeSarLocal': deliveryFeeSarLocal,
         'freeShippingThresholdSar': freeShippingThresholdSar,
         'supportWhatsApp': supportWhatsApp,
+        'alternateWhatsApp': alternateWhatsApp,
         'supportPhone': supportPhone,
         'companyNameAr': companyNameAr,
         'codEnabled': codEnabled,

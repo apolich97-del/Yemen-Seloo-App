@@ -357,6 +357,8 @@ class Order {
   final bool editingLocked;
 
   final String approvedByName;
+  final Map<String, dynamic> shippingWaybill;
+  final Map<String, dynamic> deliveryWaybill;
 
   const Order({
     required this.id,
@@ -407,6 +409,8 @@ class Order {
     this.approvedAt,
     this.editingLocked = false,
     this.approvedByName = '',
+    this.shippingWaybill = const <String, dynamic>{},
+    this.deliveryWaybill = const <String, dynamic>{},
     this.deliveryMinDays = 15,
     this.deliveryMaxDays = 20,
     this.serviceFeeSar = 0,
@@ -527,6 +531,10 @@ class Order {
       approvedAt: _ts(m['approvedAt']),
       editingLocked: (m['editingLocked'] as bool?) ?? false,
       approvedByName: (m['approvedByName'] ?? '') as String,
+      shippingWaybill: Map<String, dynamic>.from(
+          (m['shippingWaybill'] as Map?) ?? const <String, dynamic>{}),
+      deliveryWaybill: Map<String, dynamic>.from(
+          (m['deliveryWaybill'] as Map?) ?? const <String, dynamic>{}),
     );
   }
 }

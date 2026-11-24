@@ -3,6 +3,8 @@ import 'package:get/get.dart';
 
 import '../../cart/application/cart_counter.dart';
 import '../../cart/data/seloo_cart_service.dart';
+import '../data/shein_image_resolver.dart';
+import '../data/shein_product_scraper.dart';
 import '../data/shein_share_api.dart';
 import '../domain/shein_draft.dart';
 
@@ -59,8 +61,39 @@ class SheinCartImporter {
 
       for (final Map<String, dynamic> product in products) {
         try {
+          final Map<String, dynamic> enriched = Map<String, dynamic>.from(product);
+          final String gid = '${enriched['goodsId'] ?? ''}'.trim();
+          final String curImg = '${enriched['imageUrl'] ?? ''}'.trim();
+          final double curPrice = (enriched['sourcePrice'] is num)
+              ? (enriched['sourcePrice'] as num).toDouble()
+              : double.tryParse('${enriched['sourcePrice'] ?? 0}') ?? 0;
+          final String curTitle = '${enriched['title'] ?? ''}'.trim();
+
+          if (gid.isNotEmpty &&
+              (curImg.isEmpty || curPrice <= 0.05 || curTitle.startsWith('منتج SHEIN'))) {
+            final SheinScrapedProduct? scraped =
+                await SheinProductScraper.fetchByGoodsId(gid);
+            if (scraped != null) {
+              if (curImg.isEmpty && scraped.imageUrl.isNotEmpty) {
+                enriched['imageUrl'] = scraped.imageUrl;
+              }
+              if (curPrice <= 0.05 && scraped.priceSar > 0.05) {
+                enriched['sourcePrice'] = scraped.priceSar;
+              }
+              if ((curTitle.isEmpty || curTitle.startsWith('منتج SHEIN')) &&
+                  scraped.title.isNotEmpty) {
+                enriched['title'] = scraped.title;
+              }
+            } else if (curImg.isEmpty) {
+              final String? resolvedImg = await SheinImageResolver.byGoodsId(gid);
+              if (resolvedImg != null && resolvedImg.isNotEmpty) {
+                enriched['imageUrl'] = resolvedImg;
+              }
+            }
+          }
+
           final SheinDraft draft =
-              SheinDraft.fromBridgePayload(product);
+              SheinDraft.fromBridgePayload(enriched);
 
           final result = await _cartService.addToCart(draft);
 

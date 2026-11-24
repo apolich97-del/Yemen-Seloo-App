@@ -153,7 +153,5 @@ class CatalogItem {
     return '';
   }
 
-  static String imageFromGoodsId(String goodsId) => goodsId.isEmpty
-      ? ''
-      : 'https://img.ltwebstatic.com/images3_pi/2024/01/01/$goodsId.webp';
+  static String imageFromGoodsId(String goodsId) => '';
 }

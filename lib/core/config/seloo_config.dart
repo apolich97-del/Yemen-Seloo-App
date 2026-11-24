@@ -8,7 +8,9 @@ abstract final class SelooConfig {
 
   // -------- التواصل --------
   static const String supportPhone = '770518757';
+  static const String supportWhatsApp = '967770518757';
   static const String alternatePhone = '737383637';
+  static const String alternateWhatsApp = '967737383637';
   static const String supportEmail = 'yemenseloo.shop@gmail.com';
 
   // -------- الألوان --------

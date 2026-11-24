@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:get/get.dart';
 
@@ -29,37 +31,110 @@ class ReceiptService extends GetxService {
           .map((d) => Receipt.fromDoc(d.id, d.data()))
           .toList());
 
-  /// كل إيصالات عميل معيّن (شاشة «إيصالاتي») — بلا فهرس مركّب.
-  Stream<List<Receipt>> byCustomer(String uid) => _db
-      .collectionGroup('receipts')
-      .where('customerId', isEqualTo: uid)
-      .limit(100)
-      .snapshots()
-      .map((s) => s.docs
-          .map((d) => Receipt.fromDoc(d.id, d.data()))
-          .toList()
-        ..sort((a, b) => (b.createdAt ?? DateTime(2000))
-            .compareTo(a.createdAt ?? DateTime(2000))));
+  /// كل إيصالات عميل معيّن — يدعم collectionGroup مع احتياطي من الطلبات عند عدم توفر الفهرس.
+  Stream<List<Receipt>> byCustomer(String uid) => _resilientReceiptsStream(
+        primary: _db
+            .collectionGroup('receipts')
+            .where('customerId', isEqualTo: uid)
+            .limit(100)
+            .snapshots(),
+        fallbackOrders: _db
+            .collection('orders')
+            .where('userId', isEqualTo: uid)
+            .limit(40)
+            .snapshots(),
+      );
 
   /// آخر الإيصالات بانتظار المراجعة (لوحة المحاسبة).
-  Stream<List<Receipt>> pending() => _db
-      .collectionGroup('receipts')
-      .where('status', isEqualTo: 'pending')
-      .limit(100)
-      .snapshots()
-      .map((s) => s.docs
-          .map((d) => Receipt.fromDoc(d.id, d.data()))
-          .toList());
+  Stream<List<Receipt>> pending() => _resilientReceiptsStream(
+        primary: _db
+            .collectionGroup('receipts')
+            .where('status', isEqualTo: 'pending')
+            .limit(100)
+            .snapshots(),
+        fallbackOrders: _db.collection('orders').limit(50).snapshots(),
+        statusFilter: 'pending',
+      );
 
   /// آخر الإيصالات المعتمدة.
-  Stream<List<Receipt>> approved() => _db
-      .collectionGroup('receipts')
-      .where('status', isEqualTo: 'approved')
-      .limit(100)
-      .snapshots()
-      .map((s) => s.docs
-          .map((d) => Receipt.fromDoc(d.id, d.data()))
-          .toList());
+  Stream<List<Receipt>> approved() => _resilientReceiptsStream(
+        primary: _db
+            .collectionGroup('receipts')
+            .where('status', isEqualTo: 'approved')
+            .limit(100)
+            .snapshots(),
+        fallbackOrders: _db.collection('orders').limit(50).snapshots(),
+        statusFilter: 'approved',
+      );
+
+  Stream<List<Receipt>> _resilientReceiptsStream({
+    required Stream<QuerySnapshot<Map<String, dynamic>>> primary,
+    required Stream<QuerySnapshot<Map<String, dynamic>>> fallbackOrders,
+    String? statusFilter,
+  }) {
+    late StreamController<List<Receipt>> controller;
+    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? primarySub;
+    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? fallbackSub;
+    var switchedToFallback = false;
+
+    void startFallback() {
+      if (switchedToFallback || controller.isClosed) return;
+      switchedToFallback = true;
+      fallbackSub = fallbackOrders.listen(
+        (ordersSnap) async {
+          try {
+            final results = await Future.wait(
+              ordersSnap.docs.take(30).map((orderDoc) async {
+                try {
+                  Query<Map<String, dynamic>> q =
+                      orderDoc.reference.collection('receipts');
+                  if (statusFilter != null) {
+                    q = q.where('status', isEqualTo: statusFilter);
+                  }
+                  final snap = await q.limit(20).get();
+                  return snap.docs
+                      .map((d) => Receipt.fromDoc(d.id, d.data()))
+                      .toList();
+                } catch (_) {
+                  return const <Receipt>[];
+                }
+              }),
+            );
+            final merged = results.expand((e) => e).toList()
+              ..sort((a, b) => (b.createdAt ?? DateTime(2000))
+                  .compareTo(a.createdAt ?? DateTime(2000)));
+            if (!controller.isClosed) controller.add(merged);
+          } catch (_) {
+            if (!controller.isClosed) controller.add(const <Receipt>[]);
+          }
+        },
+        onError: (_) {
+          if (!controller.isClosed) controller.add(const <Receipt>[]);
+        },
+      );
+    }
+
+    controller = StreamController<List<Receipt>>(
+      onListen: () {
+        primarySub = primary.listen(
+          (snap) {
+            final list = snap.docs
+                .map((d) => Receipt.fromDoc(d.id, d.data()))
+                .toList()
+              ..sort((a, b) => (b.createdAt ?? DateTime(2000))
+                  .compareTo(a.createdAt ?? DateTime(2000)));
+            if (!controller.isClosed) controller.add(list);
+          },
+          onError: (_) => startFallback(),
+        );
+      },
+      onCancel: () async {
+        await primarySub?.cancel();
+        await fallbackSub?.cancel();
+      },
+    );
+    return controller.stream;
+  }
 
   /// إنشاء إيصال (مصدره العميل أو الإدارة).
   Future<String> create({

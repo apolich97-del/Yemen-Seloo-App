@@ -32,17 +32,17 @@ class CartShareCard extends StatelessWidget {
               const Icon(Icons.link, size: 18, color: AppColors.primary),
               const SizedBox(width: 6),
               Text(title,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w900,
-                      color: AppColors.primaryDark)),
+                      color: T.primary)),
             ],
           ),
           const SizedBox(height: 8),
           Text(url,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 11, color: AppColors.muted)),
+              style: TextStyle(fontSize: 11, color: T.muted)),
           if (CartShare.tokenFromUrl(url).isNotEmpty) ...[
             const SizedBox(height: 6),
             Row(
@@ -52,7 +52,7 @@ class CartShareCard extends StatelessWidget {
                     'الرمز: ${CartShare.tokenFromUrl(url)}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 9.5, color: AppColors.muted),
+                    style: TextStyle(fontSize: 9.5, color: T.muted),
                   ),
                 ),
                 IconButton(

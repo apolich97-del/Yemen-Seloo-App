@@ -141,14 +141,20 @@ void _listenForDeepLinks() {
 
 void _openLink(String raw) {
   if (raw.isEmpty) return;
+  final String lower = raw.toLowerCase();
 
-  // رابط سلة يمن سيلو الكاملة
-  if (raw.startsWith('yemenseloo://')) {
+  // رابط سلة يمن سيلو الكاملة (مباشر أو عبر seloo-cart.vercel.app أو مختصر)
+  if (raw.startsWith('yemenseloo://') ||
+      lower.contains('seloo-cart.vercel.app') ||
+      lower.contains('tinyurl.com/') ||
+      lower.contains('is.gd/') ||
+      raw.contains('#d=') ||
+      raw.contains('?d=')) {
     _importCartFromLink(raw);
     return;
   }
 
-  if (!raw.toLowerCase().contains('shein')) return;
+  if (!lower.contains('shein')) return;
 
   debugPrint('[Seloo] link: $raw');
   WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -163,7 +169,8 @@ void _openLink(String raw) {
 
 /// يستورد سلة يمن سيلو كاملة من رابط
 Future<void> _importCartFromLink(String raw) async {
-  final List<SheinDraft> drafts = SelooCartLink.draftsFromLink(raw);
+  final String resolved = await SelooCartLink.resolveUrl(raw);
+  final List<SheinDraft> drafts = SelooCartLink.draftsFromLink(resolved);
   if (drafts.isEmpty) {
     Get.snackbar('رابط غير صالح', 'لم أجد منتجات في هذا الرابط',
         snackPosition: SnackPosition.BOTTOM);
@@ -303,7 +310,7 @@ class SelooApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GetMaterialApp(
+    Widget buildApp(ThemeMode mode) => GetMaterialApp(
       title: SelooConfig.appName,
       debugShowCheckedModeBanner: false,
       localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
@@ -319,9 +326,7 @@ class SelooApp extends StatelessWidget {
       fallbackLocale: const Locale('en'),
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: Get.isRegistered<ThemeController>()
-          ? Get.find<ThemeController>().mode
-          : ThemeMode.light,
+      themeMode: mode,
       initialRoute: '/main',
       initialBinding: InitialBinding(),
       getPages: <GetPage<dynamic>>[
@@ -340,5 +345,10 @@ class SelooApp extends StatelessWidget {
         ...AppPages.pages,
       ],
     );
+    if (Get.isRegistered<ThemeController>()) {
+      final tc = Get.find<ThemeController>();
+      return Obx(() => buildApp(tc.mode));
+    }
+    return buildApp(ThemeMode.light);
   }
 }

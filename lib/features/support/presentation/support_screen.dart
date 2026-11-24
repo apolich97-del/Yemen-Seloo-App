@@ -341,13 +341,13 @@ class _ChatViewState extends State<_ChatView> {
     super.dispose();
   }
 
-  Future<void> _send({String image = ''}) async {
+  Future<void> _send({String image = '', bool forceBot = false}) async {
     final t = _text.text.trim();
     if (t.isEmpty && image.isEmpty) return;
     setState(() => _sending = true);
     try {
       await _svc.sendCustomerMessage(widget.threadId, t,
-          imageUrl: image, order: widget.order);
+          imageUrl: image, order: widget.order, forceBot: forceBot);
       _text.clear();
     } catch (e) {
       Get.snackbar('تعذر الإرسال', '$e');
@@ -428,7 +428,7 @@ class _ChatViewState extends State<_ChatView> {
                       borderRadius: BorderRadius.circular(20),
                       onTap: () {
                         _text.text = t;
-                        _send();
+                        _send(forceBot: true);
                       },
                       child: Container(
                         padding: const EdgeInsets.symmetric(
@@ -452,78 +452,123 @@ class _ChatViewState extends State<_ChatView> {
   Future<void> _pickOrder() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
+    final searchCtrl = TextEditingController();
+    var query = '';
     final picked = await showModalBottomSheet<Order>(
       context: context,
+      isScrollControlled: true,
       backgroundColor: T.card,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => Container(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.receipt_long, size: 17, color: T.primary),
-                const SizedBox(width: 6),
-                Text('طلبي',
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                        color: T.text)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Flexible(
-              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: FirebaseFirestore.instance
-                    .collection('orders')
-                    .where('userId', isEqualTo: uid)
-                    .orderBy('createdAt', descending: true)
-                    .limit(30)
-                    .snapshots(),
-                builder: (context, snap) {
-                  final docs = snap.data?.docs ?? const [];
-                  if (docs.isEmpty) {
-                    return Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text('لا توجد طلبات',
-                          style: TextStyle(fontSize: 12, color: T.muted)),
-                    );
-                  }
-                  return ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: docs.length,
-                    itemBuilder: (_, i) {
-                      final o = Order.fromDoc(
-                          docs[i].id, docs[i].data());
-                      return ListTile(
-                        dense: true,
-                        title: Text(o.orderNo,
-                            style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: T.text)),
-                        subtitle: Text(
-                            '${o.status.labelAr} · ${formatMoney(o.totalSar, AppCurrency.sar)}',
-                            style: TextStyle(fontSize: 10.5, color: T.muted)),
-                        trailing: Icon(Icons.send, size: 16, color: T.primary),
-                        onTap: () => Navigator.pop(context, o),
-                      );
-                    },
-                  );
-                },
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Container(
+          padding: EdgeInsets.fromLTRB(
+              14, 14, 14, 14 + MediaQuery.of(ctx).viewInsets.bottom),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.72,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.receipt_long, size: 17, color: T.primary),
+                  const SizedBox(width: 6),
+                  Text('طلبي',
+                      style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w900,
+                          color: T.text)),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
               ),
-            ),
-          ],
+              const SizedBox(height: 6),
+              TextField(
+                controller: searchCtrl,
+                decoration: const InputDecoration(
+                  hintText: 'ابحث برقم الطلب أو الحالة أو المنتج…',
+                  prefixIcon: Icon(Icons.search, size: 18),
+                  isDense: true,
+                ),
+                onChanged: (v) => setSheetState(() => query = v.trim().toLowerCase()),
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: FirebaseFirestore.instance
+                      .collection('orders')
+                      .where('userId', isEqualTo: uid)
+                      .limit(40)
+                      .snapshots(),
+                  builder: (context, snap) {
+                    if (snap.connectionState == ConnectionState.waiting) {
+                      return const Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    final docs = snap.data?.docs ?? const [];
+                    var orders = docs
+                        .map((d) => Order.fromDoc(d.id, d.data()))
+                        .toList()
+                      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                    if (query.isNotEmpty) {
+                      orders = orders.where((o) {
+                        final hay = [
+                          o.orderNo,
+                          o.status.labelAr,
+                          o.address.receiverName,
+                          o.address.phone,
+                          ...o.items.map((i) => i.title),
+                        ].join(' ').toLowerCase();
+                        return hay.contains(query);
+                      }).toList();
+                    }
+                    if (orders.isEmpty) {
+                      return Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                            query.isEmpty ? 'لا توجد طلبات مسجلة لهذا الحساب' : 'لا توجد نتائج مطابقة للبحث',
+                            style: TextStyle(fontSize: 12, color: T.muted)),
+                      );
+                    }
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: orders.length,
+                      itemBuilder: (_, i) {
+                        final o = orders[i];
+                        return ListTile(
+                          dense: true,
+                          title: Text(o.orderNo,
+                              style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: T.text)),
+                          subtitle: Text(
+                              '${o.status.labelAr} · ${formatMoney(o.totalLocal, o.currency)}',
+                              style: TextStyle(fontSize: 11, color: T.muted)),
+                          trailing: Icon(Icons.send, size: 16, color: T.primary),
+                          onTap: () => Navigator.pop(ctx, o),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
+    searchCtrl.dispose();
     if (picked == null) return;
-    _text.text =
-        'أرغب في الاستفسار عن طلبي ${picked.orderNo} — الحالة: ${picked.status.labelAr}';
-    await _send();
+    _text.text = 'اين طلبي ${picked.orderNo} — تتبع الحالة';
+    await _send(forceBot: true);
   }
 
   Future<void> _pickImage() async {
@@ -539,6 +584,41 @@ class _ChatViewState extends State<_ChatView> {
   Widget build(BuildContext context) {
     return Column(
       children: [
+        StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('support_threads')
+              .doc(widget.threadId)
+              .snapshots(),
+          builder: (_, snap) {
+            final mode = (snap.data?.data()?['mode'] ?? 'bot') as String;
+            if (mode == 'bot') return const SizedBox.shrink();
+            return Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              color: T.soft,
+              child: Row(
+                children: [
+                  Icon(Icons.headset_mic_outlined, size: 15, color: T.primary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'المحادثة محوّلة حالياً لموظف خدمة العملاء',
+                      style: TextStyle(fontSize: 11, color: T.text),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      await _svc.returnToBot(widget.threadId);
+                      Get.snackbar('تم', 'عاد المساعد الذكي للرد الفوري');
+                    },
+                    child: const Text('العودة للمساعد الذكي',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
         Expanded(
           child: StreamBuilder<List<SupportMessage>>(
             stream: _svc.messages(widget.threadId),
@@ -547,7 +627,7 @@ class _ChatViewState extends State<_ChatView> {
               final header = _AssistantHeader(
                 onAsk: (String q) {
                   _text.text = q;
-                  _send();
+                  _send(forceBot: true);
                 },
                 onOrder: _pickOrder,
               );

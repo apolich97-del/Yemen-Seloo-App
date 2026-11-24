@@ -160,7 +160,7 @@ class SupportService extends GetxService {
   }
 
   Future<void> sendCustomerMessage(String threadId, String text,
-      {String imageUrl = '', Order? order}) async {
+      {String imageUrl = '', Order? order, bool forceBot = false}) async {
     final t = text.trim();
     if (t.isEmpty && imageUrl.isEmpty) return;
     final auth = Get.find<AuthService>();
@@ -181,9 +181,13 @@ class SupportService extends GetxService {
 
     await logQuery(t, kind: 'chat', orderNo: order?.orderNo);
 
-    // رد المساعد الذكي إن كانت المحادثة على وضع البوت
+    if (forceBot) {
+      await thread.set({'mode': 'bot'}, SetOptions(merge: true));
+    }
+
+    // رد المساعد الذكي إن كانت المحادثة على وضع البوت أو استفسار آلي
     final snap = await thread.get();
-    final mode = (snap.data()?['mode'] ?? 'bot') as String;
+    final mode = forceBot ? 'bot' : ((snap.data()?['mode'] ?? 'bot') as String);
     if (mode == 'bot') {
       final reply = await assistantReply(t, order: order);
       await thread.collection('messages').add({
@@ -208,36 +212,72 @@ class SupportService extends GetxService {
       {Order? order}) async {
     final q = _norm(question);
 
-    // 0) إن لم يُمرَّر طلب، اجلب أحدث طلب للعميل من Firestore.
+    // 0) إن لم يُمرَّر طلب، اجلب طلبات العميل دون orderBy (تجنّب خطأ الفهرس المركّب)
     if (order == null && Get.isRegistered<AuthService>()) {
-      final uid = Get.find<AuthService>().uid;
+      final auth = Get.find<AuthService>();
+      final uid = auth.uid;
+      final List<Order> candidateOrders = <Order>[];
       if (uid != null && uid.isNotEmpty) {
         try {
           final snap = await _db
               .collection('orders')
               .where('userId', isEqualTo: uid)
-              .orderBy('createdAt', descending: true)
-              .limit(1)
+              .limit(30)
               .get();
-          if (snap.docs.isNotEmpty) {
-            final d = snap.docs.first;
-            order = Order.fromDoc(
-                d.id, d.data() as Map<String, dynamic>);
+          for (final d in snap.docs) {
+            candidateOrders.add(Order.fromDoc(d.id, d.data()));
           }
         } catch (_) {}
+      }
+      if (candidateOrders.isEmpty) {
+        final phone = (auth.user.value?.phone ?? '').trim();
+        if (phone.isNotEmpty) {
+          try {
+            final snap = await _db
+                .collection('orders')
+                .where('address.phone', isEqualTo: phone)
+                .limit(15)
+                .get();
+            for (final d in snap.docs) {
+              candidateOrders.add(Order.fromDoc(d.id, d.data()));
+            }
+          } catch (_) {}
+        }
+      }
+      if (candidateOrders.isNotEmpty) {
+        candidateOrders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        // إن ذكر العميل رقم طلب معين مثل YS26... نطابقه أولاً
+        final noMatch = RegExp(r'YS[A-Z0-9\-/]{4,}', caseSensitive: false)
+            .firstMatch(question);
+        if (noMatch != null) {
+          final targetNo = noMatch.group(0)!.toUpperCase();
+          order = candidateOrders.firstWhere(
+            (e) => e.orderNo.toUpperCase().contains(targetNo),
+            orElse: () => candidateOrders.first,
+          );
+        } else {
+          order = candidateOrders.first;
+        }
       }
     }
 
     // 1) أسئلة تخص طلباً بعينه
     if (order != null) {
       final cur = order.currency;
-      if (_has(q, ['حالة', 'وين', 'أين', 'وصل', 'تتبع', 'شحنت'])) {
-        return AssistantReply(
-          'طلبك ${order.orderNo} حالته الآن: «${order.status.labelAr}».'
-          '${order.trackingNo.isNotEmpty ? '\nرقم التتبع: ${order.trackingNo}.' : ''}'
-          '${order.courierName.isNotEmpty ? '\nالمندوب: ${order.courierName}.' : ''}',
-          escalate: false,
-        );
+      if (_has(q, ['حالة', 'وين', 'أين', 'وصل', 'تتبع', 'شحن', 'شحنت', 'طلبي'])) {
+        final b = StringBuffer()
+          ..writeln('📦 طلبك ${order.orderNo}')
+          ..writeln('• الحالة الحالية: «${order.status.labelAr}»')
+          ..writeln('• المدة المتوقعة: ${order.expectedDeliveryAr}');
+        if (order.trackingNo.isNotEmpty) {
+          b.writeln('• رقم التتبع: ${order.trackingNo}');
+        }
+        if (order.courierName.isNotEmpty) {
+          b.writeln('• المندوب / شركة النقل: ${order.courierName}');
+        }
+        b.writeln(
+            '• الإجمالي: ${formatMoney(order.totalLocal, cur)} · المتبقي: ${formatMoney(order.remainingLocal, cur)}');
+        return AssistantReply(b.toString().trim(), escalate: false);
       }
       if (_has(q, ['متبقي', 'باقي', 'رصيد', 'آجل', 'نصف', 'قسط'])) {
         final b = StringBuffer()
@@ -270,6 +310,15 @@ class SupportService extends GetxService {
           escalate: false,
         );
       }
+    }
+
+    if (order == null &&
+        _has(q, ['أين طلبي', 'اين طلبي', 'تتبع شحنتي', 'وين طلبي', 'شحنتي', 'حالة طلبي'])) {
+      return const AssistantReply(
+        'لم أجد طلبات مسجلة على هذا الحساب حالياً. '
+        'تأكد من تسجيل الدخول بالحساب الذي أنشأت منه الطلب، أو اضغط «طلبي» لاختيار طلبك أو تحويل المحادثة لموظف الدعم.',
+        escalate: false,
+      );
     }
 
     // 2) شكاوى تُحوّل لموظف بشري

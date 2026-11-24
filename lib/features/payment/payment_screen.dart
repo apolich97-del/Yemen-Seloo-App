@@ -255,7 +255,7 @@ class PaymentScreen extends GetView<PaymentController> {
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
-                  color: AppColors.surface,
+                  color: T.soft,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(

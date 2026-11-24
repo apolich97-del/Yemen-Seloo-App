@@ -109,10 +109,10 @@ class CheckoutScreen extends GetView<CheckoutController> {
                         est == null
                             ? '—'
                             : formatMoney(est.totalLocal, est.currency),
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w900,
-                            color: AppColors.primaryDark),
+                            color: T.primary),
                       ),
                     ],
                   ),
@@ -445,7 +445,7 @@ class CheckoutScreen extends GetView<CheckoutController> {
                 selected: active,
                 selectedColor: AppColors.primary.withOpacity(.12),
                 labelStyle: TextStyle(
-                  color: active ? AppColors.primaryDark : AppColors.ink,
+                  color: active ? T.primary : T.text,
                   fontWeight: active ? FontWeight.w700 : FontWeight.w500,
                 ),
                 onSelected: (_) => controller.setCurrency(c),
@@ -527,7 +527,7 @@ class CheckoutScreen extends GetView<CheckoutController> {
                               fontSize: 12.5,
                               fontWeight: FontWeight.w800,
                               color: enabled
-                                  ? AppColors.ink
+                                  ? T.text
                                   : const Color(0xFFA9A2BC))),
                       const SizedBox(height: 2),
                       Text(subtitle,
@@ -552,11 +552,11 @@ class CheckoutScreen extends GetView<CheckoutController> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('طريقة السداد',
+            Text('طريقة السداد',
                 style: TextStyle(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w900,
-                    color: AppColors.primaryDark)),
+                    color: T.primary)),
             const SizedBox(height: 10),
             option(
               value: 'full',
@@ -589,7 +589,7 @@ class CheckoutScreen extends GetView<CheckoutController> {
                       style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.primaryDark),
+                          color: T.primary),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -661,10 +661,10 @@ class CheckoutScreen extends GetView<CheckoutController> {
                   const Spacer(),
                   Text(
                     formatMoney(e.totalLocal, c),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w900,
-                      color: AppColors.primaryDark,
+                      color: T.primary,
                     ),
                   ),
                 ],
@@ -675,7 +675,7 @@ class CheckoutScreen extends GetView<CheckoutController> {
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
                   'سعر الصرف: 1 ر.س = ${e.rate.toStringAsFixed(0)} ${c.shortAr}',
-                  style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                  style: TextStyle(fontSize: 11, color: T.muted),
                 ),
               ),
           ],

@@ -10,9 +10,11 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/config/seloo_config.dart';
 import '../../shein/application/shein_cart_importer.dart';
+import '../../shein/domain/shein_draft.dart';
 import '../../shein/data/shein_image_resolver.dart';
 import '../application/cart_counter.dart';
 import '../data/seloo_cart_link.dart';
+import '../data/seloo_cart_service.dart';
 import '../../../core/services/catalog_service.dart';
 import '../../catalog/data/catalog_repository.dart';
 import '../../../core/services/cart_share.dart';
@@ -318,17 +320,55 @@ class _CartScreenState extends State<CartScreen> {
       return;
     }
 
-    // رابط «السلة كاملة» الصادر من تطبيق يمن سيلو: استعادة دفعة واحدة
+    // رابط «السلة كاملة» (طويل أو مختصر مثل tinyurl) الصادر من يمن سيلو
     if (CartShare.isCartLink(text)) {
-      final restored = CartShare.parse(text);
-      if (restored == null || restored.isEmpty) {
-        _snack('رابط السلة غير صالح أو تالف');
+      setState(() => _importing = true);
+      try {
+        final String resolved = await SelooCartLink.resolveUrl(text);
+        final List<CartItem>? restored = CartShare.parse(resolved,
+            exchangeRate: _cart.quote.value?.exchangeRate ?? 140);
+        if (restored != null && restored.isNotEmpty) {
+          final service = SelooCartService();
+          int added = 0;
+          for (final item in restored) {
+            final res = await service.addToCart(SheinDraft(
+              goodsId: item.goodsId,
+              productUrl: item.sourceUrl.isNotEmpty
+                  ? item.sourceUrl
+                  : 'https://ar.shein.com/-p-${item.goodsId}.html',
+              title: item.title,
+              imageUrl: item.imageUrl,
+              sourcePrice: item.sourcePrice > 0 ? item.sourcePrice : 0.01,
+              sourceCurrency: 'SAR',
+              quantity: item.quantity,
+              color: item.color,
+              size: item.size,
+              options: const <String, String>{},
+              sourceStore: 'SHEIN',
+              sku: item.sku,
+              variantId: '',
+              source: 'shared-cart-link',
+              clientTs: DateTime.now().toUtc(),
+            ));
+            if (res.isOk) added++;
+          }
+          await _cart.onItemAdded();
+          await _cart.refreshQuote();
+          _shareCartController.clear();
+          _cart.editingLineId.value = null;
+          if (!mounted) return;
+          setState(() => _importing = false);
+          _snack('تمت استعادة ${added > 0 ? added : restored.length} منتجاً من رابط السلة كاملة');
+          return;
+        }
+      } catch (_) {}
+      if (mounted) setState(() => _importing = false);
+      // إن كان الرابط المختصر يقود في النهاية لرابط SHEIN، نكمل مسار شي إن أدناه
+      final String resolvedFallback = await SelooCartLink.resolveUrl(text);
+      if (!resolvedFallback.toLowerCase().contains('shein')) {
+        _snack('تعذّر استخراج منتجات من هذا الرابط');
         return;
       }
-      _cart.items.assignAll(restored);
-      _cart.editingLineId.value = null;
-      _snack('تمت استعادة ${restored.length} منتجاً من رابط السلة كاملة');
-      return;
     }
 
     setState(() => _importing = true);
@@ -765,7 +805,7 @@ class _CartScreenState extends State<CartScreen> {
     try {
       if (_cart.items.isNotEmpty) {
         b.writeln('🛒 رابط السلة كاملة:');
-        b.writeln(CartShare.buildFromItems(_cart.items));
+        b.writeln(await SelooCartLink.shortWebLink(_cart.items));
         b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
       }
     } catch (_) {}

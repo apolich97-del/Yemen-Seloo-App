@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io' show gzip;
+import 'dart:io' show HttpClient, HttpClientRequest, HttpClientResponse, HttpHeaders, gzip;
 
 import 'package:http/http.dart' as http;
 
@@ -146,7 +146,11 @@ class SelooCartLink {
 
     String? payload;
     final RegExpMatch? dataMatch = RegExp(r'd=([^&#\s]+)').firstMatch(text);
-    if (dataMatch != null) payload = dataMatch.group(1);
+    if (dataMatch != null) {
+      payload = dataMatch.group(1);
+    } else if (RegExp(r'^z[A-Za-z0-9_-]{12,}$').hasMatch(text)) {
+      payload = text;
+    }
     if (payload == null) return <SheinDraft>[];
 
     try {
@@ -197,7 +201,7 @@ class SelooCartLink {
           continue;
         }
 
-        if (goodsId.isEmpty || title.isEmpty || price <= 0) continue;
+        if (goodsId.isEmpty || title.isEmpty || price < 0) continue;
 
         drafts.add(
           SheinDraft(
@@ -223,5 +227,70 @@ class SelooCartLink {
     } catch (_) {
       return <SheinDraft>[];
     }
+  }
+
+  static String encodeRows(List<List<Object?>> rows) {
+    final String json = jsonEncode(<String, Object?>{'it': rows});
+    final List<int> packed = gzip.encode(utf8.encode(json));
+    final String body = base64Url.encode(packed).replaceAll('=', '');
+    return 'z$body';
+  }
+
+  static String webLinkFromRows(List<List<Object?>> rows) =>
+      '$webBase#d=${encodeRows(rows)}';
+
+  static Future<String> shortWebLinkFromRows(List<List<Object?>> rows) async {
+    final String long = webLinkFromRows(rows);
+    if (long.length <= 90) return long;
+    if (shortBase.isNotEmpty) {
+      final String? custom = await _shortViaServer(long);
+      if (custom != null) return custom;
+    }
+    final String? tiny = await _shortViaTinyUrl(long);
+    if (tiny != null) return tiny;
+    final String? isgd = await _shortViaIsGd(long);
+    if (isgd != null) return isgd;
+    return long;
+  }
+
+  /// يتبع إعادة التوجيه لروابط tinyurl / is.gd / seloo للوصول لرابط `#d=z...`.
+  static Future<String> resolveUrl(String raw) async {
+    final String s = raw.trim();
+    if (s.isEmpty || s.contains('d=') || s.contains('cart=')) return s;
+    final RegExpMatch? m = RegExp(r'https?://[^\s]+').firstMatch(s);
+    if (m == null) return s;
+    String current = m.group(0)!;
+    final String lower = current.toLowerCase();
+    if (!(lower.contains('tinyurl.com') ||
+        lower.contains('is.gd') ||
+        lower.contains('seloo'))) {
+      return s;
+    }
+    HttpClient? client;
+    try {
+      client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+      for (int hop = 0; hop < 5; hop++) {
+        final Uri uri = Uri.parse(current);
+        final HttpClientRequest req = await client.getUrl(uri);
+        req.followRedirects = false;
+        final HttpClientResponse res =
+            await req.close().timeout(const Duration(seconds: 8));
+        await res.drain<void>().catchError((_) {});
+        if (res.statusCode >= 300 && res.statusCode < 400) {
+          final String? loc = res.headers.value(HttpHeaders.locationHeader);
+          if (loc == null || loc.isEmpty) break;
+          current = uri.resolve(loc).toString();
+          if (current.contains('d=') || current.contains('cart=')) {
+            return current;
+          }
+          continue;
+        }
+        break;
+      }
+    } catch (_) {
+    } finally {
+      client?.close(force: true);
+    }
+    return current;
   }
 }

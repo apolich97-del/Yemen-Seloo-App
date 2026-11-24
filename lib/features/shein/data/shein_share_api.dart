@@ -391,28 +391,59 @@ class SheinShareApi {
   }
 
   /// قراءة السعر سواء جاء رقماً أو نصاً أو داخل كائن amount.
+  static String _normDigits(String s) {
+    const String ar = '٠١٢٣٤٥٦٧٨٩';
+    const String fa = '۰۱۲۳۴۵۶۷۸۹';
+    final StringBuffer b = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      final String ch = s[i];
+      final int iAr = ar.indexOf(ch);
+      final int iFa = fa.indexOf(ch);
+      if (iAr >= 0) {
+        b.write(iAr);
+      } else if (iFa >= 0) {
+        b.write(iFa);
+      } else {
+        b.write(ch);
+      }
+    }
+    return b.toString();
+  }
+
   static double? _priceAmount(Object? value) {
     if (value == null) return null;
 
     if (value is Map) {
       return _priceAmount(
-        value['amount'] ?? value['price'] ?? value['value'] ?? value['salePrice'],
+        value['amount'] ??
+            value['srAmount'] ??
+            value['sarAmount'] ??
+            value['price'] ??
+            value['value'] ??
+            value['salePrice'] ??
+            value['amountWithSymbol'],
       );
     }
 
     if (value is num) return value.toDouble();
 
-    final String cleaned =
-        '$value'.replaceAll(',', '').replaceAll(RegExp(r'[^0-9.]'), '');
+    final String cleaned = _normDigits('$value')
+        .replaceAll(',', '')
+        .replaceAll(RegExp(r'[^0-9.]'), '');
     return double.tryParse(cleaned);
   }
 
   /// أفضل سعر متاح للمنتج — بالترتيب المعروف في استجابة شي إن.
   static double? _bestPrice(Map<String, dynamic> it) {
     const List<String> keys = <String>[
-      'salePrice', 'sku_sale_price', 'skuSalePrice', 'price',
-      'goodsPrice', 'retailPrice', 'originalPrice', 'marketPrice', 'unitPrice',
+      'salePrice', 'sku_sale_price', 'skuSalePrice', 'srPrice', 'sarPrice',
+      'price', 'goodsPrice', 'retailPrice', 'originalPrice', 'marketPrice', 'unitPrice',
     ];
+    final Object? skuInfo = it['skuInfo'];
+    if (skuInfo is Map) {
+      final double? v = _priceAmount(skuInfo['salePrice'] ?? skuInfo['retailPrice'] ?? skuInfo['price']);
+      if (v != null && v > 0) return v;
+    }
 
     for (final String key in keys) {
       final double? v = _priceAmount(it[key]);
@@ -464,6 +495,9 @@ class SheinShareApi {
     final List<String> candidates = <String>[
       '${it['goods_img'] ?? ''}',
       '${it['goodsImg'] ?? ''}',
+      '${it['sku_img'] ?? ''}',
+      '${it['skuImg'] ?? ''}',
+      '${it['product_img'] ?? ''}',
       '${it['main_image'] ?? ''}',
       '${it['detail_image'] ?? ''}',
     ];

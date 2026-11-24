@@ -321,7 +321,7 @@ class PaymentController extends GetxController {
       final remainingLocal = (payload.estimate.totalLocal - t.amount)
           .clamp(0.0, double.infinity);
 
-      final form = OrderDocuments.officialWhatsAppForm(
+      final form = await OrderDocuments.officialWhatsAppFormAsync(
         orderNo: sub.orderNo,
         customerName: payload.address.receiverName,
         customerPhone: payload.address.phone,
@@ -353,6 +353,7 @@ class PaymentController extends GetxController {
             customerPhone: payload.address.phone,
             addressAr: payload.address.fullAr,
             itemsCount: pieces,
+            thumbnails: payload.lines.map((l) => l.imageUrl).where((u) => u.isNotEmpty).take(6).toList(),
           ));
     } catch (e) {
       final msg = '$e';

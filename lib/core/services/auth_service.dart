@@ -194,7 +194,17 @@ class AuthService extends GetxService {
         .limit(5)
         .get();
     for (final d in snap.docs) {
-      await d.reference.set({'role': role}, SetOptions(merge: true));
+      await d.reference.set({'role': role, 'email': key}, SetOptions(merge: true));
+    }
+    if (snap.docs.isEmpty && email.trim() != key) {
+      final snapRaw = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: email.trim())
+          .limit(5)
+          .get();
+      for (final d in snapRaw.docs) {
+        await d.reference.set({'role': role, 'email': key}, SetOptions(merge: true));
+      }
     }
   }
 
@@ -255,12 +265,20 @@ class AuthService extends GetxService {
       }
 
       // ربط ديناميكي: دور الموظف من سجل الفريق staff_invites/{email}
-      if (role == 'customer' && email.isNotEmpty) {
+      if (email.isNotEmpty) {
         try {
-          final inv = await FirebaseFirestore.instance
+          var inv = await FirebaseFirestore.instance
               .collection('staff_invites')
               .doc(email)
               .get();
+          if (!inv.exists) {
+            final qInv = await FirebaseFirestore.instance
+                .collection('staff_invites')
+                .where('email', isEqualTo: email)
+                .limit(1)
+                .get();
+            if (qInv.docs.isNotEmpty) inv = qInv.docs.first;
+          }
           final invRole = (inv.data()?['role'] ?? '') as String;
           if (inv.data() != null &&
               (inv.data()?['active'] ?? true) == true &&
@@ -375,7 +393,7 @@ class AuthService extends GetxService {
       'city': cleanCity,
       'district': cleanDistrict,
       'addressLine': cleanLine,
-      'email': u.email ?? (data['email'] ?? ''),
+      'email': (u.email ?? (data['email'] ?? '')).toString().trim().toLowerCase(),
       'customerCode': resolvedCode,
       if (!existing.exists || data['createdAt'] == null)
         'createdAt': FieldValue.serverTimestamp(),
@@ -447,9 +465,10 @@ class AuthService extends GetxService {
       );
       await _auth.signInWithCredential(cred);
       await _db.collection('users').doc(_auth.currentUser!.uid).set({
-        'email': account.email,
+        'email': account.email.trim().toLowerCase(),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+      await refreshProfile();
     } on FirebaseAuthException catch (e) {
       error.value = _ar(e.code);
     } catch (e) {

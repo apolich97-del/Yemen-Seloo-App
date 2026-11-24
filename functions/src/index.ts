@@ -1,5 +1,6 @@
 import * as admin from "firebase-admin";
 import { HttpsError, onCall, CallableRequest } from "firebase-functions/v2/https";
+import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import {
   FieldValue,
   Firestore,
@@ -621,3 +622,47 @@ export const registerImportedProducts = onCall(baseOpts, async (request) => {
   if (registered > 0) await batch.commit();
   return { registered, skipped };
 });
+
+
+/* ═══════════ مزامنة أدوار الفريق تلقائياً عبر البريد ═══════════ */
+export const onStaffInviteWrite = onDocumentWritten(
+  { document: "staff_invites/{email}", region: REGION },
+  async (event) => {
+    const rawEmail = String(event.params.email ?? "").trim().toLowerCase();
+    if (!rawEmail || !rawEmail.includes("@")) return;
+    const after = event.data?.after.exists ? event.data.after.data() : null;
+    const active = after ? after.active !== false : false;
+    const roleRaw = after && active ? String(after.role ?? "customer") : "customer";
+    const allowedRoles = new Set([
+      "manager",
+      "marketer",
+      "accounting",
+      "shipping",
+      "support",
+      "courier",
+      "customer",
+    ]);
+    const role = allowedRoles.has(roleRaw) ? roleRaw : "customer";
+
+    try {
+      const authUser = await admin.auth().getUserByEmail(rawEmail);
+      const claims = { ...(authUser.customClaims ?? {}) } as Record<string, unknown>;
+      if (role === "customer") {
+        delete claims.role;
+      } else {
+        claims.role = role;
+      }
+      await admin.auth().setCustomUserClaims(authUser.uid, claims);
+      await db.collection(USERS).doc(authUser.uid).set(
+        {
+          email: rawEmail,
+          role,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    } catch (_) {
+      // المستخدم لم يسجّل الدخول بعد — سيُفعَّل الدور فور تسجيل الدخول.
+    }
+  },
+);

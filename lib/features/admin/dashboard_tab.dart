@@ -55,7 +55,7 @@ class DashboardTab extends StatelessWidget {
                   _Kpi('إجمالي الطلبات', '${docs.length}', Icons.receipt_long, AppColors.primary,
                       onTap: () => adminGo('الطلبات')),
                   _Kpi('قيمة الطلبات', formatMoney(revenue, AppCurrency.sar), Icons.payments_outlined,
-                      AppColors.primaryDark),
+                      T.primary),
                   _Kpi('بانتظار الحوالة', '$unpaid', Icons.schedule, const Color(0xFFB26A00)),
                   _Kpi('قيد التحقق', '$verifying', Icons.fact_check_outlined, const Color(0xFFB26A00),
                       onTap: () => adminGo('المدفوعات')),
@@ -145,11 +145,11 @@ Widget _salesReport(List<QueryDocumentSnapshot> docs) {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('تقرير المبيعات',
+        Text('تقرير المبيعات',
             style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w900,
-                color: AppColors.primaryDark)),
+                color: T.primary)),
         const SizedBox(height: 6),
         row('اليوم', todayOrders.length, sumSar(todayOrders)),
         row('الأسبوع', weekOrders.length, sumSar(weekOrders)),

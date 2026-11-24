@@ -405,7 +405,7 @@ class CheckoutController extends GetxController {
               ? 'سائق خاص: ${sm['driverName'] ?? ''} — ${sm['driverPhone'] ?? ''}'
               : 'توصيل محلي للمنزل';
 
-      final form = OrderDocuments.officialWhatsAppForm(
+      final form = await OrderDocuments.officialWhatsAppFormAsync(
         orderNo: sub.orderNo,
         customerName: address.value!.receiverName,
         customerPhone: address.value!.phone,
@@ -434,6 +434,7 @@ class CheckoutController extends GetxController {
             customerPhone: address.value!.phone,
             addressAr: address.value!.fullAr,
             itemsCount: pieces,
+            thumbnails: thumbnails,
           ));
     } catch (e) {
       Get.snackbar('تعذر إرسال الطلب الآجل', '$e',

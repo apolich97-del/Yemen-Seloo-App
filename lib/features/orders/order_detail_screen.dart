@@ -146,6 +146,42 @@ class OrderDetailScreen extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        try {
+                          final f = await OrderDocuments.buildShippingWaybillPdf(o);
+                          await Share.shareXFiles([XFile(f.path)],
+                              text: 'بوليصة شحن ${o.orderNo} — يمن سيلو');
+                        } catch (e) {
+                          Get.snackbar('تعذر إنشاء البوليصة', '$e');
+                        }
+                      },
+                      icon: const Icon(Icons.local_shipping_outlined, size: 17),
+                      label: const Text('بوليصة الشحن PDF', style: TextStyle(fontSize: 11.5)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        try {
+                          final f = await OrderDocuments.buildDeliveryWaybillPdf(o);
+                          await Share.shareXFiles([XFile(f.path)],
+                              text: 'بوليصة إثبات التسليم ${o.orderNo} — يمن سيلو');
+                        } catch (e) {
+                          Get.snackbar('تعذر إنشاء البوليصة', '$e');
+                        }
+                      },
+                      icon: const Icon(Icons.verified_outlined, size: 17),
+                      label: const Text('بوليصة التسليم PDF', style: TextStyle(fontSize: 11.5)),
+                    ),
+                  ),
+                ],
+              ),
               if (!o.status.isTerminal) ...[
                 const SizedBox(height: 16),
                 ElevatedButton.icon(
@@ -330,8 +366,11 @@ class OrderDetailScreen extends StatelessWidget {
     if (ok != true) return;
     try {
       final db = FirebaseFirestore.instance;
-      final receipts =
-          await db.collection('receipts').where('orderId', isEqualTo: o.id).get();
+      final receipts = await db
+          .collection('orders')
+          .doc(o.id)
+          .collection('receipts')
+          .get();
       for (final r in receipts.docs) {
         await r.reference.delete();
       }

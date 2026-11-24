@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:share_plus/share_plus.dart';
@@ -183,6 +184,22 @@ class _StoreTabState extends State<StoreTab> {
         ),
       );
 
+  Widget _storeImage(String src) {
+    if (src.isEmpty) {
+      return Container(height: 170, width: double.infinity, color: T.soft,
+          child: Icon(Icons.image_outlined, size: 30, color: T.muted));
+    }
+    if (src.startsWith('data:')) {
+      try {
+        final b64 = src.substring(src.indexOf(',') + 1);
+        return Image.memory(base64Decode(b64), height: 170, width: double.infinity, fit: BoxFit.cover);
+      } catch (_) {}
+    }
+    return Image.network(src, height: 170, width: double.infinity, fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(height: 170, width: double.infinity, color: T.soft,
+            child: Icon(Icons.broken_image_outlined, size: 30, color: T.muted)));
+  }
+
   Widget _card(CatalogItem it) {
     final price = it.priceIn(_region,
         rateSouth: _rateSouth, rateNorth: _rateNorth);
@@ -202,24 +219,7 @@ class _StoreTabState extends State<StoreTab> {
               ClipRRect(
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(16)),
-                child: it.imageUrl.isEmpty
-                    ? Container(
-                        height: 170,
-                        width: double.infinity,
-                        color: T.soft,
-                        child: Icon(Icons.image_outlined,
-                            size: 30, color: T.muted))
-                    : Image.network(it.imageUrl,
-                        height: 170,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                              height: 170,
-                              width: double.infinity,
-                              color: T.soft,
-                              child: Icon(Icons.broken_image_outlined,
-                                  size: 30, color: T.muted),
-                            )),
+                child: _storeImage(it.imageUrl),
               ),
               if (it.badgeAr.isNotEmpty)
                 Positioned(
