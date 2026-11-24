@@ -140,8 +140,26 @@ class SelooCartLink {
   static String appLink(List<CartItem> items) =>
       '$scheme://cart?d=${encodePayload(items)}';
 
+  static String _unwrapWrapperUrl(String raw) {
+    String out = raw.trim();
+    for (int i = 0; i < 3; i++) {
+      final Uri? uri = Uri.tryParse(out);
+      if (uri == null) break;
+      final String? wrapped = uri.queryParameters['u'] ??
+          uri.queryParameters['url'] ??
+          uri.queryParameters['target'] ??
+          uri.queryParameters['q'];
+      if (wrapped != null && wrapped.trim().startsWith('http')) {
+        out = wrapped.trim();
+        continue;
+      }
+      break;
+    }
+    return out;
+  }
+
   static List<SheinDraft> draftsFromLink(String raw) {
-    final String text = raw.trim();
+    final String text = _unwrapWrapperUrl(raw);
     if (text.isEmpty) return <SheinDraft>[];
 
     String? payload;
@@ -253,23 +271,29 @@ class SelooCartLink {
     return long;
   }
 
-  /// يتبع إعادة التوجيه لروابط tinyurl / is.gd / seloo للوصول لرابط `#d=z...`.
+  /// يتبع إعادة التوجيه لروابط tinyurl / is.gd / seloo للوصول لرابط `#d=z...`
+  /// مع فك تغليف روابط الوسيط مثل redirect.viglink.com?u=... قبل ضياع `#d=`.
   static Future<String> resolveUrl(String raw) async {
-    final String s = raw.trim();
+    final String s = _unwrapWrapperUrl(raw);
     if (s.isEmpty || s.contains('d=') || s.contains('cart=')) return s;
     final RegExpMatch? m = RegExp(r'https?://[^\s]+').firstMatch(s);
     if (m == null) return s;
-    String current = m.group(0)!;
+    String current = _unwrapWrapperUrl(m.group(0)!);
+    if (current.contains('d=') || current.contains('cart=')) {
+      return current;
+    }
     final String lower = current.toLowerCase();
     if (!(lower.contains('tinyurl.com') ||
         lower.contains('is.gd') ||
-        lower.contains('seloo'))) {
+        lower.contains('seloo') ||
+        lower.contains('bit.ly') ||
+        lower.contains('shorturl'))) {
       return s;
     }
     HttpClient? client;
     try {
       client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
-      for (int hop = 0; hop < 5; hop++) {
+      for (int hop = 0; hop < 6; hop++) {
         final Uri uri = Uri.parse(current);
         final HttpClientRequest req = await client.getUrl(uri);
         req.followRedirects = false;
@@ -279,7 +303,7 @@ class SelooCartLink {
         if (res.statusCode >= 300 && res.statusCode < 400) {
           final String? loc = res.headers.value(HttpHeaders.locationHeader);
           if (loc == null || loc.isEmpty) break;
-          current = uri.resolve(loc).toString();
+          current = _unwrapWrapperUrl(uri.resolve(loc).toString());
           if (current.contains('d=') || current.contains('cart=')) {
             return current;
           }

@@ -198,7 +198,7 @@ class _CatalogStudioTabState extends State<CatalogStudioTab> {
     var region = existing?.region ?? 'south';
     var badge = existing?.badge ?? '';
     var scraping = false;
-    final List<CartItem> cartItems = SelooCartService.loadItems();
+    final List<CartItem> cartItems = SelooCartService().loadItems();
 
     final ok = await Get.dialog<bool>(
       AlertDialog(

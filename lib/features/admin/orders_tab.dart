@@ -171,7 +171,7 @@ class _OrdersTabState extends State<OrdersTab> {
                           style: TextStyle(
                               fontSize: 9.5,
                               fontWeight: FontWeight.w900,
-                              color: T.dark ? AppDark.gold : const Color(0xFF7A5E00))),
+                              color: T.dark ? T.accent : const Color(0xFF7A5E00))),
                     ),
                   ],
                   const Spacer(),

@@ -792,11 +792,13 @@ class _CartScreenState extends State<CartScreen> {
 
     // رابط السلة كما وصلت من شي إن (يُفتح كاملاً بدل روابط متفرقة)
     try {
-      final String? cartLink =
+      final String? lastShareUrl =
           GetStorage().read<String>('seloo_last_share_url');
-      if (cartLink != null && cartLink.trim().isNotEmpty && _cartMatchesLink()) {
+      if (lastShareUrl != null &&
+          lastShareUrl.trim().isNotEmpty &&
+          _cartMatchesLink()) {
         b.writeln('🛒 رابط السلة كاملة في شي إن:');
-        b.writeln(cartLink.trim());
+        b.writeln(lastShareUrl.trim());
         b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
       }
     } catch (_) {}
@@ -804,8 +806,12 @@ class _CartScreenState extends State<CartScreen> {
     // رابط سلة يمن سيلو الكاملة (كل المنتجات في رابط واحد)
     try {
       if (_cart.items.isNotEmpty) {
+        final String resolvedCartLink =
+            (cartLink != null && cartLink.trim().isNotEmpty)
+                ? cartLink.trim()
+                : SelooCartLink.webLink(_cart.items);
         b.writeln('🛒 رابط السلة كاملة:');
-        b.writeln(await SelooCartLink.shortWebLink(_cart.items));
+        b.writeln(resolvedCartLink);
         b.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
       }
     } catch (_) {}
