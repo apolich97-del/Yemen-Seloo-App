@@ -13,6 +13,7 @@ import '../../../core/services/order_documents.dart';
 import '../../../core/services/order_service.dart';
 import '../../../core/services/receipt_service.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../guide/interactive_guide.dart';
 
 /// «إيصالاتي» (واجهة إيصال الكاملة): عرض الإيصالات، رفع إيصال سداد مباشرة،
 /// فلاتر الحالة، كشف الحساب، وتنزيل PDF لكل إيصال معتمد.

@@ -23,10 +23,12 @@ Future<void> showOrderPreview(Order o) async {
       insetPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 14),
       backgroundColor: T.card,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-      child: SizedBox(
-        width: MediaQuery.of(context).size.width * 0.96,
-        height: MediaQuery.of(context).size.height * 0.91,
-        child: _OrderPreview(order: o),
+      child: Builder(
+        builder: (ctx) => SizedBox(
+          width: MediaQuery.of(ctx).size.width * 0.96,
+          height: MediaQuery.of(ctx).size.height * 0.91,
+          child: _OrderPreview(order: o),
+        ),
       ),
     ),
   );
