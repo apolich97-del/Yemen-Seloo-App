@@ -670,13 +670,12 @@ class OrderDocuments {
     );
   }
 
-  /// بوليصة شحن المحافظات (PDF A4 RTL) — خالية تماماً من أي تفاصيل تحويل بنكي.
+  /// بوليصة شحن المحافظات (PDF A4 RTL) — مطابقة لتصميم الويب مع صور القطع وخالية من بيانات الحوالات.
   static Future<File> buildShippingWaybillPdf(Order o) async {
     final reg = pw.Font.ttf(await rootBundle.load('assets/fonts/Tajawal-Regular.ttf'));
     final bold = pw.Font.ttf(await rootBundle.load('assets/fonts/Tajawal-Bold.ttf'));
     final logo = pw.MemoryImage(
         (await rootBundle.load('assets/images/logo.png')).buffer.asUint8List());
-
     pw.TextStyle t(double size, {bool b = false, PdfColor? c}) =>
         pw.TextStyle(font: b ? bold : reg, fontSize: size, color: c ?? _ink);
 
@@ -703,17 +702,24 @@ class OrderDocuments {
         ? '${sw['receiverPhone']}'
         : (o.receiverPhone.isNotEmpty ? o.receiverPhone : o.address.phone);
     final voucherUrl = '${sw['voucherUrl'] ?? ''}'.trim();
-    final voucherImg = voucherUrl.isNotEmpty ? await _fetch(voucherUrl) : null;
     final notes = '${sw['notes'] ?? ''}'.trim();
 
+    final itemSubset = o.items.take(12).toList();
+    final fetchedImgs = await Future.wait<pw.MemoryImage?>([
+      if (voucherUrl.isNotEmpty) _fetch(voucherUrl) else Future.value(null),
+      for (final it in itemSubset) _fetch(it.imageUrl),
+    ]);
+    final voucherImg = fetchedImgs[0];
+    final itemImgs = fetchedImgs.sublist(1);
+
     pw.Widget kv(String k, String v) => pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(vertical: 3),
+          padding: const pw.EdgeInsets.symmetric(vertical: 2.5),
           child: pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
-              pw.Expanded(child: pw.Text(v, style: t(10.5, b: true))),
-              pw.SizedBox(width: 10),
-              pw.Text(k, style: t(10.5, c: _muted)),
+              pw.Expanded(child: pw.Text(v, style: t(9.5, b: true))),
+              pw.SizedBox(width: 8),
+              pw.Text(k, style: t(9.5, c: _muted)),
             ],
           ),
         );
@@ -723,7 +729,7 @@ class OrderDocuments {
       pw.MultiPage(
         pageTheme: pw.PageTheme(
           pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.all(24),
+          margin: const pw.EdgeInsets.all(22),
           textDirection: pw.TextDirection.rtl,
           theme: pw.ThemeData.withFont(base: reg, bold: bold),
         ),
@@ -731,41 +737,74 @@ class OrderDocuments {
           _decorHeader(
             logo: logo,
             title: 'بوليصة شحن للمحافظات',
-            subtitle: 'وثيقة نقل وإرسال رسمية — يمن سيلو',
+            subtitle: 'وثيقة تسليم ومراجعة لوجستية رسمية — يمن سيلو',
             badge: o.orderNo,
             t: (sz, bl, cl) => t(sz, b: bl, c: cl),
           ),
-          pw.SizedBox(height: 12),
+          pw.SizedBox(height: 8),
           pw.Container(
-            padding: const pw.EdgeInsets.all(12),
+            padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: pw.BoxDecoration(
-              color: _soft,
-              borderRadius: pw.BorderRadius.circular(10),
-              border: pw.Border.all(color: PdfColor.fromInt(0xFFE4DDF5)),
+              color: PdfColor.fromInt(0xFFFFFBEB),
+              borderRadius: pw.BorderRadius.circular(8),
+              border: pw.Border.all(color: _gold),
             ),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-              children: [
-                pw.Text('بيانات الإرسال والاستلام', style: t(12, b: true, c: _violetDark)),
-                pw.SizedBox(height: 6),
-                kv('المرسل', sender),
-                kv('هاتف الشركة', companyPhone),
-                kv('المحافظة الوجهة', gov),
-                kv('مكتب النقل', office),
-                kv('اسم المستلم', receiver),
-                kv('هاتف المستلم', receiverPhone),
-                kv('عنوان المستلم', o.address.fullAr),
-                if (o.trackingNo.isNotEmpty) kv('رقم البوليصة / التتبع', o.trackingNo),
-                kv('عدد القطع الإجمالي', '${o.totalPieces} قطعة'),
-                kv(
-                  'أجور النقل',
-                  o.transportFeeLocal > 0
-                      ? '${formatMoney(o.transportFeeLocal, o.currency)} (${o.transportFeeCollect == 'office' ? 'تُدفع لمكتب النقل عند الاستلام' : 'ضمن الفاتورة'})'
-                      : 'حسب تسعيرة مكتب النقل',
+            child: pw.Text(
+              'مستند شحن لوجستي معتمد — خالية تماماً من بيانات الحوالات البنكية والأرصدة المالية',
+              style: t(9.2, b: true, c: PdfColor.fromInt(0xFF92400E)),
+              textAlign: pw.TextAlign.center,
+            ),
+          ),
+          pw.SizedBox(height: 10),
+          pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Expanded(
+                child: pw.Container(
+                  padding: const pw.EdgeInsets.all(10),
+                  decoration: pw.BoxDecoration(
+                    color: _soft,
+                    borderRadius: pw.BorderRadius.circular(10),
+                    border: pw.Border.all(color: PdfColor.fromInt(0xFFE4DDF5)),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                    children: [
+                      pw.Text('بيانات المستلم والوجهة', style: t(10.5, b: true, c: _violetDark)),
+                      pw.SizedBox(height: 5),
+                      kv('المستلم', receiver),
+                      kv('هاتف المستلم', receiverPhone),
+                      kv('المحافظة', gov),
+                      kv('العنوان', o.address.fullAr),
+                      if (o.trackingNo.isNotEmpty) kv('التتبع', o.trackingNo),
+                    ],
+                  ),
                 ),
-                if (notes.isNotEmpty) kv('ملاحظات الشحن', notes),
-              ],
-            ),
+              ),
+              pw.SizedBox(width: 10),
+              pw.Expanded(
+                child: pw.Container(
+                  padding: const pw.EdgeInsets.all(10),
+                  decoration: pw.BoxDecoration(
+                    color: _soft,
+                    borderRadius: pw.BorderRadius.circular(10),
+                    border: pw.Border.all(color: PdfColor.fromInt(0xFFE4DDF5)),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                    children: [
+                      pw.Text('بيانات المرسل والنقل', style: t(10.5, b: true, c: _violetDark)),
+                      pw.SizedBox(height: 5),
+                      kv('المرسل', sender),
+                      kv('هاتف الشركة', companyPhone),
+                      kv('مكتب النقل', office),
+                      kv('إجمالي القطع', '${o.totalPieces} قطعة'),
+                      if (notes.isNotEmpty) kv('ملاحظات', notes),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
           pw.SizedBox(height: 10),
           pw.Container(
@@ -778,41 +817,84 @@ class OrderDocuments {
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.stretch,
               children: [
-                pw.Text('بيان الطرود والقطع (${o.items.length} صنف · ${o.totalPieces} قطعة)',
+                pw.Text('محتويات الطرد (${o.items.length} صنف · ${o.totalPieces} قطعة)',
                     style: t(11, b: true, c: _violetDark)),
                 pw.SizedBox(height: 6),
-                for (var i = 0; i < o.items.length; i++)
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.symmetric(vertical: 2),
+                for (var i = 0; i < o.items.length; i++) ...[
+                  pw.Container(
+                    padding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 6),
+                    margin: const pw.EdgeInsets.only(bottom: 4),
+                    decoration: pw.BoxDecoration(
+                      color: i % 2 == 0 ? _soft : PdfColors.white,
+                      borderRadius: pw.BorderRadius.circular(6),
+                    ),
                     child: pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
-                        pw.Text('× ${o.items[i].qty}', style: t(9.5, b: true)),
+                        pw.Container(
+                          padding: const pw.EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                          decoration: pw.BoxDecoration(
+                            color: _violet,
+                            borderRadius: pw.BorderRadius.circular(6),
+                          ),
+                          child: pw.Text('× ${o.items[i].qty}',
+                              style: t(9, b: true, c: PdfColors.white)),
+                        ),
                         pw.SizedBox(width: 8),
                         pw.Expanded(
-                          child: pw.Text(
-                            '${i + 1}. ${o.items[i].title}${_variant(o.items[i]).isEmpty ? '' : ' (${_variant(o.items[i])})'}',
-                            style: t(9.5),
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.end,
+                            children: [
+                              pw.Text('${i + 1}. ${o.items[i].title}', style: t(9.5, b: true)),
+                              if (_variant(o.items[i]).isNotEmpty)
+                                pw.Text(_variant(o.items[i]), style: t(8.2, c: _muted)),
+                            ],
                           ),
                         ),
+                        pw.SizedBox(width: 8),
+                        if (i < itemImgs.length && itemImgs[i] != null)
+                          pw.ClipRRect(
+                            horizontalRadius: 6,
+                            verticalRadius: 6,
+                            child: pw.Image(itemImgs[i]!,
+                                width: 38, height: 38, fit: pw.BoxFit.cover),
+                          )
+                        else
+                          pw.Container(
+                            width: 38,
+                            height: 38,
+                            alignment: pw.Alignment.center,
+                            decoration: pw.BoxDecoration(
+                              color: PdfColor.fromInt(0xFFEDE9FE),
+                              borderRadius: pw.BorderRadius.circular(6),
+                            ),
+                            child: pw.Text('#${i + 1}', style: t(8.5, b: true, c: _violetDark)),
+                          ),
                       ],
                     ),
                   ),
+                ],
               ],
             ),
           ),
           if (voucherImg != null) ...[
             pw.SizedBox(height: 10),
-            pw.Text('سند مكتب النقل / صورة الشحنة', style: t(11, b: true, c: _violetDark)),
-            pw.SizedBox(height: 6),
             pw.Container(
-              padding: const pw.EdgeInsets.all(6),
+              padding: const pw.EdgeInsets.all(10),
               decoration: pw.BoxDecoration(
                 color: _soft,
                 borderRadius: pw.BorderRadius.circular(10),
+                border: pw.Border.all(color: _violet, width: 1),
               ),
-              child: pw.Center(
-                child: pw.Image(voucherImg, height: 180, fit: pw.BoxFit.contain),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                children: [
+                  pw.Text('سند مكتب النقل / صورة الطرد',
+                      style: t(10.5, b: true, c: _violetDark)),
+                  pw.SizedBox(height: 6),
+                  pw.Center(
+                    child: pw.Image(voucherImg, height: 185, fit: pw.BoxFit.contain),
+                  ),
+                ],
               ),
             ),
           ],
@@ -820,14 +902,15 @@ class OrderDocuments {
           pw.Container(
             padding: const pw.EdgeInsets.all(10),
             decoration: pw.BoxDecoration(
-              color: _violet,
+              color: _violetDark,
               borderRadius: pw.BorderRadius.circular(10),
             ),
             child: pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
-                pw.Text('يمن سيلو · خدمة الشحن للمحافظات', style: t(10, c: PdfColors.white)),
-                pw.Text('770518757 · 737383637', style: t(10, b: true, c: PdfColors.white)),
+                pw.Text('يمن سيلو · خدمة الشحن للمحافظات (${o.totalPieces} قطعة)',
+                    style: t(9.5, c: PdfColors.white)),
+                pw.Text('770518757 · 737383637', style: t(9.5, b: true, c: PdfColors.white)),
               ],
             ),
           ),
@@ -840,13 +923,12 @@ class OrderDocuments {
     return f;
   }
 
-  /// بوليصة إثبات التسليم (PDF A4 RTL) — تتضمن خط الزمن، المندوب، صورة التسليم، وختم يمن سيلو.
+  /// بوليصة إثبات التسليم (PDF A4 RTL) — تتضمن صور القطع، خط الزمن، المندوب، صورة التسليم، وختم يمن سيلو.
   static Future<File> buildDeliveryWaybillPdf(Order o) async {
     final reg = pw.Font.ttf(await rootBundle.load('assets/fonts/Tajawal-Regular.ttf'));
     final bold = pw.Font.ttf(await rootBundle.load('assets/fonts/Tajawal-Bold.ttf'));
     final logo = pw.MemoryImage(
         (await rootBundle.load('assets/images/logo.png')).buffer.asUint8List());
-
     pw.TextStyle t(double size, {bool b = false, PdfColor? c}) =>
         pw.TextStyle(font: b ? bold : reg, fontSize: size, color: c ?? _ink);
 
@@ -859,17 +941,24 @@ class OrderDocuments {
     final proofSrc = '${dw['proofUrl'] ?? ''}'.trim().isNotEmpty
         ? '${dw['proofUrl']}'
         : o.proofImageUrl;
-    final proofImg = proofSrc.isNotEmpty ? await _fetch(proofSrc) : null;
     final deliveryNote = '${dw['note'] ?? ''}'.trim();
 
+    final itemSubset = o.items.take(8).toList();
+    final fetchedImgs = await Future.wait<pw.MemoryImage?>([
+      if (proofSrc.isNotEmpty) _fetch(proofSrc) else Future.value(null),
+      for (final it in itemSubset) _fetch(it.imageUrl),
+    ]);
+    final proofImg = fetchedImgs[0];
+    final itemImgs = fetchedImgs.sublist(1);
+
     pw.Widget kv(String k, String v) => pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(vertical: 3),
+          padding: const pw.EdgeInsets.symmetric(vertical: 2.5),
           child: pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
-              pw.Expanded(child: pw.Text(v, style: t(10.5, b: true))),
-              pw.SizedBox(width: 10),
-              pw.Text(k, style: t(10.5, c: _muted)),
+              pw.Expanded(child: pw.Text(v, style: t(10, b: true))),
+              pw.SizedBox(width: 8),
+              pw.Text(k, style: t(10, c: _muted)),
             ],
           ),
         );
@@ -879,7 +968,7 @@ class OrderDocuments {
       pw.MultiPage(
         pageTheme: pw.PageTheme(
           pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.all(24),
+          margin: const pw.EdgeInsets.all(22),
           textDirection: pw.TextDirection.rtl,
           theme: pw.ThemeData.withFont(base: reg, bold: bold),
         ),
@@ -891,7 +980,7 @@ class OrderDocuments {
             badge: o.status.labelAr,
             t: (sz, bl, cl) => t(sz, b: bl, c: cl),
           ),
-          pw.SizedBox(height: 12),
+          pw.SizedBox(height: 10),
           pw.Container(
             padding: const pw.EdgeInsets.all(12),
             decoration: pw.BoxDecoration(
@@ -915,6 +1004,47 @@ class OrderDocuments {
               ],
             ),
           ),
+          pw.SizedBox(height: 10),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(10),
+            decoration: pw.BoxDecoration(
+              color: PdfColors.white,
+              borderRadius: pw.BorderRadius.circular(10),
+              border: pw.Border.all(color: PdfColor.fromInt(0xFFE4DDF5)),
+            ),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+              children: [
+                pw.Text('القطع المسلّمة (${o.items.length})',
+                    style: t(10.5, b: true, c: _violetDark)),
+                pw.SizedBox(height: 6),
+                for (var i = 0; i < itemSubset.length; i++)
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.only(bottom: 4),
+                    child: pw.Row(
+                      children: [
+                        pw.Text('× ${itemSubset[i].qty}', style: t(9.5, b: true, c: _violetDark)),
+                        pw.SizedBox(width: 8),
+                        pw.Expanded(
+                          child: pw.Text(
+                            '${i + 1}. ${itemSubset[i].title}${_variant(itemSubset[i]).isEmpty ? '' : ' (${_variant(itemSubset[i])})'}',
+                            style: t(9.2),
+                          ),
+                        ),
+                        pw.SizedBox(width: 8),
+                        if (i < itemImgs.length && itemImgs[i] != null)
+                          pw.ClipRRect(
+                            horizontalRadius: 5,
+                            verticalRadius: 5,
+                            child: pw.Image(itemImgs[i]!,
+                                width: 34, height: 34, fit: pw.BoxFit.cover),
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
           if (o.timeline.isNotEmpty) ...[
             pw.SizedBox(height: 10),
             pw.Container(
@@ -927,14 +1057,14 @@ class OrderDocuments {
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                 children: [
-                  pw.Text('الخط الزمني للشحنة', style: t(11, b: true, c: _violetDark)),
-                  pw.SizedBox(height: 6),
+                  pw.Text('الخط الزمني للشحنة', style: t(10.5, b: true, c: _violetDark)),
+                  pw.SizedBox(height: 5),
                   for (final ev in o.timeline)
                     pw.Padding(
                       padding: const pw.EdgeInsets.symmetric(vertical: 2),
                       child: pw.Text(
                         '• ${ev.status.labelAr} — ${_date(ev.at)}${ev.note.isEmpty ? '' : ' (${ev.note})'}',
-                        style: t(9.5),
+                        style: t(9.2),
                       ),
                     ),
                 ],
@@ -943,7 +1073,7 @@ class OrderDocuments {
           ],
           if (proofImg != null) ...[
             pw.SizedBox(height: 10),
-            pw.Text('صورة إثبات التسليم الميداني', style: t(11, b: true, c: _violetDark)),
+            pw.Text('صورة إثبات التسليم الميداني', style: t(10.5, b: true, c: _violetDark)),
             pw.SizedBox(height: 6),
             pw.Container(
               padding: const pw.EdgeInsets.all(6),
@@ -952,16 +1082,16 @@ class OrderDocuments {
                 borderRadius: pw.BorderRadius.circular(10),
               ),
               child: pw.Center(
-                child: pw.Image(proofImg, height: 190, fit: pw.BoxFit.contain),
+                child: pw.Image(proofImg, height: 185, fit: pw.BoxFit.contain),
               ),
             ),
           ],
-          pw.SizedBox(height: 14),
+          pw.SizedBox(height: 12),
           pw.Row(
             children: [
               pw.Expanded(
                 child: pw.Container(
-                  height: 64,
+                  height: 60,
                   padding: const pw.EdgeInsets.all(8),
                   decoration: pw.BoxDecoration(
                     border: pw.Border.all(color: PdfColor.fromInt(0xFFE4DDF5)),
@@ -970,21 +1100,21 @@ class OrderDocuments {
                   child: pw.Text('توقيع المستلم بالاستلام الفعلي:', style: t(9.5, c: _muted)),
                 ),
               ),
-              pw.SizedBox(width: 12),
+              pw.SizedBox(width: 10),
               pw.Expanded(
                 child: pw.Container(
-                  height: 64,
+                  height: 60,
                   padding: const pw.EdgeInsets.all(8),
                   decoration: pw.BoxDecoration(
                     color: _soft,
-                    border: pw.Border.all(color: _gold),
+                    border: pw.Border.all(color: _violet),
                     borderRadius: pw.BorderRadius.circular(8),
                   ),
                   child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.center,
-                    mainAxisAlignment: pw.MainAxisAlignment.center,
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
-                      pw.Text('ختم الاعتماد الرسمي — يمن سيلو ✓',
+                      pw.Text('اعتماد يمن سيلو للتوصيل',
                           style: t(9.5, b: true, c: _violetDark)),
                       pw.Text('770518757 · 737383637', style: t(8.5, c: _muted)),
                     ],

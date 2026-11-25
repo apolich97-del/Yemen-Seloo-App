@@ -11,6 +11,7 @@ import '../../../core/models/order.dart';
 import '../../../core/theme/app_theme.dart';
 import '../data/support_guide.dart';
 import '../data/support_models.dart';
+import '../../../core/services/auth_service.dart';
 import '../data/support_service.dart';
 
 /// شاشة «خدمة العملاء والدعم»: دليل إرشادي + مساعد ذكي ودردشة حية.
@@ -499,12 +500,42 @@ class _ChatViewState extends State<_ChatView> {
               ),
               const SizedBox(height: 8),
               Flexible(
-                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: FirebaseFirestore.instance
-                      .collection('orders')
-                      .where('userId', isEqualTo: uid)
-                      .limit(40)
-                      .snapshots(),
+                child: FutureBuilder<List<Order>>(
+                  future: () async {
+                    final db = FirebaseFirestore.instance;
+                    final List<Order> out = <Order>[];
+                    try {
+                      final s1 = await db
+                          .collection('orders')
+                          .where('userId', isEqualTo: uid)
+                          .limit(40)
+                          .get();
+                      out.addAll(s1.docs.map((d) => Order.fromDoc(d.id, d.data())));
+                    } catch (_) {}
+                    if (out.isEmpty && Get.isRegistered<AuthService>()) {
+                      final rawPhone = (Get.find<AuthService>().user.value?.phone ?? '').trim();
+                      final digits = rawPhone.replaceAll(RegExp(r'\D'), '');
+                      final local9 = digits.length >= 9 ? digits.substring(digits.length - 9) : digits;
+                      for (final ph in <String>{
+                        if (rawPhone.isNotEmpty) rawPhone,
+                        if (local9.isNotEmpty) local9,
+                        if (local9.isNotEmpty) '967$local9',
+                        if (local9.isNotEmpty) '+967$local9',
+                      }) {
+                        if (out.isNotEmpty) break;
+                        try {
+                          final s2 = await db
+                              .collection('orders')
+                              .where('address.phone', isEqualTo: ph)
+                              .limit(20)
+                              .get();
+                          out.addAll(s2.docs.map((d) => Order.fromDoc(d.id, d.data())));
+                        } catch (_) {}
+                      }
+                    }
+                    out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                    return out;
+                  }(),
                   builder: (context, snap) {
                     if (snap.connectionState == ConnectionState.waiting) {
                       return const Padding(
@@ -512,11 +543,7 @@ class _ChatViewState extends State<_ChatView> {
                         child: Center(child: CircularProgressIndicator()),
                       );
                     }
-                    final docs = snap.data?.docs ?? const [];
-                    var orders = docs
-                        .map((d) => Order.fromDoc(d.id, d.data()))
-                        .toList()
-                      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                    var orders = (snap.data ?? const <Order>[]).toList();
                     if (query.isNotEmpty) {
                       orders = orders.where((o) {
                         final hay = [

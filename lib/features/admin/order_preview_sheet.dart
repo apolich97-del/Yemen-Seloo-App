@@ -20,10 +20,12 @@ import '../orders/refunds_ui.dart';
 Future<void> showOrderPreview(Order o) async {
   await Get.dialog(
     Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560, maxHeight: 720),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 14),
+      backgroundColor: T.card,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      child: SizedBox(
+        width: MediaQuery.of(context).size.width * 0.96,
+        height: MediaQuery.of(context).size.height * 0.91,
         child: _OrderPreview(order: o),
       ),
     ),
@@ -320,19 +322,19 @@ class _OrderPreview extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               child: it.imageUrl.isEmpty
                   ? Container(
-                      width: 44,
-                      height: 44,
+                      width: 62,
+                      height: 62,
                       color: T.soft,
                       child: Icon(Icons.image_outlined,
                           size: 18, color: T.muted),
                     )
                   : Image.network(it.imageUrl,
-                      width: 44,
-                      height: 44,
+                      width: 62,
+                      height: 62,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
-                            width: 44,
-                            height: 44,
+                            width: 62,
+                            height: 62,
                             color: T.soft,
                             child: Icon(Icons.image_outlined,
                                 size: 18, color: T.muted),

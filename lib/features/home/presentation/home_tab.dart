@@ -13,9 +13,10 @@ class HomeTab extends StatelessWidget {
   const HomeTab({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Obx(() {
+    final _ = T.dark;
     return Scaffold(
-      backgroundColor: T.card,
+      backgroundColor: T.bg,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -24,8 +25,7 @@ class HomeTab extends StatelessWidget {
               const SizedBox(height: 16),
               // شعار في المنتصف: نهاري دائري 128، ليلي بحواف 24 وتوهج بنفسجي
               Builder(builder: (context) {
-                final bool dark =
-                    Theme.of(context).brightness == Brightness.dark;
+                final bool dark = T.dark;
                 final double size = dark ? 144 : 128;
                 return Container(
                   width: size,
@@ -51,21 +51,21 @@ class HomeTab extends StatelessWidget {
                 );
               }),
               const SizedBox(height: 20),
-              const Text(
+              Text(
                 'شركة يمن سيلو',
                 style: TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.w900,
-                  color: _purple,
+                  color: T.primary,
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 'YEMEN SELOO',
                 style: TextStyle(
                   fontSize: 11,
                   letterSpacing: 3.5,
-                  color: _purple,
+                  color: T.primary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -84,7 +84,7 @@ class HomeTab extends StatelessWidget {
                 ),
                 child: Column(
                   children: <Widget>[
-                    const Icon(Icons.info_outline, color: _purple, size: 28),
+                    Icon(Icons.info_outline, color: T.primary, size: 28),
                     const SizedBox(height: 10),
                     Text(
                       'تصفّح منتجات SHEIN، أضفها إلى سلتك، وأكّد طلبك بسهولة عبر التطبيق.',
@@ -208,9 +208,8 @@ class HomeTab extends StatelessWidget {
         ),
       ),
     );
-  }
+  });
 }
-
 class _ServiceItem extends StatelessWidget {
   const _ServiceItem({
     required this.icon,

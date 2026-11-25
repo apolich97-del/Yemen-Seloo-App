@@ -199,7 +199,7 @@ class _CartScreenState extends State<CartScreen> {
   @override
   void initState() {
     super.initState();
-    _cart.refreshQuote();
+    _cart.onItemAdded();
   }
 
   @override
@@ -385,6 +385,7 @@ class _CartScreenState extends State<CartScreen> {
         _snack(result.message);
         // المسار المضمون: فتح الرابط داخل متصفح التطبيق (زر الزحف الأخضر)
         await Get.toNamed('/shein', arguments: {'shareCartUrl': text});
+        await _cart.onItemAdded();
         return;
       }
 
@@ -398,7 +399,7 @@ class _CartScreenState extends State<CartScreen> {
       } catch (_) {}
 
       _shareCartController.clear();
-      await _cart.refreshQuote();
+      await _cart.onItemAdded();
 
       // تسجيل منتجات شي إن في كتالوج السيرفر حتى يستطيع الدفع تسعيرها
       unawaited(CatalogService().registerImported(_cart.items.toList()));
@@ -873,7 +874,7 @@ class _CartScreenState extends State<CartScreen> {
       _snack('لا يوجد رابط لهذا المنتج');
       return;
     }
-    Get.toNamed('/shein', arguments: <String, dynamic>{'editUrl': url});
+    Get.toNamed('/shein', arguments: <String, dynamic>{'editUrl': url})?.then((_) => _cart.onItemAdded());
   }
 
   Future<void> _openCommissionCalculator() async {

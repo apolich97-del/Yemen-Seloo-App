@@ -178,21 +178,44 @@
   /// سعر المنتج الحقيقي: نتجاهل أسعار التقسيط والبطاقات والخصومات المشطوبة،
   /// ونقرأ من صندوق سعر المنتج أولاً. كانت القراءة القديمة تأخذ أول عنصر فيه
   /// كلمة price على الصفحة، فيظهر رقم شارة أو تقسيط بدل السعر.
+  function readPriceFromJson() {
+    try {
+      var html = document.documentElement ? document.documentElement.innerHTML : '';
+      var pats = [
+        /"salePrice"\s*:\s*\{[^}]*"amount"\s*:\s*"?([0-9]+(?:\.[0-9]+)?)"?/,
+        /"srAmount"\s*:\s*"?([0-9]+(?:\.[0-9]+)?)"?/,
+        /"retailPrice"\s*:\s*\{[^}]*"amount"\s*:\s*"?([0-9]+(?:\.[0-9]+)?)"?/,
+        /"offers"\s*:\s*\{[^}]*"price"\s*:\s*"?([0-9]+(?:\.[0-9]+)?)"?/
+      ];
+      for (var i = 0; i < pats.length; i++) {
+        var m = html.match(pats[i]);
+        if (m && m[1]) {
+          var v = parsePrice(m[1]);
+          if (v && v >= 0.5 && v < 100000) return v;
+        }
+      }
+    } catch (e) {}
+    return null;
+  }
+
   function readMainPrice() {
-    var SKIP = /(old|origin|retail|cross|strike|through|discount|coupon|installment|split|afterpay|tabby|tamara|klarna|save|saving|duty|shipping|delivery|vat|bonus|point)/i;
+    var SKIP = /(old|origin|retail|cross|strike|through|discount|coupon|installment|split|afterpay|tabby|tamara|klarna|save|saving|duty|shipping|delivery|vat|bonus|point|badge|percent)/i;
     var BOX = '[class*="product-intro"], [class*="goods-price"], [class*="goodsPrice"], ' +
               '[class*="product-price"], [class*="productPrice"], [class*="price-box"], [class*="priceBox"], ' +
-              '[class*="detail-price"], [class*="detailPrice"]';
+              '[class*="detail-price"], [class*="detailPrice"], [class*="priceContainer"]';
 
     var roots = qa(BOX);
     if (!roots.length) roots = [document.body];
 
     var all = [];
     for (var r = 0; r < roots.length; r++) {
-      var els = roots[r].querySelectorAll('[class*="price"], [class*="Price"]');
+      var els = roots[r].querySelectorAll('[class*="price"], [class*="Price"], [class*="from"], [data-price]');
       for (var i = 0; i < els.length; i++) {
         var el = els[i];
-        if (!el || (el.children && el.children.length)) continue;
+        if (!el) continue;
+        if (el.children && el.children.length > 4) continue;
+        var rawTxt = txt(el);
+        if (!rawTxt || rawTxt.length > 32) continue;
         var cls = String(el.className || '');
         if (SKIP.test(cls)) continue;
         var parentCls = el.parentElement ? String(el.parentElement.className || '') : '';
@@ -202,32 +225,29 @@
           if (cs && cs.textDecorationLine && cs.textDecorationLine.indexOf('line-through') !== -1) continue;
         } catch (e) {}
         if (el.closest && el.closest('del, s')) continue;
-        var n = parsePrice(txt(el));
+        var n = parsePrice(rawTxt);
         if (!n || n < 0.5) continue;
         all.push({ value: n, cls: cls });
       }
-      if (all.length) break; // أول صندوق سعر هو صندوق المنتج
+      if (all.length) break;
     }
 
-    if (!all.length) return null;
+    if (!all.length) return readPriceFromJson();
 
-    // الأفضلية لصنف يدل على السعر الحالي
     for (var k = 0; k < all.length; k++) {
-      if (/(sale|current|now|main|final|goods[-_]?price|price[-_]?now)/i.test(all[k].cls)) {
+      if (/(sale|current|now|main|final|goods[-_]?price|price[-_]?now|from)/i.test(all[k].cls)) {
         return all[k].value;
       }
     }
 
-    // وإلا: أصغر سعر معقول (السعر المعروض دائماً أقل من المشطوب)
     var best = all[0].value;
     for (var j = 1; j < all.length; j++) {
       if (all[j].value < best) best = all[j].value;
     }
     return best;
   }
-
   function readCurrentProduct() {
-    var m = window.location.href.match(/-p-(\d+)\.html/);
+    var m = window.location.href.match(/(?:-p-|product-itemv2-|goods_id=|goodsId=)(\d{5,})/i);
     if (!m) return null;
     var goodsId = m[1];
 
@@ -246,7 +266,7 @@
 
     var BAD_IMG = /placeholder|loading|transparent|noimage|no_image|blank|grey|gray|default\.(png|jpg)|icon\/|logo|avatar|brand|shein[-_]?icon|store[-_]?logo/i;
     // صور منتجات شي إن الحقيقية دائماً تحت مسار imagesN_pi
-    var PRODUCT_IMG = /\/images\d+_pi\//i;
+    var PRODUCT_IMG = /(ltwebstatic\.com|sheincdn\.com)\/|\/images\d+_(?:pi|spmp)\//i;
 
     function goodImg(el) {
       if (!el) return '';
@@ -306,6 +326,16 @@
         } catch (e) {}
       }
     }
+    if (!imageUrl) {
+      try {
+        var hImg = (document.documentElement ? document.documentElement.innerHTML : '').match(/"(?:goods_img|origin_image|main_image|original_img)"\s*:\s*"([^"]+)"/);
+        if (hImg && hImg[1]) {
+          var candJ = hImg[1].replace(/\\u002F/g, '/').replace(/\\\//g, '/');
+          if (candJ.indexOf('//') === 0) candJ = 'https:' + candJ;
+          if (!BAD_IMG.test(candJ) && PRODUCT_IMG.test(candJ)) imageUrl = hiRes(candJ);
+        }
+      } catch (e) {}
+    }
     if (!imageUrl) { var ogi = q('meta[property="og:image"]'); if (ogi) imageUrl = ogi.content || ''; }
     if (!imageUrl) {
       var anyImg = qa('img');
@@ -315,6 +345,7 @@
       }
     }
     if (imageUrl.indexOf('//') === 0) imageUrl = 'https:' + imageUrl;
+    if (imageUrl.indexOf('http://') === 0) imageUrl = 'https://' + imageUrl.slice(7);
 
     var v = readSelectedVariant();
 
@@ -575,7 +606,7 @@
 
 
   // ════════════════ استخراج السلة من الصفحة (السلة الشخصية) ════════════════
-  var IMG_OK = /\/images\d+_pi\//i;
+  var IMG_OK = /(ltwebstatic\.com|sheincdn\.com)\/|\/images\d+_(?:pi|spmp)\//i;
   var IMG_BAD = /placeholder|loading|transparent|noimage|no_image|blank|grey|gray|default\.(png|jpg)|icon\/|logo|avatar|brand|shein[-_]?icon|store[-_]?logo/i;
 
   function imgFrom(el) {

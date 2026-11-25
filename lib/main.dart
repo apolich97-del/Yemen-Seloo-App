@@ -189,7 +189,7 @@ Future<void> _importCartFromLink(String raw) async {
   }
 
   try {
-    await Get.find<CartCounter>().refreshQuote();
+    await Get.find<CartCounter>().onItemAdded();
   } catch (_) {}
 
   Get.snackbar(

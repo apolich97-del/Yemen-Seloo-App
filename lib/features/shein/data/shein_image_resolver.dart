@@ -23,10 +23,10 @@ class SheinImageResolver {
     caseSensitive: false,
   );
 
-  static final RegExp _productImg = RegExp(r'/images\d+_pi/', caseSensitive: false);
+  static final RegExp _productImg = RegExp(r'(ltwebstatic\.com|sheincdn\.com)/|/images\d+_(?:pi|spmp)/', caseSensitive: false);
 
   static final RegExp _goodsImg = RegExp(
-    r'"(?:goods_img|goods_image|main_image)"\s*:\s*"([^"]+)"',
+    r'"(?:goods_img|goods_image|goods_thumb|main_image|origin_image|original_img|detail_image)"\s*:\s*"([^"]+)"',
   );
 
   static Future<String?> byGoodsId(
@@ -41,6 +41,7 @@ class SheinImageResolver {
 
     // صفحات المنتج فقط — pdsearch صفحة عامة تُرجع صورة واحدة لكل المنتجات
     final List<String> urls = <String>[
+      'https://m.shein.com/ar/product-itemv2-$id.html',
       'https://m.shein.com/ar/-p-$id.html',
       'https://ar.shein.com/-p-$id.html',
       'https://m.shein.com/-p-$id.html',
@@ -89,6 +90,7 @@ class SheinImageResolver {
     if (u.isEmpty) return null;
 
     if (u.startsWith('//')) u = 'https:$u';
+    if (u.startsWith('http://')) u = 'https://${u.substring(7)}';
 
     if (!u.startsWith('http')) {
       final int host = u.indexOf('ltwebstatic.com');

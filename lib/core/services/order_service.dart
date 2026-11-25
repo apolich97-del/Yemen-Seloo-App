@@ -73,8 +73,7 @@ class OrderService extends GetxService {
           }
           if (i == 7) {
             base = base + i + 1;
-            final salt = (DateTime.now().millisecondsSinceEpoch % 89 + 10);
-            chosen = '${_formatOrderNo(base)}-$salt';
+            chosen = _formatOrderNo(base);
             lockRef = _db.collection('order_numbers').doc(chosen);
           }
         }
@@ -90,8 +89,7 @@ class OrderService extends GetxService {
     } catch (_) {
       final ms = DateTime.now().millisecondsSinceEpoch;
       final n = (ms % 26000) + 1;
-      final salt = (ms % 89 + 10);
-      return '${_formatOrderNo(n)}-$salt';
+      return _formatOrderNo(n);
     }
   }
 

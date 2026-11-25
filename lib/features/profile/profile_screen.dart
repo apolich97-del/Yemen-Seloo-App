@@ -167,7 +167,7 @@ class ProfileScreen extends GetView<ProfileController> {
                         child: TextField(
                           controller: controller.district,
                           decoration: const InputDecoration(
-                            labelText: 'المديرية / الحي',
+                            labelText: 'المديرية / الحي (اختياري)',
                             isDense: true,
                           ),
                         ),
@@ -583,7 +583,12 @@ class ProfileScreen extends GetView<ProfileController> {
     );
   }
 
-  Widget _menu(BuildContext context) => Card(
+  Widget _menu(BuildContext context) => Container(
+        decoration: BoxDecoration(
+          color: T.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: T.border),
+        ),
         child: Column(
           children: [
             _tile(Icons.shopping_cart_outlined, 'سلة التسوق',
@@ -614,7 +619,7 @@ class ProfileScreen extends GetView<ProfileController> {
           ),
           child: Icon(icon, size: 18, color: AppColors.primary),
         ),
-        title: Text(label, style: const TextStyle(fontSize: 14)),
+        title: Text(label, style: TextStyle(fontSize: 14, color: T.text)),
         trailing: Icon(Icons.arrow_back_ios_new, size: 14, color: T.muted),
         onTap: onTap,
       );
@@ -641,7 +646,7 @@ class ProfileScreen extends GetView<ProfileController> {
                       leading: const Icon(Icons.location_on_outlined,
                           color: AppColors.primary),
                       title:
-                          Text(a.label, style: const TextStyle(fontSize: 13)),
+                          Text(a.label, style: TextStyle(fontSize: 13, color: T.text)),
                       subtitle: Text(a.fullAr,
                           style: TextStyle(fontSize: 11.5, color: T.muted)),
                       trailing: IconButton(

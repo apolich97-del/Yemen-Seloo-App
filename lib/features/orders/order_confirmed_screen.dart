@@ -113,24 +113,52 @@ class _OrderConfirmedScreenState extends State<OrderConfirmedScreen> {
   }
 
   Future<void> _openWhatsApp(String waPhone, String label) async {
+    if (_sharingPng) return;
+    setState(() => _sharingPng = true);
+    try {
+      await Clipboard.setData(ClipboardData(text: widget.summary));
+      final png = await _captureSummaryPng();
+      final shortDigits = waPhone.replaceAll(RegExp(r'[^0-9]'), '');
+      if (png != null) {
+        Get.snackbar(
+          'تم تجهيز لقطة الشاشة + الاستمارة ✓',
+          'اختر واتساب ← محادثة $label (${shortDigits.replaceFirst('967', '')}) لإرسال الصورة مع الاستمارة',
+          duration: const Duration(seconds: 5),
+        );
+        await Share.shareXFiles(
+          [XFile(png.path)],
+          text: widget.summary,
+          subject: 'استمارة تأكيد طلب ${widget.orderNo} — $label',
+        );
+      } else {
+        final text = Uri.encodeComponent(widget.summary);
+        final url = shortDigits.isEmpty
+            ? 'https://wa.me/?text=$text'
+            : 'https://wa.me/$shortDigits?text=$text';
+        final launched = await launchUrl(Uri.parse(url),
+            mode: LaunchMode.externalApplication);
+        if (!launched) await Share.share(widget.summary);
+      }
+      if (mounted) {
+        setState(() {
+          _sent = true;
+          _sentTargetLabel = label;
+        });
+      }
+    } catch (e) {
+      Get.snackbar('تعذر المشاركة', '$e');
+    } finally {
+      if (mounted) setState(() => _sharingPng = false);
+    }
+  }
+
+  Future<void> _openDirectWhatsAppChat(String waPhone, String label) async {
     final clean = waPhone.replaceAll(RegExp(r'[^0-9]'), '');
     final text = Uri.encodeComponent(widget.summary);
     final url = clean.isEmpty
         ? 'https://wa.me/?text=$text'
         : 'https://wa.me/$clean?text=$text';
-    bool ok = false;
-    try {
-      ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-    } catch (_) {}
-    if (!ok) {
-      final png = await _captureSummaryPng();
-      if (png != null) {
-        await Share.shareXFiles([XFile(png.path)], text: widget.summary);
-      } else {
-        await Share.share(widget.summary);
-      }
-      ok = true;
-    }
+    final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     if (ok && mounted) {
       setState(() {
         _sent = true;
@@ -461,7 +489,7 @@ class _OrderConfirmedScreenState extends State<OrderConfirmedScreen> {
 
             // ═══ أزرار الإرسال لرقمي يمن سيلو + مشاركة لقطة الشاشة PNG ═══
             ElevatedButton.icon(
-              onPressed: () => _openWhatsApp(_primaryWhatsApp, 'واتساب الرئيسي 770518757'),
+              onPressed: _sharingPng ? null : () => _openWhatsApp(_primaryWhatsApp, 'واتساب الرئيسي 770518757'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: T.whatsapp,
                 foregroundColor: Colors.white,
@@ -480,8 +508,7 @@ class _OrderConfirmedScreenState extends State<OrderConfirmedScreen> {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () =>
-                        _openWhatsApp(_secondaryWhatsApp, 'واتساب الثانوي 737383637'),
+                    onPressed: _sharingPng ? null : () => _openWhatsApp(_secondaryWhatsApp, 'واتساب الثانوي 737383637'),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       side: BorderSide(color: T.whatsapp),
@@ -514,7 +541,25 @@ class _OrderConfirmedScreenState extends State<OrderConfirmedScreen> {
                 ),
               ],
             ),
-
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TextButton.icon(
+                  onPressed: () => _openDirectWhatsAppChat(_primaryWhatsApp, 'محادثة 770518757'),
+                  icon: Icon(Icons.open_in_new, size: 13, color: T.muted),
+                  label: Text('محادثة 770518757 مباشرة',
+                      style: TextStyle(fontSize: 10.5, color: T.muted)),
+                ),
+                Text('·', style: TextStyle(color: T.muted)),
+                TextButton.icon(
+                  onPressed: () => _openDirectWhatsAppChat(_secondaryWhatsApp, 'محادثة 737383637'),
+                  icon: Icon(Icons.open_in_new, size: 13, color: T.muted),
+                  label: Text('737383637',
+                      style: TextStyle(fontSize: 10.5, color: T.muted)),
+                ),
+              ],
+            ),
             if (!_confirmedSent) ...[
               const SizedBox(height: 10),
               ElevatedButton.icon(

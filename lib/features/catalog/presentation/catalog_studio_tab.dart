@@ -230,8 +230,18 @@ class _CatalogStudioTabState extends State<CatalogStudioTab> {
                     }
                     Get.snackbar('تم الجلب ✓', 'جُلبت بيانات القطعة من شي إن بنجاح');
                   } else {
-                    Get.snackbar('تعذر الجلب التلقائي',
-                        'أضف القطعة إلى السلة ثم اخترها من السلة أو ارفع صورتها يدوياً');
+                    final shareTitle = SheinProductScraper.extractShareTextTitle(raw);
+                    final urlOnly = SheinProductScraper.extractFirstUrl(raw);
+                    if (shareTitle.isNotEmpty && title.text.trim().isEmpty) {
+                      title.text = shareTitle;
+                    }
+                    if (urlOnly.isNotEmpty) link.text = urlOnly;
+                    Get.snackbar(
+                      shareTitle.isNotEmpty ? 'تم استخراج الوصف ✓' : 'تعذر الجلب التلقائي',
+                      shareTitle.isNotEmpty
+                          ? 'أدخل السعر وأرفق الصورة أو اختر القطعة من السلة'
+                          : 'أضف القطعة إلى السلة ثم اخترها من السلة أو ارفع صورتها يدوياً',
+                    );
                   }
                 } catch (_) {
                   Get.snackbar('تعذر الجلب', 'تحقق من الرابط أو استورد من السلة');
@@ -294,9 +304,13 @@ class _CatalogStudioTabState extends State<CatalogStudioTab> {
                         Expanded(
                           child: TextField(
                             controller: link,
-                            textDirection: TextDirection.ltr,
+                            minLines: 1,
+                            maxLines: 3,
                             decoration: const InputDecoration(
-                                labelText: 'رابط أو كود منتج SHEIN', isDense: true),
+                              labelText: 'رابط أو نص مشاركة SHEIN أو الكود',
+                              hintText: 'الصق نص المشاركة كاملاً أو رابط شي إن...',
+                              isDense: true,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 6),

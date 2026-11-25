@@ -116,6 +116,7 @@ class ReceiptService extends GetxService {
 
     controller = StreamController<List<Receipt>>(
       onListen: () {
+        var startedFallback = false;
         primarySub = primary.listen(
           (snap) {
             final list = snap.docs
@@ -124,8 +125,17 @@ class ReceiptService extends GetxService {
               ..sort((a, b) => (b.createdAt ?? DateTime(2000))
                   .compareTo(a.createdAt ?? DateTime(2000)));
             if (!controller.isClosed) controller.add(list);
+            if (list.isEmpty && !startedFallback) {
+              startedFallback = true;
+              startFallback();
+            }
           },
-          onError: (_) => startFallback(),
+          onError: (_) {
+            if (!startedFallback) {
+              startedFallback = true;
+              startFallback();
+            }
+          },
         );
       },
       onCancel: () async {
@@ -150,25 +160,31 @@ class ReceiptService extends GetxService {
     final receiptRef =
         _db.collection('orders').doc(order.id).collection('receipts').doc();
     late String no;
-    await _db.runTransaction((tx) async {
-      no = await _nextNo(tx);
-      tx.set(receiptRef, {
-        'receiptNo': no,
-        'orderId': order.id,
-        'orderNo': order.orderNo,
-        'customerId': order.userId,
-        'status': source == 'admin' ? 'approved' : 'pending',
-        'source': source,
-        'amountLocal': amountLocal,
-        'amountSar': amountLocal / (order.exchangeRate == 0 ? 1 : order.exchangeRate),
-        'refNo': refNo,
-        'senderName': senderName,
-        'note': note,
-        'proofUrl': proofUrl,
-        'verification': verification ?? <String, dynamic>{},
-        'createdAt': FieldValue.serverTimestamp(),
+    final payload = <String, dynamic>{
+      'orderId': order.id,
+      'orderNo': order.orderNo,
+      'customerId': order.userId,
+      'status': source == 'admin' ? 'approved' : 'pending',
+      'source': source,
+      'amountLocal': amountLocal,
+      'amountSar': amountLocal / (order.exchangeRate == 0 ? 1 : order.exchangeRate),
+      'refNo': refNo,
+      'senderName': senderName,
+      'note': note,
+      'proofUrl': proofUrl,
+      'verification': verification ?? <String, dynamic>{},
+      'createdAt': FieldValue.serverTimestamp(),
+    };
+    try {
+      await _db.runTransaction((tx) async {
+        no = await _nextNo(tx);
+        tx.set(receiptRef, <String, dynamic>{'receiptNo': no, ...payload});
       });
-    });
+    } catch (_) {
+      final ms = DateTime.now().millisecondsSinceEpoch;
+      no = 'RCP-${(ms % 9000 + 1000)}';
+      await receiptRef.set(<String, dynamic>{'receiptNo': no, ...payload});
+    }
     return no;
   }
 

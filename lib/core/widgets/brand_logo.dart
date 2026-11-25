@@ -1,21 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-
 import '../theme/app_theme.dart';
 import '../theme/theme_controller.dart';
 
-/// شعار يمن سيلو: يتبع الثيم فوراً — ليلي من logo_dark.jpg ثم png ثم الاحتياطي.
+/// شعار يمن سيلو: يتبع الثيم فوراً عبر Obx — ليلي من logo_dark.jpg ثم png ثم الاحتياطي.
 class BrandLogo extends StatelessWidget {
   const BrandLogo({super.key, this.height = 30});
-
   final double height;
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.isRegistered<ThemeController>()
-        ? Get.find<ThemeController>()
-        : null;
-
     Widget buildFor(bool dark) {
       if (!dark) {
         return Image.asset(
@@ -24,7 +18,6 @@ class BrandLogo extends StatelessWidget {
           errorBuilder: (_, __, ___) => _fallback(),
         );
       }
-      // الليلي: jpg أولاً (الملف الموجود فعلاً في assets)، ثم png
       return Image.asset(
         'assets/images/logo_dark.jpg',
         height: height,
@@ -36,10 +29,10 @@ class BrandLogo extends StatelessWidget {
       );
     }
 
-    if (controller == null) {
-      return buildFor(Theme.of(context).brightness == Brightness.dark);
+    if (Get.isRegistered<ThemeController>()) {
+      return Obx(() => buildFor(T.dark));
     }
-    return Obx(() => buildFor(controller.isDark.value));
+    return buildFor(Theme.of(context).brightness == Brightness.dark);
   }
 
   Widget _fallback() => Container(

@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:get/get.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
@@ -81,7 +82,6 @@ class AppUser {
       firstName.trim().isNotEmpty &&
       (phone ?? '').replaceAll(RegExp(r'\D'), '').length >= 9 &&
       city.trim().isNotEmpty &&
-      district.trim().isNotEmpty &&
       addressLine.trim().isNotEmpty;
 
   /// واتساب يحتاج الرقم بصيغة دولية بلا رموز.
@@ -296,23 +296,77 @@ class AuthService extends GetxService {
           // تعذّر القراءة (قواعد/شبكة) — يبقى العميل عميلاً.
         }
       }
-      final rawPhone = ((d['phone'] as String?) ?? '').trim();
+      // قراءة النسخة المحلية المخزنة لهذا الحساب (لكل Google UID سجل مستقل)
+      Map<String, dynamic> cached = <String, dynamic>{};
+      try {
+        final rawCache = GetStorage().read('seloo_customer_profile_${u.uid}');
+        if (rawCache is Map) {
+          cached = Map<String, dynamic>.from(rawCache);
+        }
+      } catch (_) {}
+
+      String fName = ((d['firstName'] as String?) ?? '').trim();
+      String lName = ((d['lastName'] as String?) ?? '').trim();
+      String rawPhone = ((d['phone'] as String?) ?? '').trim();
+      String city = ((d['city'] as String?) ?? '').trim();
+      String district = ((d['district'] as String?) ?? '').trim();
+      String addrLine = ((d['addressLine'] as String?) ?? '').trim();
+
+      if (fName.isEmpty) fName = ((cached['firstName'] as String?) ?? '').trim();
+      if (lName.isEmpty) lName = ((cached['lastName'] as String?) ?? '').trim();
+      if (rawPhone.isEmpty) rawPhone = ((cached['phone'] as String?) ?? '').trim();
+      if (city.isEmpty) city = ((cached['city'] as String?) ?? '').trim();
+      if (district.isEmpty) district = ((cached['district'] as String?) ?? '').trim();
+      if (addrLine.isEmpty) addrLine = ((cached['addressLine'] as String?) ?? '').trim();
+
+      // احتياط: إن كان العنوان محفوظاً في addresses دون الحقول الجذرية
+      if (city.isEmpty || addrLine.isEmpty) {
+        try {
+          final aSnap = await _db
+              .collection('users')
+              .doc(u.uid)
+              .collection('addresses')
+              .limit(1)
+              .get();
+          if (aSnap.docs.isNotEmpty) {
+            final ad = aSnap.docs.first.data();
+            if (city.isEmpty) city = ((ad['city'] as String?) ?? '').trim();
+            if (district.isEmpty) district = ((ad['district'] as String?) ?? '').trim();
+            if (addrLine.isEmpty) addrLine = ((ad['line'] as String?) ?? '').trim();
+            if (rawPhone.isEmpty) rawPhone = ((ad['phone'] as String?) ?? '').trim();
+            if (fName.isEmpty) {
+              final rName = ((ad['receiverName'] as String?) ?? '').trim();
+              if (rName.isNotEmpty) {
+                final parts = rName.split(RegExp(r'\s+'));
+                fName = parts.first;
+                if (lName.isEmpty && parts.length > 1) {
+                  lName = parts.sublist(1).join(' ');
+                }
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
       final resolvedPhone = rawPhone.isNotEmpty ? rawPhone : (u.phoneNumber ?? '');
       final rawCode = ((d['customerCode'] as String?) ?? '').trim();
       final resolvedCode = rawCode.isNotEmpty
           ? rawCode
-          : 'YS-C-${u.uid.substring(0, u.uid.length >= 4 ? 4 : u.uid.length).toUpperCase()}';
-      user.value = AppUser(
+          : ((cached['customerCode'] as String?)?.isNotEmpty == true
+              ? cached['customerCode'] as String
+              : 'YS-C-${u.uid.substring(0, u.uid.length >= 4 ? 4 : u.uid.length).toUpperCase()}');
+
+      final profile = AppUser(
         uid: u.uid,
         email: u.email ?? (d['email'] as String?),
         phone: resolvedPhone,
-        firstName: (d['firstName'] ?? '') as String,
-        lastName: (d['lastName'] ?? '') as String,
+        firstName: fName,
+        lastName: lName,
         role: role,
         customerCode: resolvedCode,
-        city: (d['city'] ?? '') as String,
-        district: (d['district'] ?? '') as String,
-        addressLine: (d['addressLine'] ?? '') as String,
+        city: city,
+        district: district,
+        addressLine: addrLine,
         preferredCurrency: (d['preferredCurrency'] ?? 'south') as String,
         staffNotes: (d['staffNotes'] ?? '') as String,
         customerTier: (d['customerTier'] ?? 'normal') as String,
@@ -321,6 +375,20 @@ class AuthService extends GetxService {
         lastOrderAt: _parseAuthDate(d['lastOrderAt']),
         createdAt: _parseAuthDate(d['createdAt']),
       );
+      user.value = profile;
+      if (profile.hasCompleteCustomerProfile) {
+        try {
+          GetStorage().write('seloo_customer_profile_${u.uid}', {
+            'firstName': fName,
+            'lastName': lName,
+            'phone': resolvedPhone,
+            'city': city,
+            'district': district,
+            'addressLine': addrLine,
+            'customerCode': resolvedCode,
+          });
+        } catch (_) {}
+      }
     } catch (e) {
       debugPrint('refreshProfile: $e');
     }
@@ -400,6 +468,17 @@ class AuthService extends GetxService {
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
 
+    try {
+      GetStorage().write('seloo_customer_profile_${u.uid}', {
+        'firstName': cleanFirst,
+        'lastName': cleanLast,
+        'phone': cleanPhone,
+        'city': cleanCity,
+        'district': cleanDistrict,
+        'addressLine': cleanLine,
+        'customerCode': resolvedCode,
+      });
+    } catch (_) {}
     // إنشاء عنوان افتراضي للعميل إن لم يكن لديه عنوان محفوظ
     try {
       final addrCol = ref.collection('addresses');

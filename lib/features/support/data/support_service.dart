@@ -181,15 +181,25 @@ class SupportService extends GetxService {
 
     await logQuery(t, kind: 'chat', orderNo: order?.orderNo);
 
-    if (forceBot) {
+    final nq = _norm(t);
+    final autoQuery = forceBot ||
+        _has(nq, ['حالة', 'وين', 'اين', 'أين', 'وصل', 'تتبع', 'شحن', 'شحنت', 'طلبي',
+                  'متبقي', 'باقي', 'رصيد', 'آجل', 'اجل', 'صرف', 'سعر', 'ايصال', 'إيصال', 'دفع']);
+    if (autoQuery) {
       await thread.set({'mode': 'bot'}, SetOptions(merge: true));
     }
-
-    // رد المساعد الذكي إن كانت المحادثة على وضع البوت أو استفسار آلي
     final snap = await thread.get();
-    final mode = forceBot ? 'bot' : ((snap.data()?['mode'] ?? 'bot') as String);
-    if (mode == 'bot') {
-      final reply = await assistantReply(t, order: order);
+    final mode = autoQuery ? 'bot' : ((snap.data()?['mode'] ?? 'bot') as String);
+    if (mode == 'bot' && t.isNotEmpty) {
+      AssistantReply reply;
+      try {
+        reply = await assistantReply(t, order: order);
+      } catch (_) {
+        reply = const AssistantReply(
+          'أهلاً بك! اختر رقم طلبك من زر «إرسال الطلب» أو اكتب رقم الطلب (مثل YS26...) لأعرض لك حالته وتتبّعه فوراً.',
+          escalate: false,
+        );
+      }
       await thread.collection('messages').add({
         'from': 'bot',
         'text': reply.text,
@@ -199,7 +209,7 @@ class SupportService extends GetxService {
         'lastMessage': reply.text,
         'lastAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-      if (reply.escalate) {
+      if (reply.escalate && !forceBot) {
         await escalate(threadId, order: order, reason: t);
       }
     }
@@ -230,12 +240,23 @@ class SupportService extends GetxService {
         } catch (_) {}
       }
       if (candidateOrders.isEmpty) {
-        final phone = (auth.user.value?.phone ?? '').trim();
-        if (phone.isNotEmpty) {
+        final rawPhone = (auth.user.value?.phone ?? '').trim();
+        final digits = rawPhone.replaceAll(RegExp(r'\D'), '');
+        final local9 = digits.length >= 9 ? digits.substring(digits.length - 9) : digits;
+        final variants = <String>{
+          if (rawPhone.isNotEmpty) rawPhone,
+          if (digits.isNotEmpty) digits,
+          if (local9.isNotEmpty) local9,
+          if (local9.isNotEmpty) '0$local9',
+          if (local9.isNotEmpty) '967$local9',
+          if (local9.isNotEmpty) '+967$local9',
+        };
+        for (final ph in variants) {
+          if (candidateOrders.isNotEmpty) break;
           try {
             final snap = await _db
                 .collection('orders')
-                .where('address.phone', isEqualTo: phone)
+                .where('address.phone', isEqualTo: ph)
                 .limit(15)
                 .get();
             for (final d in snap.docs) {

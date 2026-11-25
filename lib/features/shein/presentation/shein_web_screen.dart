@@ -246,13 +246,13 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
     );
   }
 
-  void _nextCrawlStep() {
+  Future<void> _nextCrawlStep() async {
     if (_currentCrawlIndex >= _totalCrawlItems) {
       // انتهى الزحف
+      await _cartCounter.onItemAdded();
       if (!mounted) return;
       setState(() => _isCrawling = false);
       Get.snackbar('✅ اكتمل الاستيراد', 'تمت إضافة $_addedCount منتج', backgroundColor: Colors.green, colorText: Colors.white);
-      // إن كانت شاشة شي إن مفتوحة كمسار منفصل نُغلقها، وإلا نبدّل التبويب فقط
       if (Get.currentRoute == '/shein') {
         Get.back();
       }

@@ -59,8 +59,8 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
   }
 
   Future<void> _save() async {
-    if (_city.text.trim().isEmpty || _district.text.trim().isEmpty || _line.text.trim().isEmpty) {
-      Get.snackbar('بيانات ناقصة', 'أكمل المدينة والمديرية والعنوان التفصيلي');
+    if (_city.text.trim().isEmpty || _line.text.trim().isEmpty) {
+      Get.snackbar('بيانات ناقصة', 'أكمل المدينة والعنوان التفصيلي');
       return;
     }
     if (_receiver.text.trim().length < 3 || _phone.text.trim().length < 8) {
@@ -141,7 +141,7 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
                 const SizedBox(height: 10),
                 TextField(
                   controller: _district,
-                  decoration: const InputDecoration(labelText: 'المديرية / الحي'),
+                  decoration: const InputDecoration(labelText: 'المديرية / الحي (اختياري)'),
                 ),
                 const SizedBox(height: 10),
                 TextField(
