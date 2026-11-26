@@ -1,7 +1,5 @@
 import 'dart:convert';
 
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:get/get.dart';

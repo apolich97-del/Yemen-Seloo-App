@@ -1,16 +1,6 @@
 {
   "indexes": [
     {
-      "collectionGroup": "cart",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "addedAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
       "collectionGroup": "orders",
       "queryScope": "COLLECTION",
       "fields": [
