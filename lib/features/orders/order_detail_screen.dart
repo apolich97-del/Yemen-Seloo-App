@@ -512,14 +512,14 @@ class OrderDetailScreen extends StatelessWidget {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => svc.resolveCustomerReplacement(order: o, approved: false),
+                      onPressed: () => svc.resolveCustomerReplacement(order: o, approve: false),
                       child: const Text('رفض'),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () => svc.resolveCustomerReplacement(order: o, approved: true),
+                      onPressed: () => svc.resolveCustomerReplacement(order: o, approve: true),
                       child: const Text('اعتماد وتسوية'),
                     ),
                   ),

@@ -169,7 +169,7 @@ class OrderStageBar extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
             decoration: BoxDecoration(
-              color: T.cardHigh,
+              color: T.elevated,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: T.border),
             ),

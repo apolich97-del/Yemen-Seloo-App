@@ -3,6 +3,7 @@ import 'package:get_storage/get_storage.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/config/seloo_config.dart';
+import '../../../core/models/currency.dart';
 import '../../../core/services/settings_service.dart';
 import '../../shein/domain/shein_draft.dart';
 import '../data/seloo_cart_service.dart';

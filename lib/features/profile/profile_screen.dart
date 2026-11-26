@@ -55,16 +55,6 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = Get.find<AuthService>();
     final content = Obx(() {
-        centerTitle: true,
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.asset('assets/images/logo.png', height: 26),
-            const SizedBox(width: 8),
-            const Text('حسابي'),
-          ],
-        ),
-      ),
         final u = auth.user.value;
         if (u == null) {
           return Center(

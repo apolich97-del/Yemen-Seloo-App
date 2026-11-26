@@ -94,7 +94,7 @@ class AppUser {
   }
 
   bool get isStaff => role != 'customer';
-  bool get isManager => isMainManager || role == 'manager';
+  bool get isManager => AuthService.mainManagerEmails.contains((email ?? '').trim().toLowerCase()) || role == 'manager' || role == 'owner';
 
   String get roleLabelAr => switch (role) {
         'manager' => 'مدير',
@@ -171,6 +171,8 @@ class AuthService extends GetxService {
   }
 
   /// من يملك تعديل بيانات الطلب وحذفه: المدير الرئيسي والمحاسب.
+  bool get isManager => isMainManager || role == 'manager' || role == 'owner';
+  String get roleLabelAr => user.value?.roleLabelAr ?? 'عميل';
   bool get canEditOrders => isMainManager || role == 'accounting';
 
   /// الأدوار القابلة للتوزيع من المدير الرئيسي.

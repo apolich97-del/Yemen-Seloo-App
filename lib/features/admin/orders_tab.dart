@@ -368,7 +368,7 @@ class _OrdersTabState extends State<OrdersTab> {
     try {
       await _orders.resolveCustomerReplacement(
         order: o,
-        approved: decision,
+        approve: decision,
         adminNote: noteCtrl.text.trim(),
       );
       Get.snackbar('تم ✓', decision ? 'تم اعتماد البديل وتسوية الفارق' : 'تم رفض البديل وطلب آخر');

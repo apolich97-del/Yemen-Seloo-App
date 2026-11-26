@@ -20,6 +20,7 @@ import '../../catalog/data/catalog_repository.dart';
 import '../../../core/services/cart_share.dart';
 import '../../guide/interactive_guide.dart';
 import '../domain/cart_item.dart';
+import '../../../core/models/currency.dart';
 import '../../../core/services/settings_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../home/presentation/main_tab_controller.dart';
