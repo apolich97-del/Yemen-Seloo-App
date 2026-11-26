@@ -24,7 +24,7 @@ import 'address_form_screen.dart';
 void _goMainTab(BuildContext context, int tab, {String? ordersFilter}) {
   if (Get.isRegistered<MainTabController>()) {
     final ctrl = Get.find<MainTabController>();
-    if (tab == 3 && ordersFilter != null) {
+    if (tab == 4 && ordersFilter != null) {
       ctrl.goToOrders(ordersFilter);
     } else {
       ctrl.goTo(tab);
@@ -360,7 +360,7 @@ class ProfileScreen extends GetView<ProfileController> {
                               value: '$points',
                               label: 'نقاط',
                               icon: Icons.stars_outlined,
-                              onTap: () => _goMainTab(context, 3,
+                              onTap: () => _goMainTab(context, 4,
                                   ordersFilter: 'reviews'),
                             ),
                           ),
@@ -596,15 +596,15 @@ class ProfileScreen extends GetView<ProfileController> {
             _tile(Icons.account_balance_wallet_outlined, 'محفظتي والسحب النقدي',
                 () => Get.to(() => const WalletScreen())),
             _tile(Icons.receipt_long_outlined, 'طلباتي',
-                () => _goMainTab(context, 3, ordersFilter: 'all')),
+                () => _goMainTab(context, 4, ordersFilter: 'all')),
             _tile(Icons.rate_review_outlined, 'تعليقاتي وتقييم الطلبات',
-                () => _goMainTab(context, 3, ordersFilter: 'reviews')),
+                () => _goMainTab(context, 4, ordersFilter: 'reviews')),
             _tile(Icons.account_balance_outlined, 'كشف الحساب المحاسبي والوثائق',
                 () => Get.toNamed(AppRoutes.accountStatement)),
             _tile(Icons.request_quote_outlined, 'إيصالات السداد',
                 () => Get.toNamed(AppRoutes.myReceipts)),
             _tile(Icons.headset_mic_outlined, 'خدمة العملاء',
-                () => _goMainTab(context, 4)),
+                () => _goMainTab(context, 5)),
             _appSettingsCard(),
           ],
         ),
@@ -788,31 +788,31 @@ class _OrderShortcuts extends StatelessWidget {
                     'غير مدفوع',
                     Icons.credit_card_outlined,
                     unpaid,
-                    () => _goMainTab(context, 3, ordersFilter: 'unpaid'),
+                    () => _goMainTab(context, 4, ordersFilter: 'unpaid'),
                   ),
                   _Shortcut(
                     'قيد التجهيز',
                     Icons.inventory_2_outlined,
                     processing,
-                    () => _goMainTab(context, 3, ordersFilter: 'processing'),
+                    () => _goMainTab(context, 4, ordersFilter: 'processing'),
                   ),
                   _Shortcut(
                     'تم الشحن',
                     Icons.local_shipping_outlined,
                     shipped,
-                    () => _goMainTab(context, 3, ordersFilter: 'shipped'),
+                    () => _goMainTab(context, 4, ordersFilter: 'shipped'),
                   ),
                   _Shortcut(
                     'تعليق',
                     Icons.chat_bubble_outline,
                     pendingReviews,
-                    () => _goMainTab(context, 3, ordersFilter: 'reviews'),
+                    () => _goMainTab(context, 4, ordersFilter: 'reviews'),
                   ),
                   _Shortcut(
                     'المنتجات المسترجعة',
                     Icons.assignment_return_outlined,
                     refunds,
-                    () => _goMainTab(context, 3, ordersFilter: 'refunds'),
+                    () => _goMainTab(context, 4, ordersFilter: 'refunds'),
                   ),
                 ];
 
@@ -838,7 +838,7 @@ class _OrderShortcuts extends StatelessWidget {
                             const Spacer(),
                             InkWell(
                               borderRadius: BorderRadius.circular(8),
-                              onTap: () => _goMainTab(context, 3,
+                              onTap: () => _goMainTab(context, 4,
                                   ordersFilter: 'all'),
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -873,7 +873,7 @@ class _OrderShortcuts extends StatelessWidget {
                           Expanded(
                             child: InkWell(
                               borderRadius: BorderRadius.circular(10),
-                              onTap: () => _goMainTab(context, 4),
+                              onTap: () => _goMainTab(context, 5),
                               child: Padding(
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 6),

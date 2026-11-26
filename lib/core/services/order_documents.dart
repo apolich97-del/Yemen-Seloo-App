@@ -236,7 +236,7 @@ class OrderDocuments {
       ..writeln()
       ..writeln('*المنتجات (${o.items.length})*');
     for (final it in o.items) {
-      b.writeln('▫️ ${it.title} × ${it.qty}');
+      b.writeln('▫️ ${it.title} × ${it.qty}${it.isNonRefundable ? ' [غير قابل للاسترداد]' : ''}');
     }
     b
       ..writeln()
@@ -458,6 +458,9 @@ class OrderDocuments {
                           if (_variant(o.items[i]).isNotEmpty)
                             pw.Text(_variant(o.items[i]),
                                 style: t(8.5, c: _muted)),
+                          if (o.items[i].isNonRefundable)
+                            pw.Text('غير قابل للاسترداد',
+                                style: t(8, b: true, c: PdfColor.fromInt(0xFFB45309))),
                         ],
                       ),
                     ),

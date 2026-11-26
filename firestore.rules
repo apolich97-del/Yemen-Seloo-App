@@ -93,8 +93,20 @@ service cloud.firestore {
         && request.resource.data.status in ['unpaid','verifying','cancelled']
         && request.resource.data.userId == resource.data.userId
         && request.resource.data.totalSar == resource.data.totalSar
+        && request.resource.data.exchangeRate == resource.data.exchangeRate
+        && request.resource.data.totalLocal == resource.data.totalLocal
         && (request.resource.data.status != 'verifying'
             || proofOk(request.resource.data.payment, dueOf(resource.data)));
+      // العميل يسجّل إرسال استمارة واتساب فقط دون تعديل الأسعار أو الحالة
+      allow update: if auth() && resource.data.userId == me()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['whatsappSentAt', 'whatsappSentTarget', 'updatedAt']);
+      // العميل يرد بالموافقة أو الرفض على تعديل السعر/المخزون المقترح من الإدارة
+      allow update: if auth() && resource.data.userId == me()
+        && resource.data.priceSyncStatus == 'pending_customer'
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['priceSyncStatus', 'priceSyncDecision', 'priceSyncRespondedAt', 'updatedAt'])
+        && request.resource.data.priceSyncStatus in ['accepted', 'rejected'];
       allow update: if staff();
       // العميل يحدّث حقول حساب الاستلام فقط عندما يكون الاسترداد بانتظار البيانات
       allow update: if auth() && resource.data.userId == me()
@@ -170,7 +182,11 @@ service cloud.firestore {
       );
     }
     match /coupons/{c} { allow read: if auth(); allow write: if staff(); }
-    match /settings/{s} { allow read: if auth(); allow write: if staff(); }
+    match /settings/{s} {
+      allow read: if true;
+      allow write: if auth() && (isMainManager() || roleOf() == 'manager');
+    }
+    match /shein_cache/{g} { allow read: if true; allow write: if staff(); }
     // عدّادات متسلسلة (أرقام الإيصالات) — القراءة والزيادة الذرية للمسجلين
     match /counters/{c} {
       allow read: if auth();
@@ -193,7 +209,9 @@ service cloud.firestore {
       allow create, update: if staff();
       // العميل يخصم من رصيده فقط (عند الشراء) دون زيادته
       allow update: if auth() && uid == me()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['balanceSar', 'movements', 'updatedAt'])
         && request.resource.data.balanceSar is number
+        && request.resource.data.balanceSar >= 0
         && request.resource.data.balanceSar <= resource.data.balanceSar;
       allow delete: if isMainManager();
     }

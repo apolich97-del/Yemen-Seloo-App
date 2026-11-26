@@ -12,6 +12,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config/seloo_config.dart';
 import '../../core/models/currency.dart';
+import '../../core/models/order.dart';
+import '../../core/widgets/order_stage_bar.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/services/order_documents.dart';
 import '../../core/services/order_service.dart';
@@ -112,6 +114,16 @@ class _OrderConfirmedScreenState extends State<OrderConfirmedScreen> {
     }
   }
 
+
+  Future<void> _persistWhatsAppSent(String label) async {
+    if (widget.orderId.isEmpty) return;
+    try {
+      if (Get.isRegistered<OrderService>()) {
+        await Get.find<OrderService>().recordWhatsAppSent(widget.orderId, label);
+      }
+    } catch (_) {}
+  }
+
   Future<void> _openWhatsApp(String waPhone, String label) async {
     if (_sharingPng) return;
     setState(() => _sharingPng = true);
@@ -139,6 +151,7 @@ class _OrderConfirmedScreenState extends State<OrderConfirmedScreen> {
             mode: LaunchMode.externalApplication);
         if (!launched) await Share.share(widget.summary);
       }
+      await _persistWhatsAppSent(label);
       if (mounted) {
         setState(() {
           _sent = true;
@@ -159,11 +172,14 @@ class _OrderConfirmedScreenState extends State<OrderConfirmedScreen> {
         ? 'https://wa.me/?text=$text'
         : 'https://wa.me/$clean?text=$text';
     final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-    if (ok && mounted) {
-      setState(() {
-        _sent = true;
-        _sentTargetLabel = label;
-      });
+    if (ok) {
+      await _persistWhatsAppSent(label);
+      if (mounted) {
+        setState(() {
+          _sent = true;
+          _sentTargetLabel = label;
+        });
+      }
     }
   }
 
@@ -180,6 +196,7 @@ class _OrderConfirmedScreenState extends State<OrderConfirmedScreen> {
       } else {
         await Share.share(widget.summary);
       }
+      await _persistWhatsAppSent('مشاركة لقطة الشاشة + الاستمارة');
       if (mounted) {
         setState(() {
           _sent = true;
@@ -207,6 +224,7 @@ class _OrderConfirmedScreenState extends State<OrderConfirmedScreen> {
       );
       return;
     }
+    _persistWhatsAppSent(_sentTargetLabel.isEmpty ? 'واتساب' : _sentTargetLabel);
     setState(() => _confirmedSent = true);
     Get.snackbar('تم التأكيد ✓', 'شكراً لك — تم فتح التتبع والخدمات الكاملة لطلبك');
   }
@@ -427,6 +445,44 @@ class _OrderConfirmedScreenState extends State<OrderConfirmedScreen> {
 
             const SizedBox(height: 12),
 
+            // ═══ شريط مراحل الطلب الفوري بعد الاستمارة ═══
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: T.card,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: T.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'مراحل متابعة طلبك',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      color: T.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  OrderStageBar(
+                    status: OrderStatus.unpaid,
+                    whatsappSent: _sent || _confirmedSent,
+                    stageHint: (_sent || _confirmedSent)
+                        ? 'تم إرسال الاستمارة لواتساب — بانتظار المراجعة وتأكيد الإدارة'
+                        : 'الخطوة الأولى: أرسل الاستمارة عبر واتساب لتنتقل للمراجعة والاعتماد',
+                  ),
+                  if (widget.paymentPlan == 'half_deferred') ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'ملاحظة الآجل: المتبقي يُحسب بسعر الصرف يوم إنشاء الطلب.',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: T.muted),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
             // ═══ معاينة نص الاستمارة الرسمية لواتساب ═══
             Container(
               padding: const EdgeInsets.all(12),

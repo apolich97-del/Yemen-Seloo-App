@@ -163,6 +163,8 @@ class OrderService extends GetxService {
             'qty': l.qty,
             'unitPriceSar': l.unitPriceSar,
             'productUrl': '',
+            'nonRefundable': l.isNonRefundable,
+            'nonRefundableReason': l.effectiveNonRefundableReason,
           }).toList(),
       'shippingMode': shipping['mode'] ?? 'home',
       'shippingGovernorate': shipping['governorate'] ?? '',
@@ -225,6 +227,122 @@ class OrderService extends GetxService {
       }, SetOptions(merge: true));
     } catch (_) {}
     return SubmittedOrderRef(ref.id, orderNo);
+  }
+
+
+  /// يسجّل إرسال استمارة الطلب إلى واتساب بانتظار اعتماد الإدارة.
+  Future<void> recordWhatsAppSent(String orderId, String targetLabel) async {
+    if (orderId.trim().isEmpty) return;
+    final r = _db.collection('orders').doc(orderId);
+    await r.update({
+      'whatsappSentAt': FieldValue.serverTimestamp(),
+      'whatsappSentTarget': targetLabel,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    await r.collection('events').add({
+      'status': 'unpaid',
+      'at': Timestamp.now(),
+      'byName': 'العميل',
+      'note': 'تم إرسال استمارة الطلب عبر واتساب ($targetLabel) — بانتظار تأكيد الإدارة',
+    });
+  }
+
+  /// الطاقم يقترح تعديل أسعار أو توفر قطع (مزامنة شي إن) وإبلاغ العميل للموافقة.
+  Future<void> proposeOrderSync({
+    required Order order,
+    required List<OrderItem> updatedItems,
+    required String note,
+  }) async {
+    final activeItems = updatedItems.where((e) => e.qty > 0).toList();
+    final newSubSar = activeItems.fold<double>(0, (s, i) => s + i.lineTotalSar);
+    final diffSar = newSubSar - order.subtotalSar;
+    final newTotalSar = roundMoney(
+      (order.totalSar + diffSar).clamp(0.0, 9999999.0),
+      AppCurrency.sar,
+    );
+    final rate = order.exchangeRate > 0 ? order.exchangeRate : 1.0;
+    final newTotalLocal = roundMoney(newTotalSar * rate, order.currency);
+    final r = _db.collection('orders').doc(order.id);
+    await r.update({
+      'priceSyncStatus': 'pending_customer',
+      'priceSyncNote': note.trim(),
+      'priceSyncDecision': '',
+      'proposedItems': activeItems.map((e) => e.toMap()).toList(),
+      'proposedSubtotalSar': roundMoney(newSubSar, AppCurrency.sar),
+      'proposedTotalSar': newTotalSar,
+      'proposedTotalLocal': newTotalLocal,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    await r.collection('events').add({
+      'status': order.status.key,
+      'at': Timestamp.now(),
+      'byName': _email,
+      'note': 'تحديث مزامنة الأسعار/المخزون بانتظار موافقة العميل: ${note.trim()}',
+    });
+  }
+
+  /// رد العميل بالموافقة أو الرفض على تحديث السعر/المخزون.
+  Future<void> respondToPriceSync(String orderId, {required bool accepted}) async {
+    final r = _db.collection('orders').doc(orderId);
+    await r.update({
+      'priceSyncStatus': accepted ? 'accepted' : 'rejected',
+      'priceSyncDecision': accepted ? 'accepted' : 'rejected',
+      'priceSyncRespondedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    await r.collection('events').add({
+      'status': 'unpaid',
+      'at': Timestamp.now(),
+      'byName': 'العميل',
+      'note': accepted
+          ? 'وافق العميل على تعديل السعر/التوفر المقترح'
+          : 'رفض العميل تعديل السعر/التوفر وطلب المراجعة',
+    });
+    try {
+      await _db.collection('staff_alerts').add({
+        'target': 'manager',
+        'orderId': orderId,
+        'type': accepted ? 'price_sync_accepted' : 'price_sync_rejected',
+        'createdAt': FieldValue.serverTimestamp(),
+        'seen': false,
+      });
+    } catch (_) {}
+  }
+
+  /// تطبيق التعديلات المعتمدة فعلياً على بنود ومبالغ الطلب مع تثبيت سعر الصرف.
+  Future<void> applyProposedOrderSync(Order order) async {
+    if (order.proposedItems.isEmpty) {
+      throw 'لا توجد بنود مقترحة لتطبيقها';
+    }
+    final activeItems = order.proposedItems.where((e) => e.qty > 0).toList();
+    final newSubSar = activeItems.fold<double>(0, (s, i) => s + i.lineTotalSar);
+    final newTotalSar = order.proposedTotalSar > 0
+        ? order.proposedTotalSar
+        : roundMoney(
+            (order.totalSar + (newSubSar - order.subtotalSar)).clamp(0.0, 9999999.0),
+            AppCurrency.sar,
+          );
+    final rate = order.exchangeRate > 0 ? order.exchangeRate : 1.0;
+    final newTotalLocal = order.proposedTotalLocal > 0
+        ? order.proposedTotalLocal
+        : roundMoney(newTotalSar * rate, order.currency);
+    final newRemaining = (newTotalLocal - order.paidTotalLocal).clamp(0.0, 999999999.0);
+    final r = _db.collection('orders').doc(order.id);
+    await r.update({
+      'items': activeItems.map((e) => e.toMap()).toList(),
+      'subtotalSar': roundMoney(newSubSar, AppCurrency.sar),
+      'totalSar': newTotalSar,
+      'totalLocal': newTotalLocal,
+      'remainingLocal': roundMoney(newRemaining, order.currency),
+      'priceSyncStatus': 'applied',
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    await r.collection('events').add({
+      'status': order.status.key,
+      'at': Timestamp.now(),
+      'byName': _email,
+      'note': 'تم تطبيق تحديث الأسعار/التوفر على الطلب مع الإبقاء على سعر الصرف يوم الطلب',
+    });
   }
 
   Future<void> attachPayment({

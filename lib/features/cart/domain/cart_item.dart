@@ -1,6 +1,7 @@
 import 'dart:convert';
+import '../../../core/services/refund_policy.dart';
 
-/// عنصر سلة واحد — يخزّن بيانات المنتج القادمة من SHEIN.
+/// عنصر سلة واحد — يخزّن بيانات المنتج القادمة من SHEIN أو الكتالوج.
 class CartItem {
   CartItem({
     required this.lineId,
@@ -19,6 +20,8 @@ class CartItem {
     this.deliveryLocal = 0.0,
     this.sku = '',
     this.variantId = '',
+    this.nonRefundable = false,
+    this.nonRefundableReason = '',
   });
 
   final String lineId;
@@ -37,6 +40,14 @@ class CartItem {
   final double deliveryLocal;
   final String sku;
   final String variantId;
+  final bool nonRefundable;
+  final String nonRefundableReason;
+
+  bool get isNonRefundable =>
+      nonRefundable || SelooRefundPolicy.detectNonRefundable(title);
+
+  String get effectiveNonRefundableReason =>
+      SelooRefundPolicy.reasonFor(title, '', nonRefundableReason);
 
   double get unitPriceLocal => sourcePrice * exchangeRate;
   double get lineTotalLocal => unitPriceLocal * quantity;
@@ -58,6 +69,8 @@ class CartItem {
     double? deliveryLocal,
     String? sku,
     String? variantId,
+    bool? nonRefundable,
+    String? nonRefundableReason,
   }) {
     return CartItem(
       lineId: lineId ?? this.lineId,
@@ -76,6 +89,8 @@ class CartItem {
       deliveryLocal: deliveryLocal ?? this.deliveryLocal,
       sku: sku ?? this.sku,
       variantId: variantId ?? this.variantId,
+      nonRefundable: nonRefundable ?? this.nonRefundable,
+      nonRefundableReason: nonRefundableReason ?? this.nonRefundableReason,
     );
   }
 
@@ -97,6 +112,8 @@ class CartItem {
       'deliveryLocal': deliveryLocal,
       'sku': sku,
       'variantId': variantId,
+      'nonRefundable': nonRefundable,
+      'nonRefundableReason': nonRefundableReason,
     };
   }
 
@@ -122,10 +139,11 @@ class CartItem {
       deliveryLocal: (map['deliveryLocal'] as num?)?.toDouble() ?? 0.0,
       sku: map['sku'] as String? ?? '',
       variantId: map['variantId'] as String? ?? '',
+      nonRefundable: (map['nonRefundable'] as bool?) ?? false,
+      nonRefundableReason: map['nonRefundableReason'] as String? ?? '',
     );
   }
 
-  /// يُستخدم في حال استخدام Firestore لاحقاً.
   factory CartItem.fromFirestore(Map<String, dynamic> data) {
     return CartItem.fromMap(data);
   }

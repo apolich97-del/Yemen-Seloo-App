@@ -246,18 +246,106 @@
     }
     return best;
   }
+  function readProductFromState(goodsId) {
+    var out = { title: '', price: null, imageUrl: '', color: '', size: '', colors: [], sizes: [] };
+    try {
+      var visited = [];
+      function pushUnique(arr, val) {
+        var t = String(val || '').trim();
+        if (t && arr.indexOf(t) === -1 && arr.length < 16) arr.push(t);
+      }
+      function inspectNode(node, depth) {
+        if (!node || typeof node !== 'object' || depth > 7) return;
+        if (visited.indexOf(node) !== -1) return;
+        if (visited.length > 400) return;
+        visited.push(node);
+
+        if (Array.isArray(node)) {
+          for (var ai = 0; ai < node.length && ai < 40; ai++) inspectNode(node[ai], depth + 1);
+          return;
+        }
+
+        var id = String(node.goods_id || node.goodsId || node.sku || '').trim();
+        var matchesId = !goodsId || !id || id === goodsId;
+        var hasProductShape = Boolean(node.goods_name || node.goodsTitle || node.salePrice || node.retailPrice || node.offers);
+
+        if (hasProductShape && matchesId) {
+          if (!out.title) {
+            var tn = node.goods_name || node.goodsTitle || node.name || '';
+            if (typeof tn === 'string' && tn.trim().length > 2) {
+              out.title = tn.replace(/\s+/g, ' ').trim().slice(0, 300);
+            }
+          }
+          if (!out.price) {
+            var pCand =
+              (node.salePrice && (node.salePrice.amount || node.salePrice.usdAmount)) ||
+              (node.retailPrice && node.retailPrice.amount) ||
+              (node.offers && node.offers.price) ||
+              node.srAmount || node.price;
+            var pv = parsePrice(pCand);
+            if (pv && pv >= 0.5 && pv < 100000) out.price = pv;
+          }
+          if (!out.imageUrl) {
+            var imgCand = node.goods_img || node.goodsImg || node.origin_image || node.main_image || node.original_img ||
+              (Array.isArray(node.goods_imgs) ? node.goods_imgs[0] : '') ||
+              (typeof node.image === 'string' ? node.image : (Array.isArray(node.image) ? node.image[0] : ''));
+            if (typeof imgCand === 'string' && imgCand.length > 8) {
+              if (imgCand.indexOf('//') === 0) imgCand = 'https:' + imgCand;
+              if (/^https?:\/\//i.test(imgCand)) out.imageUrl = hiRes(imgCand);
+            }
+          }
+          if (node.goods_color) pushUnique(out.colors, node.goods_color);
+          if (node.colorName) pushUnique(out.colors, node.colorName);
+        }
+        if (node.attr_value_name && isSizeToken(node.attr_value_name)) {
+          pushUnique(out.sizes, node.attr_value_name);
+        }
+
+        var keys = Object.keys(node);
+        for (var ki = 0; ki < keys.length && ki < 45; ki++) {
+          var k = keys[ki];
+          var val = node[k];
+          if (val && typeof val === 'object') inspectNode(val, depth + 1);
+        }
+      }
+
+      if (window.gbRawData) inspectNode(window.gbRawData, 0);
+      if (window.__INITIAL_STATE__) inspectNode(window.__INITIAL_STATE__, 0);
+
+      var lds = qa('script[type="application/ld+json"]');
+      for (var li = 0; li < lds.length; li++) {
+        try {
+          var parsedLd = JSON.parse(lds[li].textContent || '{}');
+          inspectNode(parsedLd, 0);
+        } catch (e) {}
+      }
+
+      if (Array.isArray(window.__selooApi)) {
+        for (var si = window.__selooApi.length - 1; si >= 0; si--) {
+          try {
+            var rawStr = String(window.__selooApi[si] || '');
+            if (goodsId && rawStr.indexOf(goodsId) === -1) continue;
+            inspectNode(JSON.parse(rawStr), 0);
+          } catch (e) {}
+        }
+      }
+    } catch (e) {}
+    return out;
+  }
+
   function readCurrentProduct() {
     var m = window.location.href.match(/(?:-p-|product-itemv2-|goods_id=|goodsId=)(\d{5,})/i);
     if (!m) return null;
     var goodsId = m[1];
+    var stateData = readProductFromState(goodsId);
 
-    var title = txt(q('h1'));
+    var title = stateData.title || txt(q('h1'));
     if (!title) { var og = q('meta[property="og:title"]'); if (og) title = (og.content || '').trim(); }
     if (!title) title = (document.title || '').trim();
     title = title.replace(/\s+/g, ' ').slice(0, 300);
     if (!title) title = 'منتج SHEIN #' + goodsId;
 
-    var price = readMainPrice();
+    var price = stateData.price || readMainPrice();
     if (!price) {
       var pm = q('meta[property="product:price:amount"], meta[property="og:price:amount"]');
       if (pm) price = parsePrice(pm.content);
@@ -307,11 +395,15 @@
       return '';
     }
 
-    var imageUrl = '';
+    var imageUrl = (stateData.imageUrl && PRODUCT_IMG.test(stateData.imageUrl) && !BAD_IMG.test(stateData.imageUrl))
+      ? stateData.imageUrl
+      : '';
+    if (!imageUrl) {
     var imgs = qa('.crop-image-container img, .product-intro__main-image img, [class*="main-image"] img, [class*="goods-img"] img, [class*="product"] img');
     for (var ii = 0; ii < imgs.length; ii++) {
       var cand = goodImg(imgs[ii]);
       if (cand) { imageUrl = cand; break; }
+    }
     }
     // og:image أصدق مصدر لصورة المنتج (لا يتأثر بالصور النائبة أو المصغرات)
     // لا نستخدم meta og:image: شي إن تطبيق أحادي الصفحة وقد يحتفظ بوسم المنتج
@@ -361,6 +453,8 @@
       size: v.size,
       options: {},
       sourceStore: 'SHEIN',
+      colors: stateData.colors || [],
+      sizes: stateData.sizes || [],
       sku: '',
       variantId: '',
       source: 'webview-product'
@@ -531,6 +625,7 @@
     });
   }
 
+  window.__selooReadCurrentProduct = readCurrentProduct;
   window.__selooAddCurrentProduct = function () { addFromPage(null); return true; };
 
   // وضع التعديل يبقى محفوظاً طوال الجلسة (صفحة البحث ← صفحة المنتج)

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart' show Timestamp;
+import '../../../core/services/refund_policy.dart';
 
 /// قطعة في كتالوج يمن سيلو.
 class CatalogItem {
@@ -16,6 +17,8 @@ class CatalogItem {
     required this.region,
     required this.badge,
     required this.active,
+    this.nonRefundable = false,
+    this.nonRefundableReason = '',
     this.createdAt,
   });
 
@@ -40,9 +43,20 @@ class CatalogItem {
   /// شارة ترويجية: new | best | offer | ''
   final String badge;
   final bool active;
+  final bool nonRefundable;
+  final String nonRefundableReason;
   final DateTime? createdAt;
 
   double get priceSar => basePriceSar + marginSar;
+
+  bool get isNonRefundable =>
+      nonRefundable || SelooRefundPolicy.detectNonRefundable(title, category);
+
+  String get effectiveNonRefundableReason => SelooRefundPolicy.reasonFor(
+        title,
+        category,
+        nonRefundableReason,
+      );
 
   String get regionAr => switch (region) {
         'south' => 'جنوب',
@@ -83,6 +97,8 @@ class CatalogItem {
         'region': region,
         'badge': badge,
         'active': active,
+        'nonRefundable': nonRefundable,
+        'nonRefundableReason': nonRefundableReason,
         'createdAt': createdAt == null
             ? Timestamp.now()
             : Timestamp.fromDate(createdAt!),
@@ -102,6 +118,8 @@ class CatalogItem {
         region: (m['region'] ?? 'south') as String,
         badge: (m['badge'] ?? '') as String,
         active: (m['active'] ?? true) as bool,
+        nonRefundable: (m['nonRefundable'] ?? false) as bool,
+        nonRefundableReason: (m['nonRefundableReason'] ?? '') as String,
         createdAt: (m['createdAt'] is Timestamp)
             ? (m['createdAt'] as Timestamp).toDate()
             : null,
@@ -118,6 +136,8 @@ class CatalogItem {
     String? badge,
     bool? active,
     String? imageUrl,
+    bool? nonRefundable,
+    String? nonRefundableReason,
   }) =>
       CatalogItem(
         id: id,
@@ -133,6 +153,8 @@ class CatalogItem {
         region: region ?? this.region,
         badge: badge ?? this.badge,
         active: active ?? this.active,
+        nonRefundable: nonRefundable ?? this.nonRefundable,
+        nonRefundableReason: nonRefundableReason ?? this.nonRefundableReason,
         createdAt: createdAt,
       );
 

@@ -12,6 +12,7 @@ import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'core/config/seloo_config.dart';
 import 'core/controllers/checkout_controller.dart';
 import 'core/routes/app_routes.dart';
+import 'core/services/settings_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
 import 'features/cart/application/cart_counter.dart';
@@ -43,6 +44,10 @@ Future<void> main() async {
     runApp(_ErrorScreen('تعذر تشغيل Firebase', firebaseError));
     return;
   }
+
+  // 2.5) سجّل SettingsService و ThemeController قبل CartCounter
+  Get.put<SettingsService>(SettingsService(), permanent: true);
+  Get.put<ThemeController>(ThemeController(), permanent: true);
 
   // 3) سجّل CartCounter قبل أي شاشة
   Get.put<CartCounter>(CartCounter(), permanent: true);

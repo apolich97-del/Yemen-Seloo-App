@@ -1,4 +1,5 @@
 import 'currency.dart';
+import '../services/refund_policy.dart';
 import 'refund.dart';
 
 /// حالات الطلب — نفس مفاتيح Firestore التي يستخدمها السيرفر واللوحة.
@@ -147,10 +148,11 @@ class OrderItem {
   final String size;
   final String color;
   final int qty;
-
   /// سعر الوحدة بالريال السعودي (عملة التسعير الأساسية).
   final double unitPriceSar;
   final String productUrl;
+  final bool nonRefundable;
+  final String nonRefundableReason;
 
   const OrderItem({
     required this.sku,
@@ -162,9 +164,37 @@ class OrderItem {
     this.size = '',
     this.color = '',
     this.productUrl = '',
+    this.nonRefundable = false,
+    this.nonRefundableReason = '',
   });
 
+  bool get isNonRefundable =>
+      nonRefundable || SelooRefundPolicy.detectNonRefundable(title);
+
+  String get effectiveNonRefundableReason =>
+      SelooRefundPolicy.reasonFor(title, '', nonRefundableReason);
+
   double get lineTotalSar => unitPriceSar * qty;
+
+  OrderItem copyWith({
+    int? qty,
+    double? unitPriceSar,
+    bool? nonRefundable,
+    String? nonRefundableReason,
+  }) =>
+      OrderItem(
+        sku: sku,
+        goodsId: goodsId,
+        title: title,
+        imageUrl: imageUrl,
+        qty: qty ?? this.qty,
+        unitPriceSar: unitPriceSar ?? this.unitPriceSar,
+        size: size,
+        color: color,
+        productUrl: productUrl,
+        nonRefundable: nonRefundable ?? this.nonRefundable,
+        nonRefundableReason: nonRefundableReason ?? this.nonRefundableReason,
+      );
 
   factory OrderItem.fromMap(Map<String, dynamic> m) => OrderItem(
         goodsId: (m['goodsId'] ?? '') as String,
@@ -176,6 +206,8 @@ class OrderItem {
         qty: (m['qty'] as num?)?.toInt() ?? 1,
         unitPriceSar: (m['unitPriceSar'] as num?)?.toDouble() ?? 0,
         productUrl: (m['productUrl'] ?? '') as String,
+        nonRefundable: (m['nonRefundable'] as bool?) ?? false,
+        nonRefundableReason: (m['nonRefundableReason'] ?? '') as String,
       );
 
   Map<String, dynamic> toMap() => {
@@ -188,6 +220,8 @@ class OrderItem {
         'qty': qty,
         'unitPriceSar': unitPriceSar,
         'productUrl': productUrl,
+        'nonRefundable': isNonRefundable,
+        'nonRefundableReason': effectiveNonRefundableReason,
       };
 }
 
@@ -359,6 +393,14 @@ class Order {
   final String approvedByName;
   final Map<String, dynamic> shippingWaybill;
   final Map<String, dynamic> deliveryWaybill;
+  final DateTime? whatsappSentAt;
+  final String whatsappSentTarget;
+  final String priceSyncStatus;
+  final String priceSyncNote;
+  final String priceSyncDecision;
+  final double proposedTotalSar;
+  final double proposedTotalLocal;
+  final List<OrderItem> proposedItems;
 
   const Order({
     required this.id,
@@ -414,7 +456,39 @@ class Order {
     this.deliveryMinDays = 15,
     this.deliveryMaxDays = 20,
     this.serviceFeeSar = 0,
+    this.whatsappSentAt,
+    this.whatsappSentTarget = '',
+    this.priceSyncStatus = '',
+    this.priceSyncNote = '',
+    this.priceSyncDecision = '',
+    this.proposedTotalSar = 0,
+    this.proposedTotalLocal = 0,
+    this.proposedItems = const <OrderItem>[],
   });
+
+  bool get hasWhatsAppSent => whatsappSentAt != null;
+  bool get hasNonRefundable => items.any((e) => e.isNonRefundable);
+  bool get hasPendingPriceSync => priceSyncStatus == 'pending_customer';
+
+  String get stageHintAr {
+    if (status == OrderStatus.cancelled) return 'تم إلغاء الطلب';
+    if (hasPendingPriceSync) {
+      return 'يوجد تحديث في السعر أو التوفر بانتظار موافقتك';
+    }
+    if (status == OrderStatus.unpaid) {
+      return hasWhatsAppSent
+          ? 'تم إرسال الاستمارة عبر واتساب — بانتظار المراجعة وتأكيد الإدارة'
+          : 'بانتظار إرسال استمارة الطلب عبر واتساب أو رفع بيانات الدفع';
+    }
+    return switch (status) {
+      OrderStatus.verifying => 'تم استلام بيانات التحويل — قيد المطابقة من المحاسبة',
+      OrderStatus.processing => 'تم اعتماد الطلب وجاري الشراء والتجهيز',
+      OrderStatus.shipped => 'تم الشحن وفي الطريق إلى مكتب الاستلام في اليمن',
+      OrderStatus.outForDelivery => 'الطلب مع المندوب في طريقه للتسليم',
+      OrderStatus.delivered => 'تم تسليم الطلب بنجاح',
+      _ => status.labelAr,
+    };
+  }
 
   final int deliveryMinDays;
   final int deliveryMaxDays;
@@ -535,6 +609,16 @@ class Order {
           (m['shippingWaybill'] as Map?) ?? const <String, dynamic>{}),
       deliveryWaybill: Map<String, dynamic>.from(
           (m['deliveryWaybill'] as Map?) ?? const <String, dynamic>{}),
+      whatsappSentAt: _ts(m['whatsappSentAt']),
+      whatsappSentTarget: (m['whatsappSentTarget'] ?? '') as String,
+      priceSyncStatus: (m['priceSyncStatus'] ?? '') as String,
+      priceSyncNote: (m['priceSyncNote'] ?? '') as String,
+      priceSyncDecision: (m['priceSyncDecision'] ?? '') as String,
+      proposedTotalSar: (m['proposedTotalSar'] as num?)?.toDouble() ?? 0,
+      proposedTotalLocal: (m['proposedTotalLocal'] as num?)?.toDouble() ?? 0,
+      proposedItems: ((m['proposedItems'] as List?) ?? const [])
+          .map((e) => OrderItem.fromMap(Map<String, dynamic>.from(e as Map)))
+          .toList(),
     );
   }
 }

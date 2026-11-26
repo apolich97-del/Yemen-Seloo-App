@@ -449,7 +449,7 @@ class RefundDetailScreen extends StatelessWidget {
               onPressed: () {
                 Get.back();
                 if (Get.isRegistered<MainTabController>()) {
-                  Get.find<MainTabController>().goTo(4);
+                  Get.find<MainTabController>().goToSupport();
                 }
               },
               icon: Icon(Icons.support_agent, size: 17, color: T.primary),

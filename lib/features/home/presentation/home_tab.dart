@@ -97,9 +97,9 @@ class HomeTab extends StatelessWidget {
                       children: <Widget>[
                         Expanded(
                           child: ElevatedButton.icon(
-                            onPressed: () => Get.toNamed('/shein'),
-                            icon: const Icon(Icons.explore_outlined, size: 16),
-                            label: const Text('تصفّح المتجر'),
+                            onPressed: () => Get.find<MainTabController>().goToCatalog(),
+                            icon: const Icon(Icons.storefront_outlined, size: 16),
+                            label: const Text('كتالوج يمن سيلو'),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -125,7 +125,7 @@ class HomeTab extends StatelessWidget {
                     child: _ServiceTile(
                       icon: Icons.shopping_bag_outlined,
                       title: 'تسوّق SHEIN',
-                      onTap: () => Get.find<MainTabController>().goTo(1),
+                      onTap: () => Get.find<MainTabController>().goToShein(),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -145,7 +145,7 @@ class HomeTab extends StatelessWidget {
                     child: _ServiceTile(
                       icon: Icons.receipt_long_outlined,
                       title: 'طلباتي',
-                      onTap: () => Get.find<MainTabController>().goTo(3),
+                      onTap: () => Get.find<MainTabController>().goToOrders(),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -165,7 +165,7 @@ class HomeTab extends StatelessWidget {
                     child: _ServiceTile(
                       icon: Icons.local_shipping_outlined,
                       title: 'شحن موثوق',
-                      onTap: () => Get.find<MainTabController>().goTo(3),
+                      onTap: () => Get.find<MainTabController>().goToOrders(),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -173,7 +173,7 @@ class HomeTab extends StatelessWidget {
                     child: _ServiceTile(
                       icon: Icons.support_agent,
                       title: 'دعم مباشر',
-                      onTap: () => Get.find<MainTabController>().goTo(4),
+                      onTap: () => Get.find<MainTabController>().goToSupport(),
                     ),
                   ),
                 ],

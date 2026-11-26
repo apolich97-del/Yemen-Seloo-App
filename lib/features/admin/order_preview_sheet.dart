@@ -230,6 +230,32 @@ class _OrderPreview extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
+                      onPressed: () => _proposePriceSync(o),
+                      icon: const Icon(Icons.sync_alt, size: 16),
+                      label: const Text('مزامنة الأسعار والتوفر (إبلاغ العميل)',
+                          style: TextStyle(fontSize: 11.5)),
+                    ),
+                  ),
+                  if (o.priceSyncStatus == 'accepted' || o.priceSyncStatus == 'pending_customer') ...[
+                    const SizedBox(height: 6),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () => _applyPriceSync(o),
+                        icon: const Icon(Icons.check_circle_outline, size: 16),
+                        label: Text(
+                          o.priceSyncStatus == 'accepted'
+                              ? 'تطبيق التعديل (العميل وافق ✓)'
+                              : 'تطبيق التعديل المقترح مباشرة',
+                          style: const TextStyle(fontSize: 11.5),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
                       onPressed: () => showCreateRefundDialog(o),
                       icon: const Icon(Icons.assignment_return_outlined,
                           size: 16),
@@ -362,6 +388,14 @@ class _OrderPreview extends StatelessWidget {
                     ' · ${it.lineTotalSar.toStringAsFixed(2)} ر.س',
                     style: TextStyle(fontSize: 10.5, color: T.muted),
                   ),
+                  if (it.isNonRefundable)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 3),
+                      child: Text(
+                        'غير قابل للاسترداد (${it.effectiveNonRefundableReason})',
+                        style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: T.warning),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -431,6 +465,112 @@ class _OrderPreview extends StatelessWidget {
           ],
         ),
       );
+
+
+  Future<void> _proposePriceSync(Order o) async {
+    final orders = Get.find<OrderService>();
+    final qtyCtrls = o.items
+        .map((it) => TextEditingController(text: '${it.qty}'))
+        .toList();
+    final priceCtrls = o.items
+        .map((it) => TextEditingController(text: it.unitPriceSar.toStringAsFixed(2)))
+        .toList();
+    final noteCtrl = TextEditingController(text: o.priceSyncNote);
+    final ok = await Get.dialog<bool>(
+      AlertDialog(
+        title: const Text('مزامنة الأسعار والتوفر في شي إن',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
+        content: SizedBox(
+          width: 440,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'عدّل السعر (ر.س) أو اجعل الكمية 0 إذا نفد المخزون ليصل للعميل طلب موافقة:',
+                  style: TextStyle(fontSize: 11, color: T.muted),
+                ),
+                const SizedBox(height: 8),
+                for (var i = 0; i < o.items.length; i++) ...[
+                  Text(
+                    o.items[i].title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: T.text),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: priceCtrls[i],
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'السعر ر.س', isDense: true),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 90,
+                        child: TextField(
+                          controller: qtyCtrls[i],
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'الكمية (0=نفد)', isDense: true),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                TextField(
+                  controller: noteCtrl,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'ملاحظة توضيحية للعميل',
+                    isDense: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(result: false), child: const Text('إلغاء')),
+          ElevatedButton(onPressed: () => Get.back(result: true), child: const Text('إرسال للعميل')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      final updated = <OrderItem>[];
+      for (var i = 0; i < o.items.length; i++) {
+        final q = int.tryParse(qtyCtrls[i].text.trim()) ?? o.items[i].qty;
+        final p = double.tryParse(priceCtrls[i].text.trim()) ?? o.items[i].unitPriceSar;
+        updated.add(o.items[i].copyWith(qty: q < 0 ? 0 : q, unitPriceSar: p < 0 ? 0 : p));
+      }
+      await orders.proposeOrderSync(
+        order: o,
+        updatedItems: updated,
+        note: noteCtrl.text.trim().isEmpty
+            ? 'تحديث الأسعار أو التوفر من شي إن'
+            : noteCtrl.text.trim(),
+      );
+      Get.back();
+      Get.snackbar('تم الإرسال ✓', 'أُرسل إشعار تعديل السعر/التوفر للعميل');
+    } catch (e) {
+      Get.snackbar('تعذر الإرسال', '$e');
+    }
+  }
+
+  Future<void> _applyPriceSync(Order o) async {
+    try {
+      await Get.find<OrderService>().applyProposedOrderSync(o);
+      Get.back();
+      Get.snackbar('تم التطبيق ✓', 'حُدّثت بنود ومبالغ الطلب مع تثبيت سعر الصرف');
+    } catch (e) {
+      Get.snackbar('تعذر التطبيق', '$e');
+    }
+  }
 
   // ═══ صلاحيات المدير الرئيسي ═══
 

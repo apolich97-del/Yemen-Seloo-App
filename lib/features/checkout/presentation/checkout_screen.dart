@@ -428,6 +428,30 @@ class CheckoutScreen extends GetView<CheckoutController> {
               ),
             ],
           ),
+          if (controller.lines.any((l) => l.isNonRefundable)) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: T.warning.withOpacity(.12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: T.warning.withOpacity(.45)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.warning_amber_rounded, size: 17, color: T.warning),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'تنبيه: طلبك يحتوي على قطع غير قابلة للاسترداد أو الاستبدال بعد الشراء (${controller.lines.where((l) => l.isNonRefundable).length} قطعة).',
+                      style: TextStyle(fontSize: 10.5, height: 1.45, fontWeight: FontWeight.w700, color: T.text),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -473,8 +497,8 @@ class CheckoutScreen extends GetView<CheckoutController> {
 
   Widget _planCard(BuildContext context) {
     if (!Get.isRegistered<SettingsService>()) return const SizedBox.shrink();
-    final sf = Get.find<SettingsService>().settings.value;
     return Obx(() {
+      final sf = Get.find<SettingsService>().settings.value;
       final est = controller.estimate.value;
       if (est == null) return const SizedBox.shrink();
       final restriction = controller.deferredRestrictionReason(est, sf);

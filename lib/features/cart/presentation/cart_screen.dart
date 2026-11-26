@@ -228,10 +228,13 @@ class _CartScreenState extends State<CartScreen> {
     _snack('جارٍ التحديث…');
     try {
       await _cart.onItemAdded();
+      final int synced = await _cart.syncCartWithCatalog();
       await _cart.refreshQuote();
       await _resyncImages(force: true);
 
-      _snack('تم تحديث السلة');
+      _snack(synced > 0
+          ? 'تم تحديث السلة ومزامنة $synced قطعة من الكتالوج ✓'
+          : 'تم تحديث السلة');
     } catch (_) {
       _snack('تعذّر تحديث السلة');
     } finally {
@@ -1725,6 +1728,26 @@ class _CartLineTile extends StatelessWidget {
                         height: 1.4,
                       ),
                     ),
+                    if (item.isNonRefundable)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 5),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: T.warning.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: T.warning.withOpacity(0.45)),
+                          ),
+                          child: Text(
+                            'غير قابل للاسترداد (${item.effectiveNonRefundableReason})',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: T.warning,
+                            ),
+                          ),
+                        ),
+                      ),
                     if (item.color.isNotEmpty || item.size.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 5),
@@ -2393,7 +2416,7 @@ class _EmptyCart extends StatelessWidget {
                     backgroundColor: T.primary,
                     foregroundColor: T.dark ? const Color(0xFF1B1035) : Colors.white,
                   ),
-                  onPressed: () => Get.find<MainTabController>().goTo(1),
+                  onPressed: () => Get.find<MainTabController>().goToShein(),
                   icon: const Icon(Icons.storefront_outlined, size: 18),
                   label: const Text('تصفّح SHEIN'),
                 ),

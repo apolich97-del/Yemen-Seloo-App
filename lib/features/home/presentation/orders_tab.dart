@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import '../../../core/models/cart.dart';
 import '../../../core/models/currency.dart';
 import '../../../core/models/order.dart';
+import '../../../core/widgets/order_stage_bar.dart';
 import '../../../core/models/refund.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../../core/services/review_service.dart';
@@ -618,6 +619,49 @@ class _OrdersTabState extends State<OrdersTab>
                       style: TextStyle(fontSize: 10, color: T.muted)),
                 ],
               ),
+              const SizedBox(height: 8),
+              OrderStageBar(
+                status: o.status,
+                whatsappSent: o.hasWhatsAppSent,
+                compact: true,
+                stageHint: o.stageHintAr,
+              ),
+              if (o.hasPendingPriceSync) ...[
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: T.warning.withOpacity(.14),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: T.warning.withOpacity(.5)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.price_change_outlined, size: 14, color: T.warning),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'يوجد تعديل سعر/توفر بانتظار موافقتك — اضغط للمراجعة',
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: T.text),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (o.hasNonRefundable) ...[
+                const SizedBox(height: 5),
+                Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 13, color: T.warning),
+                    const SizedBox(width: 4),
+                    Text(
+                      'يحتوي على قطع غير قابلة للاسترداد',
+                      style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: T.warning),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,

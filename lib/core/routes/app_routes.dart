@@ -24,6 +24,7 @@ import '../../features/guide/interactive_guide.dart';
 import '../theme/theme_controller.dart';
 import '../services/pricing_service.dart';
 import '../services/settings_service.dart';
+import '../services/push_service.dart';
 
 class AppRoutes {
   static const cart = '/cart';
@@ -52,6 +53,9 @@ class InitialBinding extends Bindings {
     Get.put<ThemeController>(ThemeController(), permanent: true);
     Get.put<InteractiveGuideController>(InteractiveGuideController(),
         permanent: true);
+    if (!Get.isRegistered<PushService>()) {
+      Get.put<PushService>(PushService(), permanent: true).init();
+    }
   }
 }
 

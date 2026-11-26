@@ -64,6 +64,10 @@ class OrderDetailScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               _header(o),
+              if (o.hasPendingPriceSync) ...[
+                const SizedBox(height: 12),
+                _priceSyncCard(o, svc),
+              ],
               const SizedBox(height: 12),
               _timeline(o),
               const SizedBox(height: 12),
@@ -111,7 +115,7 @@ class OrderDetailScreen extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: SectionCard(
                   title: 'مراحل الطلب',
-                  child: OrderStageBar(status: o.status),
+                  child: OrderStageBar(status: o.status, whatsappSent: o.hasWhatsAppSent, stageHint: o.stageHintAr),
                 ),
               ),
               _receiptsCard(o),
@@ -396,6 +400,78 @@ class OrderDetailScreen extends StatelessWidget {
                 color: Color(0xFF7A5E00))),
       );
 
+
+  Widget _priceSyncCard(Order o, OrderService svc) => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: T.warning.withOpacity(.12),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: T.warning.withOpacity(.55)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.price_change_outlined, size: 18, color: T.warning),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'تحديث أسعار / توفر القطع من الإدارة',
+                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900, color: T.text),
+                  ),
+                ),
+              ],
+            ),
+            if (o.priceSyncNote.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(o.priceSyncNote,
+                  style: TextStyle(fontSize: 11.5, height: 1.5, color: T.text)),
+            ],
+            const SizedBox(height: 8),
+            Text(
+              'الإجمالي المقترح بعد التحديث: ${formatMoney(o.proposedTotalLocal, o.currency)} '
+              '(${o.proposedTotalSar.toStringAsFixed(2)} ر.س)',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: T.primary),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      try {
+                        await svc.respondToPriceSync(o.id, accepted: true);
+                        Get.snackbar('تمت الموافقة ✓', 'أُبلغت الإدارة بموافقتك لتحديث الطلب');
+                      } catch (e) {
+                        Get.snackbar('تعذر الإرسال', '$e');
+                      }
+                    },
+                    icon: const Icon(Icons.check, size: 16),
+                    label: const Text('أوافق على التعديل', style: TextStyle(fontSize: 11.5)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      try {
+                        await svc.respondToPriceSync(o.id, accepted: false);
+                        Get.snackbar('تم الرفض', 'تم إشعار الإدارة برفض التعديل للمراجعة');
+                      } catch (e) {
+                        Get.snackbar('تعذر الإرسال', '$e');
+                      }
+                    },
+                    icon: const Icon(Icons.close, size: 16),
+                    label: const Text('أرفض / راجعني', style: TextStyle(fontSize: 11.5)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+
   Widget _header(Order o) {
     final c = Color(o.status.colorValue);
     return Card(
@@ -550,6 +626,20 @@ class OrderDetailScreen extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (it.isNonRefundable)
+                    Container(
+                      margin: const EdgeInsets.only(left: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: T.warning.withOpacity(.14),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: T.warning.withOpacity(.5)),
+                      ),
+                      child: Text(
+                        'غير قابل للاسترداد',
+                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: T.warning),
+                      ),
+                    ),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
@@ -595,6 +685,13 @@ class OrderDetailScreen extends StatelessWidget {
                   color: AppColors.danger),
             ],
           ),
+          if (o.isDeferred && o.currency != AppCurrency.sar) ...[
+            const SizedBox(height: 8),
+            Text(
+              'الطلب الآجل مثبّت بسعر الصرف يوم الطلب (1 ر.س = ${o.exchangeRate.toStringAsFixed(0)})',
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: T.muted),
+            ),
+          ],
           if (!o.hasRemaining) ...[
             const SizedBox(height: 10),
             Row(

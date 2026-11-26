@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../core/controllers/orders_controller.dart';
 import '../../core/models/currency.dart';
 import '../../core/models/order.dart';
+import '../../core/widgets/order_stage_bar.dart';
 import '../../core/services/order_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/services/auth_service.dart';
@@ -172,6 +173,13 @@ class MyOrdersScreen extends GetView<OrdersController> {
                       ],
                     ),
                   ],
+                ),
+                const SizedBox(height: 10),
+                OrderStageBar(
+                  status: o.status,
+                  whatsappSent: o.hasWhatsAppSent,
+                  compact: true,
+                  stageHint: o.stageHintAr,
                 ),
                 const SizedBox(height: 10),
                 Row(

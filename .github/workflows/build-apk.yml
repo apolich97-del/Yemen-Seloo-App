@@ -450,6 +450,8 @@ jobs:
 
       - name: Flutter pub get
         run: flutter pub get
+      - name: Flutter analyze
+        run: flutter analyze --no-fatal-infos
 
       - name: ⭐ توليد أيقونة التطبيق
         run: dart run flutter_launcher_icons

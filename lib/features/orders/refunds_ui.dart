@@ -464,12 +464,24 @@ Future<void> showCreateRefundDialog(Order order) async {
                     child: Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            '${it.title} · ${it.unitPriceSar.toStringAsFixed(2)} ر.س',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style:
-                                TextStyle(fontSize: 10.5, color: T.text),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${it.title} · ${it.unitPriceSar.toStringAsFixed(2)} ر.س',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 10.5, color: T.text),
+                              ),
+                              if (it.isNonRefundable)
+                                Text(
+                                  '⚠ غير قابل للاسترداد (${it.effectiveNonRefundableReason}) — مسموح فقط لنفاد المخزون/التلف',
+                                  style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w800,
+                                      color: T.warning),
+                                ),
+                            ],
                           ),
                         ),
                         IconButton(
@@ -493,7 +505,8 @@ Future<void> showCreateRefundDialog(Order order) async {
                         IconButton(
                           icon: const Icon(Icons.add_circle_outline,
                               size: 16),
-                          onPressed: qty >= it.qty
+                          onPressed: (qty >= it.qty ||
+                                  (it.isNonRefundable && reason == 'other'))
                               ? null
                               : () => setLocal(
                                   () => selected[i] = qty + 1),

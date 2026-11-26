@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../core/services/settings_service.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../cart/application/cart_counter.dart';
 import '../../cart/data/seloo_cart_service.dart';
 import '../../cart/domain/cart_item.dart';
 import '../data/catalog_models.dart';
@@ -201,9 +202,12 @@ class _StoreTabState extends State<StoreTab> {
   }
 
   Widget _card(CatalogItem it) {
-    final price = it.priceIn(_region,
-        rateSouth: _rateSouth, rateNorth: _rateNorth);
-    final cur = it.currencyLabel(_region);
+    return Obx(() {
+      final s = _settings?.settings.value;
+      final rSouth = s?.rateSouth ?? 413;
+      final rNorth = s?.rateNorth ?? 140;
+      final price = it.priceIn(_region, rateSouth: rSouth, rateNorth: rNorth);
+      final cur = it.currencyLabel(_region);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -259,6 +263,21 @@ class _StoreTabState extends State<StoreTab> {
                         fontSize: 15,
                         fontWeight: FontWeight.w900,
                         color: T.primary)),
+                if (it.isNonRefundable) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: T.warning.withOpacity(.14),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: T.warning.withOpacity(.45)),
+                    ),
+                    child: Text(
+                      'غير قابل للاسترداد · ${it.effectiveNonRefundableReason}',
+                      style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: T.warning),
+                    ),
+                  ),
+                ],
                 if (it.colors.isNotEmpty || it.sizes.isNotEmpty) ...[
                   const SizedBox(height: 6),
                   Wrap(
@@ -306,9 +325,60 @@ class _StoreTabState extends State<StoreTab> {
         ],
       ),
     );
+    });
   }
 
   Future<void> _addToCart(CatalogItem it, double price, String cur) async {
+    var chosenColor = it.colors.isNotEmpty ? it.colors.first.trim() : '';
+    var chosenSize = it.sizes.isNotEmpty ? it.sizes.first.trim() : '';
+    if (it.colors.length > 1 || it.sizes.length > 1) {
+      final ok = await Get.dialog<bool>(
+        AlertDialog(
+          title: const Text('اختر المواصفات', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
+          content: StatefulBuilder(
+            builder: (ctx, setLocal) => Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (it.colors.isNotEmpty) ...[
+                  const Text('اللون:', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: it.colors.map((c) => ChoiceChip(
+                      label: Text(c, style: const TextStyle(fontSize: 11)),
+                      selected: chosenColor == c.trim(),
+                      onSelected: (_) => setLocal(() => chosenColor = c.trim()),
+                    )).toList(),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                if (it.sizes.isNotEmpty) ...[
+                  const Text('المقاس:', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: it.sizes.map((sz) => ChoiceChip(
+                      label: Text(sz, style: const TextStyle(fontSize: 11)),
+                      selected: chosenSize == sz.trim(),
+                      onSelected: (_) => setLocal(() => chosenSize = sz.trim()),
+                    )).toList(),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Get.back(result: false), child: const Text('إلغاء')),
+            ElevatedButton(onPressed: () => Get.back(result: true), child: const Text('إضافة للسلة')),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
+
     final items = _cart.loadItems();
     final rate = _region == 'south'
         ? _rateSouth
@@ -325,12 +395,17 @@ class _StoreTabState extends State<StoreTab> {
       sourceCurrency: 'SAR',
       exchangeRate: rate,
       quantity: 1,
-      color: it.colors.isNotEmpty ? it.colors.first : '',
-      size: it.sizes.isNotEmpty ? it.sizes.first : '',
+      color: chosenColor,
+      size: chosenSize,
       sourceStore: 'يمن سيلو',
+      nonRefundable: it.isNonRefundable,
+      nonRefundableReason: it.effectiveNonRefundableReason,
     ));
     await _cart.saveItems(items);
-    Get.snackbar('أُضيفت للسلة', '${it.title} · ${price.toStringAsFixed(0)} $cur');
+    if (Get.isRegistered<CartCounter>()) {
+      await Get.find<CartCounter>().onItemAdded();
+    }
+    Get.snackbar('أُضيفت للسلة ✓', '${it.title} · ${price.toStringAsFixed(0)} $cur');
   }
 }
 

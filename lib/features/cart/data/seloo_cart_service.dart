@@ -1,12 +1,20 @@
 import 'dart:math';
 
+import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import '../../../core/models/app_settings.dart';
+import '../../../core/services/refund_policy.dart';
+import '../../../core/services/settings_service.dart';
 
 import '../../../core/config/seloo_config.dart';
 import '../../shein/domain/shein_draft.dart';
 import '../domain/cart_item.dart';
 
 class SelooCartService {
+  AppSettings _liveSettings() => Get.isRegistered<SettingsService>()
+      ? Get.find<SettingsService>().settings.value
+      : const AppSettings();
+
   final GetStorage _box = GetStorage();
 
   static const String _cartKey = 'seloo_cart_items';
@@ -118,7 +126,9 @@ class SelooCartService {
             sourceUrl: draft.productUrl,
             sourcePrice: draft.sourcePrice,
             sourceCurrency: draft.sourceCurrency,
-            exchangeRate: SelooPricing.northRate,
+            exchangeRate: _liveSettings().rateNorth,
+            nonRefundable: SelooRefundPolicy.detectNonRefundable(draft.title),
+            nonRefundableReason: SelooRefundPolicy.reasonFor(draft.title),
             quantity: draft.quantity,
             color: draft.color,
             size: draft.size,
@@ -207,9 +217,10 @@ class SelooCartService {
   }
 
   CartQuote calculateQuote(List<CartItem> items, String region) {
-    double exchangeRate = SelooPricing.northRate;
-    if (region == 'south') exchangeRate = SelooPricing.southRate;
-    if (region == 'saudi') exchangeRate = SelooPricing.saudiRate;
+    final s = _liveSettings();
+    double exchangeRate = s.rateNorth;
+    if (region == 'south') exchangeRate = s.rateSouth;
+    if (region == 'saudi' || region == 'sar') exchangeRate = 1.0;
 
     double itemsSubtotalSar = 0;
     int totalQuantity = 0;
@@ -221,11 +232,11 @@ class SelooCartService {
     }
 
     double shippingSar = 0;
-    if (itemsSubtotalSar < SelooPricing.freeShippingThresholdSar) {
-      shippingSar = totalQuantity * SelooPricing.shippingPerPieceSar;
+    if (itemsSubtotalSar < s.freeShippingThresholdSar) {
+      shippingSar = totalQuantity * s.shippingPerPieceSar;
     }
 
-    final double serviceFeeSar = SelooPricing.serviceFeeSar;
+    final double serviceFeeSar = s.serviceFeeSar;
     const double deliveryLocalSar = 0.0;
 
     final double itemsSubtotalLocal = itemsSubtotalSar * exchangeRate;

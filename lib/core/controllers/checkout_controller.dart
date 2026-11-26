@@ -96,6 +96,8 @@ class CheckoutController extends GetxController {
         'meetPoint': meetPointCtrl.text.trim(),
       };
 
+  Worker? _settingsWorker;
+
   @override
   void onInit() {
     super.onInit();
@@ -111,11 +113,13 @@ class CheckoutController extends GetxController {
     _settings.displayCurrency.value = currency.value;
     _loadAddress();
     _loadCustomerDeferredUsage();
+    _settingsWorker = ever(_settings.settings, (_) => recompute());
     recompute();
   }
 
   @override
   void onClose() {
+    _settingsWorker?.dispose();
     couponCtrl.dispose();
     super.onClose();
   }

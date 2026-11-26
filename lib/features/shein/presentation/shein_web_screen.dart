@@ -1,14 +1,20 @@
 import 'dart:collection';
 import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import '../../../core/config/seloo_config.dart';
+import '../../../core/services/auth_service.dart';
+import '../../../core/services/refund_policy.dart';
 import '../../cart/application/cart_counter.dart';
+import '../../catalog/data/catalog_models.dart';
+import '../../catalog/presentation/catalog_studio_tab.dart';
 import '../../home/presentation/main_tab_controller.dart';
 import '../data/shein_link_resolver.dart';
+import '../data/shein_product_scraper.dart';
 import 'shein_bridge_controller.dart';
 
 class SheinWebScreen extends StatefulWidget {
@@ -269,13 +275,140 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
     });
   }
 
+  bool get _canPublishToCatalog {
+    try {
+      if (!Get.isRegistered<AuthService>()) return false;
+      final auth = Get.find<AuthService>();
+      return auth.isMainManager ||
+          auth.role == 'marketer' ||
+          auth.role == 'manager';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _quickPublishCurrentProduct() async {
+    final c = _webViewController;
+    if (c == null) return;
+    Map<String, dynamic>? rawMap;
+    try {
+      final Object? res = await c.evaluateJavascript(
+        source:
+            'window.__selooReadCurrentProduct ? window.__selooReadCurrentProduct() : null',
+      );
+      if (res is Map) {
+        rawMap = Map<String, dynamic>.from(res);
+      }
+    } catch (_) {}
+
+    final String currentUrl = (await c.getUrl())?.toString() ?? '';
+    String goodsId = '${rawMap?['goodsId'] ?? ''}'.trim();
+    if (goodsId.isEmpty) {
+      goodsId = CatalogItem.extractGoodsId(currentUrl);
+    }
+
+    String title = '${rawMap?['title'] ?? ''}'.trim();
+    String imageUrl = '${rawMap?['imageUrl'] ?? ''}'.trim();
+    double priceSar =
+        double.tryParse('${rawMap?['sourcePrice'] ?? ''}') ?? 0.0;
+    String sourceUrl =
+        '${rawMap?['productUrl'] ?? currentUrl}'.trim();
+    List<String> colors = ((rawMap?['colors'] as List?) ?? const [])
+        .map((e) => '$e'.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    List<String> sizes = ((rawMap?['sizes'] as List?) ?? const [])
+        .map((e) => '$e'.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+
+    final String singleColor = '${rawMap?['color'] ?? ''}'.trim();
+    final String singleSize = '${rawMap?['size'] ?? ''}'.trim();
+    if (colors.isEmpty && singleColor.isNotEmpty) colors.add(singleColor);
+    if (sizes.isEmpty && singleSize.isNotEmpty) sizes.add(singleSize);
+
+    if (goodsId.isEmpty || (priceSar <= 0.05 && title.isEmpty)) {
+      if (currentUrl.isNotEmpty) {
+        final scraped = await SheinProductScraper.fetchFromInput(currentUrl);
+        if (scraped != null) {
+          if (goodsId.isEmpty) goodsId = scraped.goodsId;
+          if (title.isEmpty) title = scraped.title;
+          if (imageUrl.isEmpty) imageUrl = scraped.imageUrl;
+          if (priceSar <= 0.05) priceSar = scraped.priceSar;
+          if (sourceUrl.isEmpty) sourceUrl = scraped.productUrl;
+          if (colors.isEmpty) colors = scraped.colors;
+          if (sizes.isEmpty) sizes = scraped.sizes;
+        }
+      }
+    }
+
+    if (goodsId.isEmpty) {
+      Get.snackbar(
+        'افتح صفحة منتج أولاً',
+        'ادخل إلى صفحة المنتج داخل شي إن ثم اضغط نشر للكتالوج',
+      );
+      return;
+    }
+
+    final draft = CatalogItem(
+      id: '',
+      title: title,
+      goodsId: goodsId,
+      sourceUrl: sourceUrl.isEmpty
+          ? 'https://ar.shein.com/-p-$goodsId.html'
+          : sourceUrl,
+      imageUrl: imageUrl,
+      category: 'نساء',
+      colors: colors,
+      sizes: sizes,
+      basePriceSar: priceSar > 0.05 ? priceSar : 0,
+      marginSar: 0,
+      region: 'south',
+      badge: 'new',
+      active: true,
+      nonRefundable: SelooRefundPolicy.detectNonRefundable(title, ''),
+    );
+
+    // تخزين مؤقت خفيف لبيانات المنتج المستخرجة لتسريع إعادة القراءة مستقبلاً
+    try {
+      await FirebaseFirestore.instance
+          .collection('shein_cache')
+          .doc(goodsId)
+          .set(<String, dynamic>{
+        'goodsId': goodsId,
+        'title': draft.title,
+        'imageUrl': draft.imageUrl,
+        'priceSar': draft.basePriceSar,
+        'sourceUrl': draft.sourceUrl,
+        'colors': draft.colors,
+        'sizes': draft.sizes,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {}
+
+    await openQuickCatalogPublish(prefill: draft);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: _isCrawling ? const Color(0xFF10B981) : const Color(0xFF7C3AED),
-        title: Text(_isCrawling ? 'جاري الاستيراد ($_currentCrawlIndex/$_totalCrawlItems)' : 'استيراد السلة', style: const TextStyle(fontSize: 16)),
+        title: Text(_isCrawling ? 'جاري الاستيراد ($_currentCrawlIndex/$_totalCrawlItems)' : 'تصفح SHEIN', style: const TextStyle(fontSize: 16)),
         actions: <Widget>[
+          if (_canPublishToCatalog && !_isCrawling)
+            TextButton.icon(
+              onPressed: _quickPublishCurrentProduct,
+              icon: const Icon(Icons.publish_outlined,
+                  color: Colors.white, size: 18),
+              label: const Text(
+                'نشر للكتالوج',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800),
+              ),
+            ),
           IconButton(
             tooltip: 'تحديث الصفحة',
             icon: const Icon(Icons.refresh),

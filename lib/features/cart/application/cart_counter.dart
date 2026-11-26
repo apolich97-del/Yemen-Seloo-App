@@ -1,7 +1,9 @@
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/config/seloo_config.dart';
+import '../../../core/services/settings_service.dart';
 import '../../shein/domain/shein_draft.dart';
 import '../data/seloo_cart_service.dart';
 import '../domain/cart_item.dart';
@@ -56,6 +58,8 @@ class CartCounter extends GetxService {
       deliveryLocal: old.deliveryLocal,
       sku: old.sku,
       variantId: old.variantId,
+      nonRefundable: old.nonRefundable,
+      nonRefundableReason: old.nonRefundableReason,
     );
     await _service.saveItems(list);
     items.assignAll(list);
@@ -106,16 +110,22 @@ class CartCounter extends GetxService {
 
   /// سعر الصرف الحالي حسب المنطقة
   double get _exchangeRate {
+    final s = Get.isRegistered<SettingsService>()
+        ? Get.find<SettingsService>().settings.value
+        : null;
     switch (region.value) {
       case 'south':
-        return SelooPricing.southRate;
+        return s?.rateSouth ?? SelooPricing.southRate;
       case 'saudi':
-        return SelooPricing.saudiRate;
+      case 'sar':
+        return 1.0;
       case 'north':
       default:
-        return SelooPricing.northRate;
+        return s?.rateNorth ?? SelooPricing.northRate;
     }
   }
+
+  Worker? _settingsWorker;
 
   @override
   void onInit() {
@@ -123,8 +133,74 @@ class CartCounter extends GetxService {
     _loadRegion();
     _loadFromStorage();
     _loadLastCommission();
+    if (Get.isRegistered<SettingsService>()) {
+      _settingsWorker = ever(Get.find<SettingsService>().settings, (_) {
+        applyRegionRate();
+        refreshQuote();
+      });
+    }
     // إعادة حساب الإجمالي بعد استرجاع السلة من التخزين
     refreshQuote();
+  }
+
+  @override
+  void onClose() {
+    _settingsWorker?.dispose();
+    super.onClose();
+  }
+
+  /// مزامنة أسعار وتوفر قطع السلة الموجودة في كتالوج يمن سيلو.
+  Future<int> syncCartWithCatalog() async {
+    if (items.isEmpty) return 0;
+    try {
+      final snap = await FirebaseFirestore.instance.collection('catalog').get();
+      if (snap.docs.isEmpty) return 0;
+      final byGoodsId = <String, Map<String, dynamic>>{};
+      for (final d in snap.docs) {
+        final m = d.data();
+        final gid = (m['goodsId'] ?? '').toString().trim();
+        if (gid.isNotEmpty) byGoodsId[gid] = m;
+        byGoodsId[d.id] = m;
+      }
+      int changes = 0;
+      final updated = <CartItem>[];
+      for (final item in items) {
+        final match = byGoodsId[item.goodsId.trim()];
+        if (match == null) {
+          updated.add(item);
+          continue;
+        }
+        final active = (match['active'] ?? true) as bool;
+        if (!active && item.sourceStore == 'يمن سيلو') {
+          changes++;
+          continue; // استبعاد غير المتوفر من الكتالوج
+        }
+        final base = ((match['basePriceSar'] as num?) ?? 0).toDouble();
+        final margin = ((match['marginSar'] as num?) ?? 0).toDouble();
+        final newSar = base + margin;
+        final nr = (match['nonRefundable'] as bool?) ?? item.nonRefundable;
+        final nrReason = (match['nonRefundableReason'] ?? item.nonRefundableReason).toString();
+        if (item.sourceStore == 'يمن سيلو' && newSar > 0 &&
+            ((newSar - item.sourcePrice).abs() > 0.01 || nr != item.nonRefundable)) {
+          updated.add(item.copyWith(
+            sourcePrice: newSar,
+            nonRefundable: nr,
+            nonRefundableReason: nrReason,
+          ));
+          changes++;
+        } else {
+          updated.add(item);
+        }
+      }
+      if (changes > 0) {
+        await _service.saveItems(updated);
+        items.assignAll(updated);
+        await refreshQuote();
+      }
+      return changes;
+    } catch (_) {
+      return 0;
+    }
   }
 
   void _loadFromStorage() {

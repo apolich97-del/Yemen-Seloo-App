@@ -11,7 +11,8 @@ import 'main_tab_controller.dart';
 import 'orders_tab.dart';
 import 'support_tab.dart';
 import '../../cart/presentation/cart_screen.dart';
-import '../../catalog/presentation/store_hub.dart';
+import '../../catalog/presentation/store_tab.dart';
+import '../../shein/presentation/shein_web_screen.dart';
 import '../../../core/theme/app_theme.dart';
 
 const Color _purple = Color(0xFF7C3AED);
@@ -29,8 +30,9 @@ class _MainShellState extends State<MainShell> {
 
   static const List<String> _titles = <String>[
     'الرئيسية',
+    'كتالوج يمن سيلو',
     'تصفح SHEIN',
-    'سلة التسوق',
+    'السلة',
     'طلباتي',
     'الدعم',
   ];
@@ -45,6 +47,10 @@ class _MainShellState extends State<MainShell> {
             'من هنا تبدأ رحلتك: عروض مختارة، حالة آخر طلب، وروابط سريعة للسلة والدعم.');
         break;
       case 1:
+        guideForPage(c, 'page_catalog', 'كتالوج يمن سيلو',
+            'منتجات مختارة ومُسعّرة تلقائياً حسب منطقتك — اختر المقاس واللون وأضف للسلة بضغطة واحدة.');
+        break;
+      case 2:
         guideForPage(c, 'page_shein', 'تصفح SHEIN',
             'كل منتج تفتحه هنا يُضاف إلى سلة يمن سيلو مع سعره بالريال السعودي.',
             steps: <String>[
@@ -53,22 +59,22 @@ class _MainShellState extends State<MainShell> {
               'يمكنك تعديل المقاس أو الكمية قبل الطلب.',
             ]);
         break;
-      case 2:
+      case 3:
         guideForPage(c, 'page_cart', 'سلة التسوق',
-            'السلة تجمع منتجات شي إن والمنتجات المستوردة من الروابط، مع حساب الشحن والرسوم.',
+            'السلة تجمع منتجات شي إن وكتالوج يمن سيلو، مع حساب الشحن والرسوم.',
             steps: <String>[
               'راجع الكميات والأسعار.',
               'اضغط «نسخ رابط السلة» لمشاركة السلة كاملة.',
               'أكمل الطلب لعرض ملخص الطلب وطريقة السداد.',
             ]);
         break;
-      case 3:
+      case 4:
         guideForPage(c, 'page_orders', 'طلباتي',
             'تابع كل طلب بمراحله الست، واعرف المدفوع والمتبقي ورقم التتبع.');
         break;
-      case 4:
+      case 5:
         guideForPage(c, 'page_support', 'الدعم',
-            'دليل إرشادي قابل للبحث، ومساعد ذكي يجيب من بيانات طلبك ثم يحوّلك لموظف.');
+            'دليل إرشادي قابل للبحث ومساعد طلبات يجيب من بيانات طلبك ثم يحوّلك لموظف.');
         break;
     }
   }
@@ -231,7 +237,8 @@ class _MainShellState extends State<MainShell> {
               index: _tabCtrl.index.value,
               children: const <Widget>[
                 HomeTab(),
-                const StoreHub(),
+                StoreTab(),
+                SheinWebScreen(),
                 CartScreen(),
                 OrdersTab(),
                 SupportTab(),
@@ -248,7 +255,7 @@ class _MainShellState extends State<MainShell> {
                 onTap: (int i) {
                   _tabCtrl.goTo(i);
                   // ⭐ فتح تبويب السلة يعيد قراءتها من التخزين فوراً
-                  if (i == 2) _cart.onItemAdded();
+                  if (i == 3) _cart.onItemAdded();
                   _guideTab(i);
                 },
                 type: BottomNavigationBarType.fixed,
@@ -256,8 +263,8 @@ class _MainShellState extends State<MainShell> {
                 elevation: 0,
                 selectedItemColor: T.primary,
                 unselectedItemColor: T.muted,
-                selectedFontSize: 11,
-                unselectedFontSize: 11,
+                selectedFontSize: 10,
+                unselectedFontSize: 9.5,
                 items: <BottomNavigationBarItem>[
                   const BottomNavigationBarItem(
                     icon: Icon(Icons.home_outlined),
@@ -267,7 +274,12 @@ class _MainShellState extends State<MainShell> {
                   const BottomNavigationBarItem(
                     icon: Icon(Icons.storefront_outlined),
                     activeIcon: Icon(Icons.storefront),
-                    label: 'المتجر',
+                    label: 'الكتالوج',
+                  ),
+                  const BottomNavigationBarItem(
+                    icon: Icon(Icons.language_outlined),
+                    activeIcon: Icon(Icons.language),
+                    label: 'SHEIN',
                   ),
                   BottomNavigationBarItem(
                     icon: Stack(
