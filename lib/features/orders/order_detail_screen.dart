@@ -679,7 +679,12 @@ class OrderDetailScreen extends StatelessWidget {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(11),
-                    child: Image.network(o.customerSignatureUrl, fit: BoxFit.contain),
+                    child: o.customerSignatureUrl.startsWith('data:')
+                        ? Image.memory(
+                            base64Decode(o.customerSignatureUrl.substring(o.customerSignatureUrl.indexOf(',') + 1)),
+                            fit: BoxFit.contain,
+                          )
+                        : Image.network(o.customerSignatureUrl, fit: BoxFit.contain),
                   ),
                 ),
               ],

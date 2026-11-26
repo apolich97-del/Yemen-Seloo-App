@@ -120,7 +120,7 @@ service cloud.firestore {
       allow update: if auth() && resource.data.userId == me()
         && resource.data.status in ['shipped', 'outForDelivery']
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['customerSignatureUrl', 'signedAt', 'signedByUid', 'signedByName', 'deliverySigned', 'status', 'timeline', 'updatedAt'])
+             .hasOnly(['customerSignatureUrl', 'signedAt', 'signedByUid', 'signedByName', 'deliverySigned', 'deliveryPinVerified', 'shippingStage', 'status', 'timeline', 'updatedAt'])
         && request.resource.data.customerSignatureUrl is string
         && request.resource.data.customerSignatureUrl.size() > 0;
       // تحديث بيانات حساب الاسترداد
@@ -148,7 +148,7 @@ service cloud.firestore {
       allow update: if roleOf() == 'support'
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['priceSyncStatus', 'priceSyncNote', 'proposedItems', 'proposedSubtotalSar',
-                       'proposedTotalSar', 'proposedTotalLocal', 'replacementStatus', 'replacementAlert',
+                       'proposedTotalSar', 'proposedTotalLocal', 'replacementStatus', 'replacementAlert', 'replacementProposal',
                        'items', 'refunds', 'supportNotes', 'timeline', 'updatedAt']);
 
       allow delete: if isManager();

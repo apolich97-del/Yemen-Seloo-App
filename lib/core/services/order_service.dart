@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
@@ -806,8 +807,12 @@ class OrderService extends GetxService {
     } catch (_) {
       sigUrl = '';
     }
+    // خطة Spark المجانية بدون Storage: حفظ التوقيع مباشرة بصيغة base64 مضغوطة
+    if (sigUrl.isEmpty && pngBytes.isNotEmpty && pngBytes.length <= 450 * 1024) {
+      sigUrl = 'data:image/png;base64,${base64Encode(pngBytes)}';
+    }
     if (sigUrl.isEmpty) {
-      throw 'تعذر رفع صورة التوقيع — تحقق من الاتصال وصلاحية التخزين';
+      throw 'تعذر حفظ صورة التوقيع — الصورة كبيرة جداً';
     }
     final pinOk = order.deliveryPin.isEmpty ||
         enteredPin.trim().isEmpty ||

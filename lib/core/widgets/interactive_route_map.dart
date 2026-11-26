@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/order.dart';
@@ -194,7 +196,12 @@ class _InteractiveRouteMapState extends State<InteractiveRouteMap> {
                                 ],
                               ),
                               InteractiveViewer(
-                                child: Image.network(o.trackingImageUrl, fit: BoxFit.contain),
+                                child: o.trackingImageUrl.startsWith('data:')
+                                    ? Image.memory(
+                                        base64Decode(o.trackingImageUrl.substring(o.trackingImageUrl.indexOf(',') + 1)),
+                                        fit: BoxFit.contain,
+                                      )
+                                    : Image.network(o.trackingImageUrl, fit: BoxFit.contain),
                               ),
                             ],
                           ),

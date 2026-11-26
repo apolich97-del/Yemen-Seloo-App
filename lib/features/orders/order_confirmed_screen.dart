@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -123,13 +124,22 @@ class _OrderConfirmedScreenState extends State<OrderConfirmedScreen> {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid ?? 'guest';
       final bytes = await png.readAsBytes();
-      final ref = FirebaseStorage.instance
-          .ref('order_summaries/$uid/${widget.orderId}_${DateTime.now().millisecondsSinceEpoch}.png');
-      await ref.putData(bytes, SettableMetadata(contentType: 'image/png'));
-      final url = await ref.getDownloadURL();
-      await FirebaseFirestore.instance.collection('orders').doc(widget.orderId).set({
-        'orderSummaryImageUrl': url,
-      }, SetOptions(merge: true));
+      String url = '';
+      try {
+        final ref = FirebaseStorage.instance
+            .ref('order_summaries/$uid/${widget.orderId}_${DateTime.now().millisecondsSinceEpoch}.png');
+        await ref.putData(bytes, SettableMetadata(contentType: 'image/png'));
+        url = await ref.getDownloadURL();
+      } catch (_) {
+        if (bytes.length <= 400 * 1024) {
+          url = 'data:image/png;base64,${base64Encode(bytes)}';
+        }
+      }
+      if (url.isNotEmpty) {
+        await FirebaseFirestore.instance.collection('orders').doc(widget.orderId).set({
+          'orderSummaryImageUrl': url,
+        }, SetOptions(merge: true));
+      }
     } catch (_) {}
   }
 

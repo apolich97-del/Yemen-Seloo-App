@@ -303,13 +303,24 @@ class ShippingTab extends StatelessWidget {
                             try {
                               final bytes = await x.readAsBytes();
                               final ext = x.path.toLowerCase().endsWith('.png') ? 'png' : 'jpg';
-                              final ref = FirebaseStorage.instance
-                                  .ref('tracking/${o.id}/trk_${DateTime.now().millisecondsSinceEpoch}.$ext');
-                              await ref.putData(bytes, SettableMetadata(contentType: 'image/$ext'));
-                              final url = await ref.getDownloadURL();
-                              setLocal(() => trackingImageUrl = url);
+                              String url = '';
+                              try {
+                                final ref = FirebaseStorage.instance
+                                    .ref('tracking/${o.id}/trk_${DateTime.now().millisecondsSinceEpoch}.$ext');
+                                await ref.putData(bytes, SettableMetadata(contentType: 'image/$ext'));
+                                url = await ref.getDownloadURL();
+                              } catch (_) {
+                                if (bytes.length <= 450 * 1024) {
+                                  url = 'data:image/${ext == 'png' ? 'png' : 'jpeg'};base64,${base64Encode(bytes)}';
+                                }
+                              }
+                              if (url.isNotEmpty) {
+                                setLocal(() => trackingImageUrl = url);
+                              } else {
+                                Get.snackbar('الصورة كبيرة', 'اختر صورة أصغر لحفظها في التتبع');
+                              }
                             } catch (e) {
-                              Get.snackbar('تعذر رفع الصورة', '$e');
+                              Get.snackbar('تعذر معالجة الصورة', '$e');
                             } finally {
                               setLocal(() => uploading = false);
                             }

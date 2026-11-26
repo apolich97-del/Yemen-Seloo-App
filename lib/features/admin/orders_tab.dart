@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart' show FirebaseFirestore;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
