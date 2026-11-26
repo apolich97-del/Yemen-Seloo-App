@@ -24,6 +24,10 @@ import '../../features/guide/interactive_guide.dart';
 import '../theme/theme_controller.dart';
 import '../services/pricing_service.dart';
 import '../services/settings_service.dart';
+import '../services/notification_service.dart';
+import '../services/audit_service.dart';
+import '../services/saved_accounts_service.dart';
+import '../../features/notifications/notifications_screen.dart';
 import '../services/push_service.dart';
 
 class AppRoutes {
@@ -38,13 +42,17 @@ class AppRoutes {
   static const login = '/login';
   static const myReceipts = '/my-receipts';
   static const admin = '/admin';
+  static const notifications = '/notifications';
 }
 
 class InitialBinding extends Bindings {
   @override
   void dependencies() {
     Get.put<CartRepository>(CartRepository(), permanent: true);
-    Get.put<SettingsService>(SettingsService(), permanent: true);
+    if (!Get.isRegistered<SavedAccountsService>()) Get.put<SavedAccountsService>(SavedAccountsService(), permanent: true);
+    if (!Get.isRegistered<SettingsService>()) Get.put<SettingsService>(SettingsService(), permanent: true);
+    if (!Get.isRegistered<NotificationService>()) Get.put<NotificationService>(NotificationService(), permanent: true);
+    if (!Get.isRegistered<AuditService>()) Get.put<AuditService>(AuditService(), permanent: true);
     Get.put<PricingService>(PricingService(), permanent: true);
     Get.put<AuthService>(AuthService(), permanent: true);
     Get.put<OrderService>(OrderService(), permanent: true);
@@ -91,5 +99,6 @@ class AppPages {
       page: () => const MyReceiptsScreen(),
     ),
     GetPage(name: AppRoutes.admin, page: () => const AdminShell()),
+    GetPage(name: AppRoutes.notifications, page: () => const NotificationsScreen()),
   ];
 }

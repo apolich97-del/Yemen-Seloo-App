@@ -221,6 +221,7 @@ class SelooCartService {
     double exchangeRate = s.rateNorth;
     if (region == 'south') exchangeRate = s.rateSouth;
     if (region == 'saudi' || region == 'sar') exchangeRate = 1.0;
+    if (region == 'usd') exchangeRate = 1.0 / (s.sarPerUsd > 0 ? s.sarPerUsd : 3.75);
 
     double itemsSubtotalSar = 0;
     int totalQuantity = 0;

@@ -1,4 +1,7 @@
+import 'dart:math';
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 
@@ -6,7 +9,10 @@ import '../models/app_settings.dart';
 import '../models/cart.dart';
 import '../models/currency.dart';
 import '../models/order.dart';
+import 'audit_service.dart';
+import 'notification_service.dart';
 import 'pricing_service.dart';
+import 'settings_service.dart';
 
 /// مرجع الطلب المُرسل: معرّف المستند + رقم الطلب الفريد (YS...).
 class SubmittedOrderRef {
@@ -153,6 +159,12 @@ class OrderService extends GetxService {
       'customerPhone': address.phone,
       'currency': currency.key,
       'exchangeRate': e.rate,
+      'usdRateNorth': Get.isRegistered<SettingsService>() ? Get.find<SettingsService>().usdRateNorth : 533.0,
+      'usdRateSouth': Get.isRegistered<SettingsService>() ? Get.find<SettingsService>().usdRateSouth : 1570.0,
+      'sarPerUsd': Get.isRegistered<SettingsService>() ? Get.find<SettingsService>().settings.value.sarPerUsd : kDefaultSarPerUsd,
+      'shippingStage': 'preparing',
+      'deliveryPin': (1000 + Random.secure().nextInt(9000)).toString(),
+      'deliverySigned': false,
       'items': lines.map((l) => {
             'goodsId': l.goodsId,
             'sku': l.variantKey,
@@ -226,6 +238,17 @@ class OrderService extends GetxService {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (_) {}
+    if (Get.isRegistered<NotificationService>()) {
+      await Get.find<NotificationService>().pushUserNotification(
+        targetUid: _uid,
+        title: 'تم استلام طلبك $orderNo',
+        body: payment != null
+            ? 'وصلت بيانات الحوالة وتُراجع الآن من المحاسبة.'
+            : 'أرسل استمارة الطلب عبر واتساب ليتم اعتماده من الإدارة.',
+        type: 'order',
+        orderId: ref.id,
+      );
+    }
     return SubmittedOrderRef(ref.id, orderNo);
   }
 
@@ -468,6 +491,378 @@ class OrderService extends GetxService {
   Future<Order?> fetchOrder(String id) async {
     final d = await _db.collection('orders').doc(id).get();
     return d.exists ? Order.fromDoc(d.id, d.data() as Map<String, dynamic>) : null;
+  }
+
+  /// تحديث مرحلة الشحن المفصلة (الصين ← الإمارات ← السعودية ← اليمن) + رابط/صورة التتبع + إشعار العميل.
+  Future<void> updateShippingMilestone({
+    required Order order,
+    required ShippingMilestone milestone,
+    String note = '',
+    String trackingNo = '',
+    String trackingUrl = '',
+    String trackingImageUrl = '',
+    String courierName = '',
+    String courierPhone = '',
+  }) async {
+    final mapped = milestone.mappedOrderStatus;
+    final r = _db.collection('orders').doc(order.id);
+    await r.update({
+      'shippingStage': milestone.key,
+      'shippingStageNote': note.trim(),
+      'shippingStageUpdatedAt': FieldValue.serverTimestamp(),
+      'status': mapped.key,
+      if (trackingNo.trim().isNotEmpty) 'trackingNo': trackingNo.trim(),
+      if (trackingUrl.trim().isNotEmpty) 'trackingUrl': trackingUrl.trim(),
+      if (trackingImageUrl.trim().isNotEmpty) 'trackingImageUrl': trackingImageUrl.trim(),
+      if (courierName.trim().isNotEmpty) 'courierName': courierName.trim(),
+      if (courierPhone.trim().isNotEmpty) 'courierPhone': courierPhone.trim(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    final eventNote = [
+      '${milestone.emoji} ${milestone.labelAr}',
+      if (trackingNo.trim().isNotEmpty) 'تتبع: ${trackingNo.trim()}',
+      if (note.trim().isNotEmpty) note.trim(),
+    ].join(' · ');
+    await r.collection('events').add({
+      'status': mapped.key,
+      'at': Timestamp.now(),
+      'byName': _email.isNotEmpty ? _email : 'مسؤول الشحن',
+      'note': eventNote,
+    });
+    if (Get.isRegistered<NotificationService>()) {
+      await Get.find<NotificationService>().pushUserNotification(
+        targetUid: order.userId,
+        title: 'تحديث شحنة الطلب ${order.orderNo}',
+        body: eventNote,
+        type: 'shipping',
+        orderId: order.id,
+      );
+    }
+  }
+
+  /// تنبيه العميل بنفاد قطعة من الطلب (نفس اليوم أو بعد 24 ساعة) وطلب إرسال بديل.
+  Future<void> requestItemReplacement({
+    required Order order,
+    required int itemIndex,
+    required String reason,
+  }) async {
+    if (itemIndex < 0 || itemIndex >= order.items.length) {
+      throw 'رقم القطعة غير صالح';
+    }
+    final target = order.items[itemIndex];
+    final updatedItems = <OrderItem>[
+      for (int i = 0; i < order.items.length; i++)
+        i == itemIndex ? order.items[i].copyWith(stockStatus: 'out_of_stock') : order.items[i],
+    ];
+    final proposal = {
+      'targetIndex': itemIndex,
+      'oldTitle': target.title,
+      'oldGoodsId': target.goodsId,
+      'oldQty': target.qty,
+      'oldUnitPriceSar': target.unitPriceSar,
+      'oldTotalSar': target.lineTotalSar,
+      'reason': reason.trim().isEmpty ? 'نفدت القطعة من المخزون في شي إن' : reason.trim(),
+      'requestedAt': Timestamp.now(),
+      'requestedBy': _email,
+    };
+    final r = _db.collection('orders').doc(order.id);
+    await r.update({
+      'items': updatedItems.map((e) => e.toMap()).toList(),
+      'replacementStatus': 'pending_customer',
+      'replacementProposal': proposal,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    await r.collection('events').add({
+      'status': order.status.key,
+      'at': Timestamp.now(),
+      'byName': _email.isNotEmpty ? _email : 'الإدارة',
+      'note': 'تنبيه نفاد قطعة: ${target.title} — بانتظار إرسال بديل من العميل',
+    });
+    if (Get.isRegistered<NotificationService>()) {
+      await Get.find<NotificationService>().pushUserNotification(
+        targetUid: order.userId,
+        title: 'تنبيه نفاد قطعة — طلب ${order.orderNo}',
+        body: 'نفدت "${target.title}". يرجى إرسال قطعة بديلة (بنفس القيمة أو بفارق يُحتسب تلقائياً).',
+        type: 'replacement',
+        orderId: order.id,
+      );
+    }
+  }
+
+  /// إرسال العميل لرابط/بيانات القطعة البديلة مع حساب الفارق تلقائياً.
+  Future<void> submitCustomerReplacement({
+    required Order order,
+    required String newTitle,
+    required String newProductUrl,
+    required String newImageUrl,
+    required double newUnitPriceSar,
+    String color = '',
+    String size = '',
+    int? qty,
+    String goodsId = '',
+  }) async {
+    final prev = Map<String, dynamic>.from(order.replacementProposal);
+    final oldTotalSar = (prev['oldTotalSar'] as num?)?.toDouble() ?? 0.0;
+    final oldQty = (prev['oldQty'] as num?)?.toInt() ?? 1;
+    final chosenQty = qty ?? oldQty;
+    final newTotalSar = roundMoney(newUnitPriceSar * chosenQty, AppCurrency.sar);
+    final diffSar = roundMoney(newTotalSar - oldTotalSar, AppCurrency.sar);
+    final rate = order.exchangeRate > 0 ? order.exchangeRate : 1.0;
+    final diffLocal = roundMoney(diffSar * rate, order.currency);
+
+    prev.addAll({
+      'newTitle': newTitle.trim(),
+      'newProductUrl': newProductUrl.trim(),
+      'newImageUrl': newImageUrl.trim(),
+      'newGoodsId': goodsId.trim(),
+      'newUnitPriceSar': newUnitPriceSar,
+      'newQty': chosenQty,
+      'newColor': color.trim(),
+      'newSize': size.trim(),
+      'newTotalSar': newTotalSar,
+      'diffSar': diffSar,
+      'diffLocal': diffLocal,
+      'submittedAt': Timestamp.now(),
+    });
+    final r = _db.collection('orders').doc(order.id);
+    await r.update({
+      'replacementStatus': 'pending_admin',
+      'replacementProposal': prev,
+      'replacementSubmittedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    await r.collection('events').add({
+      'status': order.status.key,
+      'at': Timestamp.now(),
+      'byName': 'العميل',
+      'note': 'أرسل العميل قطعة بديلة: ${newTitle.trim()} (فارق ${diffSar.toStringAsFixed(2)} ر.س)',
+    });
+    try {
+      await _db.collection('staff_alerts').add({
+        'target': 'manager',
+        'orderId': order.id,
+        'type': 'replacement_submitted',
+        'createdAt': FieldValue.serverTimestamp(),
+        'seen': false,
+      });
+    } catch (_) {}
+  }
+
+  /// اعتماد الإدارة للقطعة البديلة وتسوية الفارق المالي (زيادة على المتبقي أو إرجاع للمحفظة/المتبقي).
+  Future<void> resolveCustomerReplacement({
+    required Order order,
+    required bool approve,
+    String adminNote = '',
+  }) async {
+    final r = _db.collection('orders').doc(order.id);
+    if (!approve) {
+      await r.update({
+        'replacementStatus': 'pending_customer',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      await r.collection('events').add({
+        'status': order.status.key,
+        'at': Timestamp.now(),
+        'byName': _email,
+        'note': 'رُفض البديل المقترح — يرجى إرسال بديل آخر: ${adminNote.trim()}',
+      });
+      if (Get.isRegistered<NotificationService>()) {
+        await Get.find<NotificationService>().pushUserNotification(
+          targetUid: order.userId,
+          title: 'مراجعة البديل — طلب ${order.orderNo}',
+          body: adminNote.trim().isEmpty
+              ? 'يرجى إرسال قطعة بديلة أخرى مناسبة للطلب.'
+              : adminNote.trim(),
+          type: 'replacement',
+          orderId: order.id,
+        );
+      }
+      return;
+    }
+
+    final prop = order.replacementProposal;
+    final idx = (prop['targetIndex'] as num?)?.toInt() ?? -1;
+    final oldTitle = (prop['oldTitle'] ?? '').toString();
+    final diffSar = (prop['diffSar'] as num?)?.toDouble() ?? 0.0;
+    final rate = order.exchangeRate > 0 ? order.exchangeRate : 1.0;
+    final diffLocal = roundMoney(diffSar * rate, order.currency);
+
+    final updatedItems = <OrderItem>[
+      for (int i = 0; i < order.items.length; i++)
+        i == idx
+            ? order.items[i].copyWith(
+                stockStatus: 'replaced',
+                replacementNote: 'تم استبدالها بـ ${prop['newTitle'] ?? ''}',
+              )
+            : order.items[i],
+    ];
+    updatedItems.add(OrderItem(
+      sku: 'REP-${DateTime.now().millisecondsSinceEpoch}',
+      goodsId: (prop['newGoodsId'] ?? '').toString(),
+      title: (prop['newTitle'] ?? 'قطعة بديلة').toString(),
+      imageUrl: (prop['newImageUrl'] ?? '').toString(),
+      qty: (prop['newQty'] as num?)?.toInt() ?? 1,
+      unitPriceSar: (prop['newUnitPriceSar'] as num?)?.toDouble() ?? 0.0,
+      size: (prop['newSize'] ?? '').toString(),
+      color: (prop['newColor'] ?? '').toString(),
+      productUrl: (prop['newProductUrl'] ?? '').toString(),
+      stockStatus: 'ok',
+      isReplacement: true,
+      replacedFromTitle: oldTitle,
+      replacementNote: adminNote.trim(),
+    ));
+
+    final newSubSar = roundMoney(order.subtotalSar + diffSar, AppCurrency.sar);
+    final newTotalSar = roundMoney((order.totalSar + diffSar).clamp(0.0, 9999999.0), AppCurrency.sar);
+    final newTotalLocal = roundMoney((order.totalLocal + diffLocal).clamp(0.0, 999999999.0), order.currency);
+
+    double newRemainingLocal = order.remainingLocal;
+    double creditWalletSar = 0.0;
+    if (diffSar > 0) {
+      newRemainingLocal = roundMoney(order.remainingLocal + diffLocal, order.currency);
+    } else if (diffSar < 0) {
+      final absLocal = -diffLocal;
+      if (order.remainingLocal > 0) {
+        if (order.remainingLocal >= absLocal) {
+          newRemainingLocal = roundMoney(order.remainingLocal - absLocal, order.currency);
+        } else {
+          final excessLocal = absLocal - order.remainingLocal;
+          newRemainingLocal = 0.0;
+          creditWalletSar = roundMoney(rate > 0 ? excessLocal / rate : 0.0, AppCurrency.sar);
+        }
+      } else if (order.paidTotalLocal > 0) {
+        creditWalletSar = roundMoney(-diffSar, AppCurrency.sar);
+      }
+    }
+
+    await r.update({
+      'items': updatedItems.map((e) => e.toMap()).toList(),
+      'subtotalSar': newSubSar,
+      'totalSar': newTotalSar,
+      'totalLocal': newTotalLocal,
+      'remainingLocal': newRemainingLocal,
+      'replacementStatus': 'approved',
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    if (creditWalletSar > 0.01 && order.userId.isNotEmpty) {
+      final wRef = _db.collection('wallets').doc(order.userId);
+      await _db.runTransaction((tx) async {
+        final ws = await tx.get(wRef);
+        final curBal = ((ws.data()?['balanceSar'] as num?)?.toDouble() ?? 0.0);
+        final movs = List<dynamic>.from((ws.data()?['movements'] as List?) ?? const []);
+        movs.add({
+          'id': 'rep_${DateTime.now().millisecondsSinceEpoch}',
+          'type': 'refund',
+          'amountSar': creditWalletSar,
+          'orderNo': order.orderNo,
+          'note': 'فارق استبدال قطعة بسعر أقل في طلب ${order.orderNo}',
+          'at': Timestamp.now(),
+        });
+        tx.set(wRef, {
+          'balanceSar': roundMoney(curBal + creditWalletSar, AppCurrency.sar),
+          'movements': movs,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      });
+    }
+
+    final summaryNote = diffSar == 0
+        ? 'تم اعتماد البديل بنفس القيمة دون فارق'
+        : (diffSar > 0
+            ? 'تم اعتماد البديل وإضافة الفارق (${diffSar.toStringAsFixed(2)} ر.س) للمتبقي'
+            : 'تم اعتماد البديل وإعادة الفارق (${(-diffSar).toStringAsFixed(2)} ر.س) ${creditWalletSar > 0 ? "للمحفظة" : "بخصمه من المتبقي"}');
+
+    await r.collection('events').add({
+      'status': order.status.key,
+      'at': Timestamp.now(),
+      'byName': _email.isNotEmpty ? _email : 'الإدارة',
+      'note': summaryNote,
+    });
+    if (Get.isRegistered<NotificationService>()) {
+      await Get.find<NotificationService>().pushUserNotification(
+        targetUid: order.userId,
+        title: 'تم اعتماد القطعة البديلة — طلب ${order.orderNo}',
+        body: summaryNote,
+        type: 'replacement',
+        orderId: order.id,
+      );
+    }
+  }
+
+  /// حفظ التوقيع الإلكتروني باستلام الطلب (من العميل أو المندوب).
+  Future<String> submitElectronicSignature({
+    required Order order,
+    required Uint8List pngBytes,
+    required String signerName,
+    String enteredPin = '',
+  }) async {
+    String sigUrl = '';
+    try {
+      final ref = FirebaseStorage.instance
+          .ref('signatures/${order.userId}/${order.id}_${DateTime.now().millisecondsSinceEpoch}.png');
+      await ref.putData(pngBytes, SettableMetadata(contentType: 'image/png'));
+      sigUrl = await ref.getDownloadURL();
+    } catch (_) {
+      sigUrl = '';
+    }
+    if (sigUrl.isEmpty) {
+      throw 'تعذر رفع صورة التوقيع — تحقق من الاتصال وصلاحية التخزين';
+    }
+    final pinOk = order.deliveryPin.isEmpty ||
+        enteredPin.trim().isEmpty ||
+        enteredPin.trim() == order.deliveryPin.trim();
+    final r = _db.collection('orders').doc(order.id);
+    await r.update({
+      'customerSignatureUrl': sigUrl,
+      'signedAt': FieldValue.serverTimestamp(),
+      'signedByUid': _uid,
+      'signedByName': signerName.trim().isEmpty ? order.address.receiverName : signerName.trim(),
+      'deliverySigned': true,
+      if (enteredPin.trim().isNotEmpty) 'deliveryPinVerified': pinOk,
+      'status': 'delivered',
+      'shippingStage': 'delivered',
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    await r.collection('events').add({
+      'status': 'delivered',
+      'at': Timestamp.now(),
+      'byName': signerName.trim().isEmpty ? 'العميل' : signerName.trim(),
+      'note': 'تم تأكيد الاستلام بالتوقيع الإلكتروني',
+    });
+    if (Get.isRegistered<NotificationService>()) {
+      await Get.find<NotificationService>().pushUserNotification(
+        targetUid: order.userId,
+        title: 'تم توثيق استلام الطلب ${order.orderNo}',
+        body: 'تم حفظ توقيعك الإلكتروني وإصدار إثبات التسليم بنجاح.',
+        type: 'order',
+        orderId: order.id,
+      );
+    }
+    return sigUrl;
+  }
+
+  /// حذف وأرشفة الطلب للمدير فقط مع حفظ نسخة في سجل التدقيق والمحذوفات.
+  Future<void> managerArchiveAndDeleteOrder(Order order, {String reason = ''}) async {
+    final docRef = _db.collection('orders').doc(order.id);
+    final snap = await docRef.get();
+    final data = snap.data() ?? <String, dynamic>{'orderNo': order.orderNo, 'totalSar': order.totalSar};
+    if (Get.isRegistered<AuditService>()) {
+      await Get.find<AuditService>().archiveAndDelete(
+        collectionName: 'orders',
+        docId: order.id,
+        snapshotData: data,
+        reason: reason,
+        summary: 'حذف الطلب ${order.orderNo} (بقيمة ${order.totalSar.toStringAsFixed(2)} ر.س)',
+      );
+    }
+    for (final sub in ['receipts', 'events', 'messages']) {
+      final subDocs = await docRef.collection(sub).get();
+      for (final d in subDocs.docs) {
+        await d.reference.delete();
+      }
+    }
+    await docRef.delete();
   }
 
   Future<Coupon?> lookupCoupon(String code) async {

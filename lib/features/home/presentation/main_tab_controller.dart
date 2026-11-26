@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import '../../support/presentation/support_screen.dart';
 
 /// يتحكم في التبويب الحالي للـ MainShell:
 ///   0 = الرئيسية
@@ -6,7 +7,7 @@ import 'package:get/get.dart';
 ///   2 = تصفح SHEIN (مستقل)
 ///   3 = السلة
 ///   4 = طلباتي
-///   5 = الدعم
+///   5 = أنا (الحساب والواجهة والإعدادات واللغة والعملة والموقع)
 class MainTabController extends GetxController {
   final RxInt index = 0.obs;
 
@@ -30,5 +31,7 @@ class MainTabController extends GetxController {
     goTo(4);
   }
 
-  void goToSupport() => goTo(5);
+  void goToMe() => goTo(5);
+
+  void goToSupport() => Get.to(() => const SupportScreen());
 }

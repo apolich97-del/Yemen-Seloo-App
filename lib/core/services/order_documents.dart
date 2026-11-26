@@ -949,10 +949,12 @@ class OrderDocuments {
     final itemSubset = o.items.take(8).toList();
     final fetchedImgs = await Future.wait<pw.MemoryImage?>([
       if (proofSrc.isNotEmpty) _fetch(proofSrc) else Future.value(null),
+      if (o.customerSignatureUrl.isNotEmpty) _fetch(o.customerSignatureUrl) else Future.value(null),
       for (final it in itemSubset) _fetch(it.imageUrl),
     ]);
     final proofImg = fetchedImgs[0];
-    final itemImgs = fetchedImgs.sublist(1);
+    final sigImg = fetchedImgs[1];
+    final itemImgs = fetchedImgs.sublist(2);
 
     pw.Widget kv(String k, String v) => pw.Padding(
           padding: const pw.EdgeInsets.symmetric(vertical: 2.5),
@@ -1070,6 +1072,38 @@ class OrderDocuments {
                         style: t(9.2),
                       ),
                     ),
+                ],
+              ),
+            ),
+          ],
+          if (sigImg != null) ...[
+            pw.SizedBox(height: 10),
+            pw.Container(
+              padding: const pw.EdgeInsets.all(10),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.white,
+                borderRadius: pw.BorderRadius.circular(10),
+                border: pw.Border.all(color: PdfColor.fromInt(0xFF15803D)),
+              ),
+              child: pw.Row(
+                children: [
+                  pw.Expanded(
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('التوقيع الإلكتروني باستلام الطلب',
+                            style: t(10.5, b: true, c: PdfColor.fromInt(0xFF15803D))),
+                        pw.Text(
+                          'المستلم الموقّع: ${o.signedByName.isNotEmpty ? o.signedByName : o.address.receiverName}',
+                          style: t(9.2),
+                        ),
+                        if (o.signedAt != null)
+                          pw.Text('تاريخ التوقيع: ${_date(o.signedAt!)}', style: t(8.8, c: _muted)),
+                      ],
+                    ),
+                  ),
+                  pw.SizedBox(width: 10),
+                  pw.Image(sigImg, width: 140, height: 65, fit: pw.BoxFit.contain),
                 ],
               ),
             ),

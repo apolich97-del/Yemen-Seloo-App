@@ -22,6 +22,30 @@ class PaymentScreen extends GetView<PaymentController> {
         children: [
           _notice(),
           const SizedBox(height: 12),
+          Obx(() {
+            final a = controller.deliveryAddress.value ?? controller.payload.address;
+            return SectionCard(
+              title: 'عنوان التوصيل قبل التأكيد',
+              trailing: TextButton.icon(
+                onPressed: controller.editDeliveryAddress,
+                icon: const Icon(Icons.edit_location_alt_outlined, size: 17),
+                label: const Text('تعديل العنوان'),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${a.label} — ${a.city}',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: T.text)),
+                  const SizedBox(height: 3),
+                  Text(a.fullAr, style: TextStyle(fontSize: 12, color: T.muted)),
+                  const SizedBox(height: 2),
+                  Text('${a.receiverName} · ${a.phone}',
+                      style: TextStyle(fontSize: 11.5, color: T.muted)),
+                ],
+              ),
+            );
+          }),
+          const SizedBox(height: 12),
           SectionCard(
             title: 'طرق الدفع المتاحة',
             child: Obx(() => Column(
@@ -55,18 +79,31 @@ class PaymentScreen extends GetView<PaymentController> {
                         MoneyRow(label: 'اسم المرسل', value: t.senderName),
                         MoneyRow(label: 'رقم العملية', value: t.refNo),
                         if (t.note.isNotEmpty) MoneyRow(label: 'ملاحظة', value: t.note),
-                        if (t.proofUrl.isNotEmpty)
-                          const Padding(
-                            padding: EdgeInsets.only(top: 6),
-                            child: Row(
-                              children: [
-                                Icon(Icons.attach_file, size: 16, color: AppColors.success),
-                                SizedBox(width: 4),
-                                Text('تم إرفاق صورة الحوالة',
-                                    style: TextStyle(fontSize: 12, color: AppColors.success)),
-                              ],
+                        if (t.proofUrl.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Icon(Icons.verified_outlined, size: 16, color: T.success),
+                              const SizedBox(width: 5),
+                              Text('معاينة صورة الحوالة قبل التأكيد:',
+                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: T.success)),
+                              const Spacer(),
+                              TextButton.icon(
+                                onPressed: controller.uploading.value ? null : controller.pickProof,
+                                icon: const Icon(Icons.refresh, size: 15),
+                                label: const Text('تغيير الصورة', style: TextStyle(fontSize: 11)),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          GestureDetector(
+                            onTap: () => _zoomProof(context, t.proofUrl),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: _proofThumb(t.proofUrl, height: 170),
                             ),
                           ),
+                        ],
                       ],
                     ),
             );
@@ -308,6 +345,53 @@ class PaymentScreen extends GetView<PaymentController> {
     );
   }
 
+  static Widget _proofThumb(String uri, {double height = 160}) {
+    if (uri.startsWith('http')) {
+      return Image.network(
+        uri,
+        height: height,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Text('تعذر عرض الصورة',
+            style: TextStyle(fontSize: 11, color: T.danger)),
+      );
+    }
+    final comma = uri.indexOf(',');
+    final b64 = comma >= 0 ? uri.substring(comma + 1) : uri;
+    return Image.memory(
+      base64Decode(b64),
+      height: height,
+      width: double.infinity,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => Text('تعذر عرض الصورة',
+          style: TextStyle(fontSize: 11, color: T.danger)),
+    );
+  }
+
+  void _zoomProof(BuildContext context, String uri) {
+    Get.dialog(
+      Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: const EdgeInsets.all(12),
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              child: Center(child: _proofThumb(uri, height: 480)),
+            ),
+            Positioned(
+              top: 8,
+              left: 8,
+              child: IconButton(
+                onPressed: () => Get.back(),
+                icon: const Icon(Icons.close, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _openTransferSheet() {
     Get.bottomSheet(
       _TransferSheet(controller: controller),
@@ -430,18 +514,11 @@ class _TransferSheet extends StatelessWidget {
                 )),
             Obx(() {
               if (!controller.proofAttached) return const SizedBox.shrink();
-              final uri = controller.proofDataUri;
-              final b64 = uri.substring(uri.indexOf(',') + 1);
               return Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
-                  child: Image.memory(base64Decode(b64),
-                      height: 150,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Text(
-                          'تعذر عرض الصورة',
-                          style: TextStyle(fontSize: 11, color: AppColors.danger))),
+                  child: PaymentScreen._proofThumb(controller.proofDataUri, height: 150),
                 ),
               );
             }),

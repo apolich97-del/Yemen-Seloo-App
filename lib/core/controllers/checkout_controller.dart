@@ -15,6 +15,7 @@ import '../services/order_documents.dart';
 import '../services/order_service.dart';
 import '../../features/cart/application/cart_counter.dart';
 import '../services/pricing_service.dart';
+import '../services/notification_service.dart';
 import '../services/settings_service.dart';
 import '../services/wallet_service.dart';
 
@@ -61,6 +62,8 @@ class CheckoutController extends GetxController {
   final lines = <CartLine>[].obs;
   final currency = AppCurrency.sar.obs;
   final address = Rxn<Address>();
+  final savedAddresses = <Address>[].obs;
+  final acknowledgedAlertIds = <String>{}.obs;
   final estimate = Rxn<PriceEstimate>();
   final coupon = Rxn<Coupon>();
   final couponMessage = ''.obs;
@@ -109,8 +112,8 @@ class CheckoutController extends GetxController {
     }
     lines.assignAll(
         sel.isEmpty ? all : all.where((l) => sel.contains(l.variantKey)).toList());
-    currency.value = AppCurrencyX.fromKey(_store.read<String>(_currencyKey));
-    _settings.displayCurrency.value = currency.value;
+    currency.value = _settings.displayCurrency.value;
+    _store.write(_currencyKey, currency.value.key);
     _loadAddress();
     _loadCustomerDeferredUsage();
     _settingsWorker = ever(_settings.settings, (_) => recompute());
@@ -142,9 +145,28 @@ class CheckoutController extends GetxController {
   void setCurrency(AppCurrency c) {
     if (currency.value == c) return;
     currency.value = c;
-    _settings.displayCurrency.value = c;
-    _store.write(_currencyKey, c.key);
+    _settings.setCurrency(c);
+    if (Get.isRegistered<CartCounter>()) {
+      Get.find<CartCounter>().setRegion(c == AppCurrency.sar ? 'saudi' : c.key);
+    }
     recompute();
+  }
+
+  void toggleAlertAck(String alertId) {
+    if (acknowledgedAlertIds.contains(alertId)) {
+      acknowledgedAlertIds.remove(alertId);
+    } else {
+      acknowledgedAlertIds.add(alertId);
+    }
+  }
+
+  bool get allRequiredAlertsAcked {
+    if (!Get.isRegistered<NotificationService>()) return true;
+    final alerts = Get.find<NotificationService>().checkoutAlerts;
+    for (final a in alerts) {
+      if (a.requiresAck && !acknowledgedAlertIds.contains(a.id)) return false;
+    }
+    return true;
   }
 
   void recompute() {
@@ -166,12 +188,14 @@ class CheckoutController extends GetxController {
             .doc(uid)
             .collection('addresses')
             .orderBy('isDefault', descending: true)
-            .limit(1)
+            .limit(20)
             .get();
-        if (snap.docs.isNotEmpty) {
-          address.value = Address.fromMap(
-            {'id': snap.docs.first.id, ...snap.docs.first.data()},
-          );
+        final list = snap.docs
+            .map((d) => Address.fromMap({'id': d.id, ...d.data()}))
+            .toList();
+        savedAddresses.assignAll(list);
+        if (list.isNotEmpty) {
+          address.value = list.first;
         } else {
           final u = _auth.user.value;
           if (u != null && u.city.trim().isNotEmpty) {
@@ -254,6 +278,7 @@ class CheckoutController extends GetxController {
     final res = await Get.toNamed<Address>(AppRoutes.addressForm, arguments: address.value);
     if (res != null) {
       address.value = res;
+      await _loadAddress();
     }
   }
 
@@ -308,7 +333,15 @@ class CheckoutController extends GetxController {
   bool canUseDeferredPlan(PriceEstimate est, AppSettings sf) =>
       deferredRestrictionReason(est, sf) == null;
 
+  void selectAddress(Address a) {
+    address.value = a;
+  }
+
   void continueToPayment() {
+    if (!allRequiredAlertsAcked) {
+      Get.snackbar('تأكيد التنبيه مطلوب', 'يرجى تأكيد الاطلاع على التنبيهات الهامة أعلى الصفحة');
+      return;
+    }
     if (lines.isEmpty) {
       Get.snackbar('السلة فارغة', 'أضف منتجاً واحداً على الأقل');
       return;
@@ -348,6 +381,10 @@ class CheckoutController extends GetxController {
 
   /// تأكيد الطلب الآجل مباشرة + التحويل لمسار استمارة واتساب الإجباري.
   Future<void> confirmDeferredWithoutDeposit() async {
+    if (!allRequiredAlertsAcked) {
+      Get.snackbar('تأكيد التنبيه مطلوب', 'يرجى تأكيد الاطلاع على التنبيهات الهامة أعلى الصفحة');
+      return;
+    }
     if (lines.isEmpty) {
       Get.snackbar('السلة فارغة', 'أضف منتجاً واحداً على الأقل');
       return;

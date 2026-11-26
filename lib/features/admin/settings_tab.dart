@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 
 import '../../core/models/app_settings.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/services/audit_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/theme/app_theme.dart';
 import 'team_tab.dart';
@@ -22,6 +23,7 @@ class _SettingsTabState extends State<SettingsTab> {
   final _db = FirebaseFirestore.instance;
 
   final _rateNorth = TextEditingController();
+  final _sarPerUsd = TextEditingController();
   final _usdNorth = TextEditingController();
   final _defThreshold = TextEditingController();
   final _defPercent = TextEditingController();
@@ -53,7 +55,7 @@ class _SettingsTabState extends State<SettingsTab> {
   @override
   void dispose() {
     for (final c in [
-      _rateNorth, _rateSouth, _usdNorth, _usdSouth,
+      _sarPerUsd, _rateNorth, _rateSouth, _usdNorth, _usdSouth,
       _defThreshold, _defPercent, _shipping, _delivery,
       _deliveryNorth, _deliverySouth, _freeOver,
       _serviceFee, _perPiece, _minDays, _maxDays,
@@ -66,6 +68,7 @@ class _SettingsTabState extends State<SettingsTab> {
 
   void _fill(AppSettings s) {
     if (_loaded) return;
+    _sarPerUsd.text = s.sarPerUsd.toStringAsFixed(2);
     _rateNorth.text = s.rateNorth.toStringAsFixed(0);
     _usdNorth.text = s.usdRateNorth.toStringAsFixed(0);
     _defEnabled = s.deferredEnabled;
@@ -94,6 +97,7 @@ class _SettingsTabState extends State<SettingsTab> {
     setState(() => _busy = true);
     try {
       final s = AppSettings(
+        sarPerUsd: double.tryParse(_sarPerUsd.text) ?? 3.75,
         rateNorth: double.tryParse(_rateNorth.text) ?? 140,
         deferredEnabled: _defEnabled,
         deferredThresholdSar: double.tryParse(_defThreshold.text) ?? 150,
@@ -121,6 +125,14 @@ class _SettingsTabState extends State<SettingsTab> {
         ...s.toMap(),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+      if (Get.isRegistered<AuditService>()) {
+        await Get.find<AuditService>().logAction(
+          action: 'update_settings',
+          collectionName: 'settings',
+          docId: 'app',
+          summary: 'تحديث أسعار الصرف: شمال ${s.rateNorth.toStringAsFixed(0)} / جنوب ${s.rateSouth.toStringAsFixed(0)}',
+        );
+      }
       Get.snackbar('تم الحفظ', 'طُبّقت الأسعار الجديدة — الطلبات القديمة تحتفظ بسعر صرفها');
     } catch (e) {
       Get.snackbar('تعذر الحفظ', '$e');
@@ -236,6 +248,15 @@ class _SettingsTabState extends State<SettingsTab> {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _sarPerUsd,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'سعر صرف الدولار بالريال السعودي (SAR / USD)',
+                      hintText: '3.75',
+                    ),
                   ),
                   const SizedBox(height: 10),
                   Container(

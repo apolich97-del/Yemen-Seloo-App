@@ -1,14 +1,63 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    match /proofs/{uid}/{file} {
-      allow read: if request.auth != null &&
-        (request.auth.uid == uid || request.auth.token.email in
-          ['apolich97@gmail.com','abode212k@gmail.com','yemenseloo.shop@gmail.com']);
-      allow write: if request.auth != null && request.auth.uid == uid
-        && request.resource.size < 6 * 1024 * 1024
+    function auth() { return request.auth != null; }
+    function myEmail() {
+      return auth() && request.auth.token.email is string
+        ? request.auth.token.email.lower()
+        : '';
+    }
+    function isMainManager() {
+      return myEmail() in [
+        'apolich97@gmail.com',
+        'abode212k@gmail.com',
+        'yemenseloo.shop@gmail.com'
+      ];
+    }
+    function isInvitedStaff() {
+      return myEmail() != ''
+        && firestore.exists(/databases/(default)/documents/staff_invites/$(myEmail()))
+        && firestore.get(/databases/(default)/documents/staff_invites/$(myEmail())).data.active != false;
+    }
+    function isUserRoleStaff() {
+      return auth()
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in [
+          'manager', 'marketer', 'accounting', 'shipping', 'support', 'courier'
+        ];
+    }
+    function isStaff() {
+      return auth() && (isMainManager() || isInvitedStaff() || isUserRoleStaff());
+    }
+    function isValidImage(maxMb) {
+      return request.resource.size < maxMb * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
-      allow delete: if false;
+    }
+
+    match /proofs/{uid}/{file} {
+      allow read: if auth() && (request.auth.uid == uid || isStaff());
+      allow write: if auth() && (request.auth.uid == uid || isStaff()) && isValidImage(8);
+      allow delete: if isMainManager();
+    }
+    match /signatures/{uid}/{file} {
+      allow read: if auth() && (request.auth.uid == uid || isStaff());
+      allow write: if auth() && (request.auth.uid == uid || isStaff()) && isValidImage(4);
+      allow delete: if isMainManager();
+    }
+    match /order_summaries/{uid}/{file} {
+      allow read: if auth() && (request.auth.uid == uid || isStaff());
+      allow write: if auth() && (request.auth.uid == uid || isStaff()) && isValidImage(8);
+      allow delete: if isMainManager();
+    }
+    match /tracking/{orderId}/{file} {
+      allow read: if auth();
+      allow write: if isStaff() && isValidImage(8);
+      allow delete: if isMainManager();
+    }
+    match /catalog/{file} {
+      allow read: if true;
+      allow write: if isStaff() && isValidImage(8);
+      allow delete: if isMainManager();
     }
     match /{allPaths=**} { allow read, write: if false; }
   }

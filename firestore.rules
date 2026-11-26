@@ -8,7 +8,6 @@ service cloud.firestore {
         ? request.auth.token.email.lower()
         : '';
     }
-    // المديران الرئيسيان فقط — كل الصلاحيات الإدارية.
     function isMainManager() {
       return myEmail() in [
         'apolich97@gmail.com',
@@ -22,27 +21,35 @@ service cloud.firestore {
         ? get(/databases/$(database)/documents/staff_invites/$(myEmail())).data.role
         : 'customer';
     }
-    // دور المستخدم من وثيقة users/{uid} أو من سجل الفريق staff_invites/{email}.
+    // أولوية للدعوة النشطة والمدير الرئيسي لمنع بقاء الصلاحيات بعد حذف الموظف.
     function roleOf() {
-      return (exists(/databases/$(database)/documents/users/$(request.auth.uid))
-          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in [
-            'manager', 'marketer', 'accounting', 'shipping', 'support', 'courier'
-          ])
-        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
-        : inviteRole();
+      return isMainManager()
+        ? 'manager'
+        : (inviteRole() != 'customer'
+            ? inviteRole()
+            : ((exists(/databases/$(database)/documents/users/$(request.auth.uid))
+                && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in [
+                  'manager', 'marketer', 'accounting', 'shipping', 'support', 'courier'
+                ]
+                && (myEmail() == ''
+                    || !exists(/databases/$(database)/documents/staff_invites/$(myEmail()))
+                    || get(/databases/$(database)/documents/staff_invites/$(myEmail())).data.active != false))
+              ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+              : 'customer'));
     }
-    // فريق العمل: المديران الرئيسيان أو أي دور موزّع من لوحة الفريق.
     function staff() {
       return auth() && (isMainManager() || roleOf() in [
         'manager', 'marketer', 'accounting', 'shipping', 'support', 'courier'
       ]);
+    }
+    function isManager() {
+      return auth() && (isMainManager() || roleOf() == 'manager');
     }
     function proofOk(p, minAmount) {
       return p.proofUrl is string && p.proofUrl.size() > 0
         && p.amount is number && p.amount >= minAmount
         && p.senderName is string && p.senderName.size() >= 3;
     }
-    // المبلغ المطلوب: الدفعة الأولى في الطلب الآجل، وإلا الإجمالي
     function dueOf(d) {
       return d.upfrontDueLocal is number && d.upfrontDueLocal > 0
         ? d.upfrontDueLocal : d.totalLocal;
@@ -54,26 +61,22 @@ service cloud.firestore {
         !request.resource.data.keys().hasAny(['role'])
         || request.resource.data.role == 'customer'
         || (inviteRole() != 'customer' && request.resource.data.role == inviteRole())
+        || isMainManager()
       );
       allow update: if auth() && uid == me() && (
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role','fcmTokens'])
-        || (
-          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['fcmTokens'])
-          && inviteRole() != 'customer'
-          && request.resource.data.role == inviteRole()
-        )
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])
+        || (inviteRole() != 'customer' && request.resource.data.role == inviteRole())
+        || isMainManager()
       );
-      // تغيير الأدوار والصلاحيات: المدير الرئيسي فقط
-      allow update: if isMainManager()
+      allow update: if isManager()
         && request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])
         && request.resource.data.role in ['customer','marketer','manager','accounting','shipping','courier','support'];
-      allow update: if isMainManager()
+      allow update: if isManager()
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
-      // الطاقم يحدّث ملاحظات العميل أو فئة العميل والحد الائتماني الآجل فقط
       allow update: if staff()
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['staffNotes', 'notesUpdatedAt', 'notesUpdatedBy', 'customerTier', 'deferredCreditLimitSar']);
-      allow delete: if isMainManager();
+      allow delete: if isManager();
       match /addresses/{a} { allow read, write: if auth() && (uid == me() || staff()); }
       match /cart/{c} { allow read: if auth() && uid == me(); allow write: if false; }
     }
@@ -97,31 +100,66 @@ service cloud.firestore {
         && request.resource.data.totalLocal == resource.data.totalLocal
         && (request.resource.data.status != 'verifying'
             || proofOk(request.resource.data.payment, dueOf(resource.data)));
-      // العميل يسجّل إرسال استمارة واتساب فقط دون تعديل الأسعار أو الحالة
+      // تسجيل إرسال استمارة واتساب وصورة الملخص
       allow update: if auth() && resource.data.userId == me()
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['whatsappSentAt', 'whatsappSentTarget', 'updatedAt']);
-      // العميل يرد بالموافقة أو الرفض على تعديل السعر/المخزون المقترح من الإدارة
+             .hasOnly(['whatsappSentAt', 'whatsappSentTarget', 'orderSummaryImageUrl', 'updatedAt']);
+      // موافقة أو رفض مزامنة السعر/المخزون
       allow update: if auth() && resource.data.userId == me()
         && resource.data.priceSyncStatus == 'pending_customer'
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['priceSyncStatus', 'priceSyncDecision', 'priceSyncRespondedAt', 'updatedAt'])
         && request.resource.data.priceSyncStatus in ['accepted', 'rejected'];
-      allow update: if staff();
-      // العميل يحدّث حقول حساب الاستلام فقط عندما يكون الاسترداد بانتظار البيانات
+      // إرسال بديل من العميل عند نفاد قطعة (نفس القيمة أو بفارق)
+      allow update: if auth() && resource.data.userId == me()
+        && resource.data.replacementStatus == 'pending_customer'
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['replacementStatus', 'replacementProposal', 'replacementSubmittedAt', 'updatedAt'])
+        && request.resource.data.replacementStatus == 'pending_admin';
+      // التوقيع الإلكتروني باستلام الطلب من العميل
+      allow update: if auth() && resource.data.userId == me()
+        && resource.data.status in ['shipped', 'outForDelivery']
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['customerSignatureUrl', 'signedAt', 'signedByUid', 'signedByName', 'deliverySigned', 'status', 'timeline', 'updatedAt'])
+        && request.resource.data.customerSignatureUrl is string
+        && request.resource.data.customerSignatureUrl.size() > 0;
+      // تحديث بيانات حساب الاسترداد
       allow update: if auth() && resource.data.userId == me()
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['refunds', 'updatedAt'])
         && request.resource.data.refundedTotalSar == resource.data.refundedTotalSar
         && request.resource.data.status == resource.data.status;
-      allow delete: if false;
+
+      // صلاحيات الطاقم المقسمة بدقة حسب الدور:
+      allow update: if isManager();
+      allow update: if roleOf() == 'accounting'
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['status', 'payment', 'paidTotalLocal', 'remainingLocal', 'upfrontDueLocal',
+                       'refunds', 'refundedTotalSar', 'editingLocked', 'approvedAt', 'approvedByName',
+                       'priceSyncStatus', 'replacementStatus', 'items', 'subtotalSar', 'totalSar', 'totalLocal',
+                       'timeline', 'updatedAt']);
+      allow update: if roleOf() in ['shipping', 'courier']
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['status', 'shippingStage', 'shippingStageNote', 'shippingStageUpdatedAt',
+                       'shippingWaybill', 'deliveryWaybill', 'trackingNo', 'trackingUrl', 'trackingImageUrl',
+                       'courierName', 'courierPhone', 'proofImageUrl',
+                       'customerSignatureUrl', 'signedAt', 'signedByUid', 'signedByName', 'deliverySigned',
+                       'deliveryPinVerified', 'timeline', 'updatedAt']);
+      allow update: if roleOf() == 'support'
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['priceSyncStatus', 'priceSyncNote', 'proposedItems', 'proposedSubtotalSar',
+                       'proposedTotalSar', 'proposedTotalLocal', 'replacementStatus', 'replacementAlert',
+                       'items', 'refunds', 'supportNotes', 'timeline', 'updatedAt']);
+
+      allow delete: if isManager();
+
       match /events/{e} {
         allow read, create: if auth() && (get(/databases/$(database)/documents/orders/$(o)).data.userId == me() || staff());
-        allow update, delete: if false;
+        allow update: if false;
+        allow delete: if isManager();
       }
       match /receipts/{r} {
         allow read: if auth() && (get(/databases/$(database)/documents/orders/$(o)).data.userId == me() || staff());
-        // العميل ينشئ إيصالاً معلّقاً فقط، وبصورة إلزامية
         allow create: if auth()
           && request.resource.data.source == 'customer'
           && request.resource.data.status == 'pending'
@@ -130,30 +168,31 @@ service cloud.firestore {
           && request.resource.data.amountLocal is number
           && request.resource.data.amountLocal > 0
           && get(/databases/$(database)/documents/orders/$(o)).data.userId == me();
-        // الاعتماد والخصم من الأرصدة: للطاقم فقط
-        allow update, delete: if staff();
+        allow update: if isManager() || roleOf() == 'accounting';
+        allow delete: if isManager();
       }
       match /messages/{m} {
         allow read, create: if auth() && (get(/databases/$(database)/documents/orders/$(o)).data.userId == me() || staff());
-        allow update, delete: if false;
+        allow update: if false;
+        allow delete: if isManager();
       }
     }
 
-    // ═══ الدعم: محادثات العملاء + سجل الأسئلة + الدليل المعتمد ═══
     match /support_threads/{t} {
       allow read: if auth() && (resource.data.userId == me() || staff());
       allow create: if auth() && request.resource.data.userId == me();
       allow update: if auth() && (resource.data.userId == me() || staff());
-      allow delete: if false;
+      allow delete: if isManager();
       match /messages/{m} {
-        allow read: if auth() && (get(/databases/$(database)/documents/support_threads/$(t)).data.userId == me() || staff());
-        allow create: if auth() && (get(/databases/$(database)/documents/support_threads/$(t)).data.userId == me() || staff());
-        allow update, delete: if false;
+        allow read, create: if auth() && (get(/databases/$(database)/documents/support_threads/$(t)).data.userId == me() || staff());
+        allow update: if false;
+        allow delete: if isManager();
       }
     }
     match /support_query_logs/{q} {
       allow create: if auth();
-      allow read, update, delete: if staff();
+      allow read, update: if staff();
+      allow delete: if isManager();
     }
     match /support_guide/{g} {
       allow read: if auth();
@@ -161,70 +200,92 @@ service cloud.firestore {
     }
     match /support_faq_ignored/{f} { allow read, write: if staff(); }
 
-    // سجل الفريق: المدير الرئيسي يضيف/يعدّل/يزيل، والموظف يقرأ سجله فقط (غير حساس لحالة الأحرف).
     match /staff_invites/{email} {
-      allow read: if isMainManager() ||
-        (auth() && myEmail() == email.lower());
-      allow write: if isMainManager();
+      allow read: if isManager() || (auth() && myEmail() == email.lower());
+      allow write: if isManager();
     }
 
-    // استعلام collectionGroup('receipts') للعميل والمحاسبة
     match /{path=**}/receipts/{r} {
       allow read: if auth() && (resource.data.customerId == me() || staff());
     }
 
     match /products/{g} { allow read: if true; allow write: if staff(); }
-    // كتالوج يمن سيلو: قراءة عامة، كتابة للمسوّق والمدير الرئيسي فقط.
     match /catalog/{c} {
       allow read: if true;
-      allow write: if auth() && (
-        isMainManager() || roleOf() == 'marketer' || roleOf() == 'manager'
-      );
+      allow create, update: if auth() && (isManager() || roleOf() == 'marketer');
+      allow delete: if isManager();
     }
-    match /coupons/{c} { allow read: if auth(); allow write: if staff(); }
+    match /coupons/{c} {
+      allow read: if auth();
+      allow create, update: if staff();
+      allow delete: if isManager();
+    }
     match /settings/{s} {
       allow read: if true;
-      allow write: if auth() && (isMainManager() || roleOf() == 'manager');
+      allow write: if isManager();
     }
     match /shein_cache/{g} { allow read: if true; allow write: if staff(); }
-    // عدّادات متسلسلة (أرقام الإيصالات) — القراءة والزيادة الذرية للمسجلين
+
+    match /checkout_alerts/{a} {
+      allow read: if true;
+      allow create, update: if auth() && roleOf() in ['manager', 'support', 'shipping'];
+      allow delete: if isManager();
+    }
+
+    match /notifications/{uid}/items/{n} {
+      allow read, update, delete: if auth() && (uid == me() || isManager());
+      allow create: if auth() && (uid == me() || staff());
+    }
+
+    match /audit_logs/{a} {
+      allow create: if staff();
+      allow read: if isManager();
+      allow update: if false;
+      allow delete: if isMainManager();
+    }
+
+    match /deleted_records/{d} {
+      allow create: if isManager();
+      allow read: if isManager();
+      allow update: if false;
+      allow delete: if isMainManager();
+    }
+
     match /counters/{c} {
       allow read: if auth();
       allow create, update: if staff() && request.resource.data.value is number;
-      // العميل يزيد عدّاد الطلبات فقط بمقدار 1 ليبقى توليد رقم YS-... يعمل
       allow create: if auth() && c == 'orders' && request.resource.data.value == 1;
       allow update: if auth() && c == 'orders'
         && request.resource.data.value == resource.data.value + 1;
-      allow delete: if staff();
+      allow delete: if isManager();
     }
-    // حجز أرقام الطلبات الفريدة (منع التكرار 100%)
     match /order_numbers/{no} {
       allow read: if auth();
       allow create: if auth() && request.resource.data.userId == me();
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if isManager();
     }
-    // محفظة العميل: يقرأ رصيده، والفريق يضيف الرصيد
     match /wallets/{uid} {
       allow read: if auth() && (uid == me() || staff());
-      allow create, update: if staff();
-      // العميل يخصم من رصيده فقط (عند الشراء) دون زيادته
+      allow create, update: if isManager() || roleOf() == 'accounting';
       allow update: if auth() && uid == me()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['balanceSar', 'movements', 'updatedAt'])
         && request.resource.data.balanceSar is number
         && request.resource.data.balanceSar >= 0
-        && request.resource.data.balanceSar <= resource.data.balanceSar;
-      allow delete: if isMainManager();
+        && request.resource.data.balanceSar <= resource.data.balanceSar
+        && request.resource.data.movements is list
+        && request.resource.data.movements.size() >= resource.data.movements.size();
+      allow delete: if isManager();
     }
-    // طلبات السحب النقدي
     match /wallet_requests/{r} {
       allow read: if auth() && (resource.data.userId == me() || staff());
       allow create: if auth() && request.resource.data.userId == me()
         && request.resource.data.status == 'pending'
         && request.resource.data.amountSar is number
         && request.resource.data.amountSar > 0;
-      allow update, delete: if staff();
+      allow update: if isManager() || roleOf() == 'accounting';
+      allow delete: if isManager();
     }
-    // تقييمات العملاء: تُنشر بعد المراجعة فقط
     match /reviews/{r} {
       allow read: if true;
       allow create: if auth() && request.resource.data.userId == me()
@@ -233,16 +294,16 @@ service cloud.firestore {
         && request.resource.data.photoUrl is string
         && request.resource.data.photoUrl.size() > 0;
       allow update: if staff();
-      allow delete: if staff();
+      allow delete: if isManager();
     }
     match /meta/{m} { allow read: if true; allow write: if staff(); }
-    match /alerts/{a} { allow read, update: if staff(); allow create: if false; }
-    // تنبيهات الموظفين (مثل إلغاء طلب مدفوع) — العميل ينشئ، الفريق يقرأ
+    match /alerts/{a} { allow read, update: if staff(); allow create: if false; allow delete: if isManager(); }
     match /staff_alerts/{a} {
       allow create: if auth()
         && request.resource.data.target is string
         && request.resource.data.orderId is string;
-      allow read, update, delete: if staff();
+      allow read, update: if staff();
+      allow delete: if isManager();
     }
     match /{document=**} { allow read, write: if false; }
   }

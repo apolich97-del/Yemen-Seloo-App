@@ -12,6 +12,8 @@ import 'support_tab.dart';
 import 'settings_tab.dart';
 import 'shipping_tab.dart';
 import '../catalog/presentation/catalog_studio_tab.dart';
+import 'alerts_tab.dart';
+import 'audit_tab.dart';
 import 'reviews_tab.dart';
 import 'wallet_requests_tab.dart';
 
@@ -47,19 +49,22 @@ class _AdminShellState extends State<AdminShell> {
     const catalog = _TabDef('استوديو الكتالوج', Icons.inventory_2_outlined);
     const reviews = _TabDef('آراء العملاء', Icons.rate_review_outlined);
     const withdrawals = _TabDef('طلبات السحب', Icons.savings_outlined);
+    const alerts = _TabDef('تنبيهات الدفع', Icons.campaign_outlined);
+    const audit = _TabDef('سجل المحذوفات', Icons.history_edu_outlined);
     switch (role) {
       case 'accounting':
         return [pays, receipts, orders, customers];
       case 'shipping':
+        return [ship, orders, alerts];
       case 'courier':
         return [ship, orders];
       case 'support':
-        return [support, orders, receipts, customers];
+        return [support, orders, alerts, receipts, customers];
       case 'marketer':
         // مسوّق الكتالوج: الاستوديو والطلبات فقط — بلا مدفوعات أو إعدادات أو فريق.
         return [catalog, orders];
       default:
-        return [dash, orders, customers, catalog, pays, receipts, withdrawals, reviews, support, ship, settings];
+        return [dash, orders, customers, catalog, pays, receipts, withdrawals, reviews, support, alerts, ship, audit, settings];
     }
   }
 
@@ -92,6 +97,8 @@ class _AdminShellState extends State<AdminShell> {
         'استوديو الكتالوج' => const CatalogStudioTab(),
         'آراء العملاء' => const AdminReviewsTab(),
         'طلبات السحب' => const WalletRequestsTab(),
+        'تنبيهات الدفع' => const AlertsTab(),
+        'سجل المحذوفات' => const AuditTab(),
         _ => const SettingsTab(),
       };
       if (wide) {

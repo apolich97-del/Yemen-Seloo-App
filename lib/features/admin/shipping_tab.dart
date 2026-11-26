@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
@@ -79,7 +80,10 @@ class ShippingTab extends StatelessWidget {
                         '${o.address.city} · ${o.address.receiverName} · ${o.totalPieces} قطعة\n'
                         '${o.courierName.isEmpty ? 'بلا مندوب' : o.courierName}'
                         '${o.trackingNo.isEmpty ? '' : ' · تتبع ${o.trackingNo}'}'
-                        ' · ${formatMoney(o.totalLocal, o.currency)}',
+                        ' · ${formatMoney(o.totalLocal, o.currency)}\n'
+                        'المرحلة: ${o.milestone.emoji} ${o.milestone.labelAr}'
+                        '${o.trackingUrl.isNotEmpty ? " · رابط تتبع مرفق ✓" : ""}'
+                        '${o.deliverySigned ? " · موقّع إلكترونياً ✍️" : ""}',
                         style: TextStyle(fontSize: 11.5, height: 1.5, color: T.muted),
                       ),
                       const SizedBox(height: 8),
@@ -89,6 +93,12 @@ class ShippingTab extends StatelessWidget {
                         children: [
                           if (!o.status.isTerminal)
                             FilledButton.icon(
+                              onPressed: () => _editMilestone(orders, o),
+                              icon: const Icon(Icons.alt_route, size: 15),
+                              label: const Text('مراحل الشحن والتتبع', style: TextStyle(fontSize: 11)),
+                            ),
+                          if (!o.status.isTerminal)
+                            OutlinedButton.icon(
                               onPressed: () => _advance(orders, o),
                               icon: const Icon(Icons.update, size: 15),
                               label: const Text('تحديث الحالة', style: TextStyle(fontSize: 11)),
@@ -221,6 +231,121 @@ class ShippingTab extends StatelessWidget {
       Get.snackbar('تم الحفظ', 'تم تحديث بوليصة الشحن للطلب ${o.orderNo}');
     } catch (e) {
       Get.snackbar('تعذر الحفظ', '$e');
+    }
+  }
+
+  Future<void> _editMilestone(OrderService orders, Order o) async {
+    var selected = o.milestone;
+    final note = TextEditingController(text: o.shippingStageNote);
+    final trackingNo = TextEditingController(text: o.trackingNo);
+    final trackingUrl = TextEditingController(text: o.trackingUrl);
+    final courierName = TextEditingController(text: o.courierName);
+    var trackingImageUrl = o.trackingImageUrl;
+    var uploading = false;
+
+    final ok = await Get.dialog<bool>(
+      AlertDialog(
+        title: Text('تتبع ومراحل شحنة ${o.orderNo}',
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
+        content: SizedBox(
+          width: 440,
+          child: StatefulBuilder(
+            builder: (ctx, setLocal) => SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  DropdownButtonFormField<ShippingMilestone>(
+                    value: selected,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'مرحلة الشحن الحالية', isDense: true),
+                    items: ShippingMilestone.values
+                        .map((m) => DropdownMenuItem(
+                              value: m,
+                              child: Text('${m.emoji} ${m.labelAr}',
+                                  style: const TextStyle(fontSize: 12)),
+                            ))
+                        .toList(),
+                    onChanged: (v) => setLocal(() => selected = v ?? selected),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: trackingNo,
+                    decoration: const InputDecoration(labelText: 'رقم التتبع', isDense: true),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: trackingUrl,
+                    textDirection: TextDirection.ltr,
+                    decoration: const InputDecoration(
+                        labelText: 'رابط تتبع الطلب (URL)', isDense: true),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: courierName,
+                    decoration: const InputDecoration(labelText: 'شركة الشحن / المندوب', isDense: true),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: note,
+                    maxLines: 2,
+                    decoration: const InputDecoration(labelText: 'ملاحظة للعميل (تُرسل كإشعار)', isDense: true),
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: uploading
+                        ? null
+                        : () async {
+                            final x = await ImagePicker().pickImage(
+                                source: ImageSource.gallery, imageQuality: 45, maxWidth: 1080, maxHeight: 1080);
+                            if (x == null) return;
+                            setLocal(() => uploading = true);
+                            try {
+                              final bytes = await x.readAsBytes();
+                              final ext = x.path.toLowerCase().endsWith('.png') ? 'png' : 'jpg';
+                              final ref = FirebaseStorage.instance
+                                  .ref('tracking/${o.id}/trk_${DateTime.now().millisecondsSinceEpoch}.$ext');
+                              await ref.putData(bytes, SettableMetadata(contentType: 'image/$ext'));
+                              final url = await ref.getDownloadURL();
+                              setLocal(() => trackingImageUrl = url);
+                            } catch (e) {
+                              Get.snackbar('تعذر رفع الصورة', '$e');
+                            } finally {
+                              setLocal(() => uploading = false);
+                            }
+                          },
+                    icon: uploading
+                        ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.add_a_photo_outlined, size: 17),
+                    label: Text(trackingImageUrl.isEmpty
+                        ? 'إرفاق صورة التتبع من شركة الشحن'
+                        : 'تم إرفاق صورة التتبع ✓ (تغيير)'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(result: false), child: const Text('إلغاء')),
+          ElevatedButton(onPressed: () => Get.back(result: true), child: const Text('حفظ وإرسال إشعار')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await orders.updateShippingMilestone(
+        order: o,
+        milestone: selected,
+        note: note.text.trim(),
+        trackingNo: trackingNo.text.trim(),
+        trackingUrl: trackingUrl.text.trim(),
+        trackingImageUrl: trackingImageUrl,
+        courierName: courierName.text.trim(),
+      );
+      Get.snackbar('تم التحديث ✓', 'تم تحديث مرحلة الشحن وإرسال إشعار للعميل');
+    } catch (e) {
+      Get.snackbar('تعذر التحديث', '$e');
     }
   }
 

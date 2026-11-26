@@ -119,6 +119,8 @@ class CartCounter extends GetxService {
       case 'saudi':
       case 'sar':
         return 1.0;
+      case 'usd':
+        return 1.0 / ((s?.sarPerUsd ?? 3.75) > 0 ? (s?.sarPerUsd ?? 3.75) : 3.75);
       case 'north':
       default:
         return s?.rateNorth ?? SelooPricing.northRate;
@@ -149,12 +151,11 @@ class CartCounter extends GetxService {
     super.onClose();
   }
 
-  /// مزامنة أسعار وتوفر قطع السلة الموجودة في كتالوج يمن سيلو.
+  /// مزامنة أسعار وتوفر قطع السلة مع الكتالوج وذاكرة شي إن.
   Future<int> syncCartWithCatalog() async {
     if (items.isEmpty) return 0;
     try {
       final snap = await FirebaseFirestore.instance.collection('catalog').get();
-      if (snap.docs.isEmpty) return 0;
       final byGoodsId = <String, Map<String, dynamic>>{};
       for (final d in snap.docs) {
         final m = d.data();
@@ -167,6 +168,24 @@ class CartCounter extends GetxService {
       for (final item in items) {
         final match = byGoodsId[item.goodsId.trim()];
         if (match == null) {
+          // محاولة التحقق من ذاكرة أسعار شي إن إن وُجدت
+          if (item.goodsId.trim().isNotEmpty) {
+            try {
+              final sc = await FirebaseFirestore.instance
+                  .collection('shein_cache')
+                  .doc(item.goodsId.trim())
+                  .get();
+              final sm = sc.data();
+              if (sm != null) {
+                final cachedSar = ((sm['priceSar'] as num?) ?? (sm['retailPriceSar'] as num?) ?? 0).toDouble();
+                if (cachedSar > 0 && (cachedSar - item.sourcePrice).abs() > 0.01) {
+                  updated.add(item.copyWith(sourcePrice: cachedSar));
+                  changes++;
+                  continue;
+                }
+              }
+            } catch (_) {}
+          }
           updated.add(item);
           continue;
         }
@@ -302,12 +321,20 @@ class CartCounter extends GetxService {
     refreshQuote();
   }
 
-  static const Set<String> _validRegions = <String>{'north', 'south', 'saudi'};
+  static const Set<String> _validRegions = <String>{'north', 'south', 'saudi', 'usd'};
 
   /// استرجاع المنطقة المختارة — بدونها كان سعر الصرف يرجع إلى الشمال
   /// عند كل إعادة تشغيل، فتتغير أسعار السلة ثلاثة أضعاف.
   void _loadRegion() {
     try {
+      if (Get.isRegistered<SettingsService>()) {
+        final dc = Get.find<SettingsService>().displayCurrency.value.key;
+        final mapped = dc == 'sar' ? 'saudi' : dc;
+        if (_validRegions.contains(mapped)) {
+          region.value = mapped;
+          return;
+        }
+      }
       final String? saved = _box.read<String>(_kRegion);
       if (saved != null && _validRegions.contains(saved)) {
         region.value = saved;
@@ -318,6 +345,9 @@ class CartCounter extends GetxService {
   void _saveRegion(String value) {
     try {
       _box.write(_kRegion, value);
+      final cKey = value == 'saudi' ? 'sar' : value;
+      _box.write('display_currency', cKey);
+      _box.write('seloo_cart_region', value);
     } catch (_) {}
   }
 

@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/services/cart_share.dart';
 import '../../guide/interactive_guide.dart';
 import '../../../core/services/order_documents.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../core/services/settings_service.dart';
 import '../../cart/presentation/cart_share_card.dart';
 import '../../../core/theme/app_theme.dart';
@@ -65,7 +66,8 @@ class CheckoutScreen extends GetView<CheckoutController> {
           padding: const EdgeInsets.all(16),
           children: [
             _brandStrip(),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
+            _alertsBanner(context),
             _addressCard(context),
             const SizedBox(height: 12),
             _shippingCard(context),
@@ -187,13 +189,163 @@ class CheckoutScreen extends GetView<CheckoutController> {
     );
   }
 
+  Widget _alertsBanner(BuildContext context) {
+    if (!Get.isRegistered<NotificationService>()) return const SizedBox.shrink();
+    final ns = Get.find<NotificationService>();
+    return Obx(() {
+      final list = ns.checkoutAlerts;
+      if (list.isEmpty) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Column(
+          children: list.map((a) {
+            final c = a.severity == 'urgent'
+                ? T.danger
+                : (a.severity == 'info' ? T.info : T.warning);
+            final acked = controller.acknowledgedAlertIds.contains(a.id);
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: c.withOpacity(.11),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: c.withOpacity(.48)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        a.severity == 'urgent'
+                            ? Icons.error_outline
+                            : Icons.campaign_outlined,
+                        size: 18,
+                        color: c,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(a.title,
+                            style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w900,
+                                color: T.text)),
+                      ),
+                      if (a.createdByRole.isNotEmpty)
+                        Text(a.createdByRole,
+                            style: TextStyle(fontSize: 10, color: T.muted)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(a.message,
+                      style: TextStyle(fontSize: 11.5, height: 1.5, color: T.text)),
+                  if (a.requiresAck) ...[
+                    const SizedBox(height: 6),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () => controller.toggleAlertAck(a.id),
+                      child: Row(
+                        children: [
+                          Checkbox(
+                            value: acked,
+                            onChanged: (_) => controller.toggleAlertAck(a.id),
+                            visualDensity: VisualDensity.compact,
+                            activeColor: c,
+                          ),
+                          Expanded(
+                            child: Text('قرأت التنبيه وأوافق على المتابعة',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: T.text)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }).toList(),
+        ),
+      );
+    });
+  }
+
+  void _pickSavedAddress(BuildContext context) {
+    final list = controller.savedAddresses;
+    Get.bottomSheet(
+      Directionality(
+        textDirection: TextDirection.rtl,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: T.card,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Text('اختر عنوان التوصيل',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: T.text)),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: () {
+                      Get.back();
+                      controller.editAddress();
+                    },
+                    icon: const Icon(Icons.add, size: 17),
+                    label: const Text('جديد / تعديل'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (list.isEmpty)
+                Text('لا توجد عناوين محفوظة بعد', style: TextStyle(fontSize: 12, color: T.muted))
+              else
+                ...list.map((a) {
+                  final on = controller.address.value?.id == a.id;
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(on ? Icons.radio_button_checked : Icons.location_on_outlined,
+                        color: on ? T.primary : T.muted),
+                    title: Text('${a.label} — ${a.city}',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: T.text)),
+                    subtitle: Text('${a.fullAr} · ${a.phone}',
+                        style: TextStyle(fontSize: 11, color: T.muted)),
+                    onTap: () {
+                      controller.selectAddress(a);
+                      Get.back();
+                    },
+                  );
+                }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _addressCard(BuildContext context) {
     return SectionCard(
       title: 'عنوان التوصيل',
-      trailing: TextButton.icon(
-        onPressed: controller.editAddress,
-        icon: const Icon(Icons.edit_location_alt_outlined, size: 18),
-        label: const Text('تعديل'),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (controller.savedAddresses.length > 1)
+            TextButton(
+              onPressed: () => _pickSavedAddress(context),
+              child: const Text('تغيير'),
+            ),
+          TextButton.icon(
+            onPressed: controller.editAddress,
+            icon: const Icon(Icons.edit_location_alt_outlined, size: 18),
+            label: const Text('تعديل'),
+          ),
+        ],
       ),
       child: Obx(() {
         if (controller.loadingAddress.value) {
@@ -698,10 +850,44 @@ class CheckoutScreen extends GetView<CheckoutController> {
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
-                  'سعر الصرف: 1 ر.س = ${e.rate.toStringAsFixed(0)} ${c.shortAr}',
+                  c == AppCurrency.usd
+                      ? 'سعر الصرف: 1 USD = ${e.matrix.sar > 0 ? (e.matrix.sar / (e.matrix.usd > 0 ? e.matrix.usd : 1)).toStringAsFixed(2) : "3.75"} ر.س'
+                      : 'سعر الصرف: 1 ر.س = ${e.rate.toStringAsFixed(0)} ${c.shortAr}',
                   style: TextStyle(fontSize: 11, color: T.muted),
                 ),
               ),
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: T.soft,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: T.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('المقارنة بجميع العملات (سعودي / دولار ← شمال / جنوب)',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: T.primary)),
+                  const SizedBox(height: 5),
+                  MoneyRow(label: 'سعودي (SAR)', value: '${e.matrix.sar.toStringAsFixed(2)} ر.س'),
+                  MoneyRow(label: 'دولار (USD)', value: '${e.matrix.usd.toStringAsFixed(2)} USD'),
+                  MoneyRow(label: 'شمال × السعودي (${e.matrix.rateNorth.toStringAsFixed(0)})', value: '${e.matrix.northFromSar.toStringAsFixed(0)} ر.ي'),
+                  MoneyRow(label: 'شمال × الدولار (${e.matrix.usdRateNorth.toStringAsFixed(0)})', value: '${e.matrix.northFromUsd.toStringAsFixed(0)} ر.ي'),
+                  MoneyRow(label: 'جنوب × السعودي (${e.matrix.rateSouth.toStringAsFixed(0)})', value: '${e.matrix.southFromSar.toStringAsFixed(0)} ر.ي'),
+                  MoneyRow(label: 'جنوب × الدولار (${e.matrix.usdRateSouth.toStringAsFixed(0)})', value: '${e.matrix.southFromUsd.toStringAsFixed(0)} ر.ي'),
+                  if (controller.paymentPlan.value == 'half_deferred')
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        'ملاحظة الآجل: المتبقي يُثبّت بسعر صرف يوم إنشاء الطلب.',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: T.warning),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ],
         );
       }),

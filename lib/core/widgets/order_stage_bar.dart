@@ -2,64 +2,74 @@ import 'package:flutter/material.dart';
 import '../models/order.dart';
 import '../theme/app_theme.dart';
 
-/// شريط المراحل الست الأفقي الدائري المتصل مع علامات الصح،
-/// مع إبراز مرحلة إرسال استمارة واتساب قبل اعتماد الإدارة.
 class OrderStageBar extends StatelessWidget {
+  final OrderStatus status;
+  final bool compact;
+  final bool whatsappSent;
+  final String stageHint;
+  final ShippingMilestone? milestone;
+
   const OrderStageBar({
     super.key,
     required this.status,
-    this.whatsappSent = false,
     this.compact = false,
+    this.whatsappSent = false,
     this.stageHint = '',
+    this.milestone,
   });
 
-  final OrderStatus status;
-  final bool whatsappSent;
-  final bool compact;
-  final String stageHint;
-
-  static const List<OrderStatus> _stages = <OrderStatus>[
-    OrderStatus.unpaid,
-    OrderStatus.verifying,
-    OrderStatus.processing,
-    OrderStatus.shipped,
-    OrderStatus.outForDelivery,
-    OrderStatus.delivered,
+  static const _stages = [
+    'رفع الطلب',
+    'السداد',
+    'التجهيز',
+    'الشحن',
+    'التوصيل',
+    'التسليم',
   ];
 
-  int get _index {
-    if (status == OrderStatus.cancelled) return -1;
-    final i = _stages.indexOf(status);
-    return i < 0 ? 0 : i;
-  }
+  int get _index => switch (status) {
+        OrderStatus.unpaid => 0,
+        OrderStatus.verifying => 1,
+        OrderStatus.processing => 2,
+        OrderStatus.shipped => 3,
+        OrderStatus.outForDelivery => 4,
+        OrderStatus.delivered => 5,
+        OrderStatus.cancelled => -1,
+      };
 
   String _labelAt(int i) {
-    if (i == 0 && status == OrderStatus.unpaid) {
-      return whatsappSent ? 'أُرسلت\nواتساب' : 'رفع\nالطلب';
+    if (i == 0 && status == OrderStatus.unpaid && whatsappSent) {
+      return 'بانتظار التأكيد';
     }
-    return _stages[i].labelAr;
+    if (i == 3 && status == OrderStatus.shipped && milestone != null) {
+      return milestone!.shortAr;
+    }
+    return _stages[i];
   }
 
   @override
   Widget build(BuildContext context) {
     if (status == OrderStatus.cancelled) {
       return Container(
-        padding: EdgeInsets.all(compact ? 7 : 10),
-        decoration: BoxDecoration(
-          color: AppColors.danger.withOpacity(.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.danger.withOpacity(.4)),
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 10 : 12,
+          vertical: compact ? 6 : 8,
         ),
-        child: const Row(
-          children: <Widget>[
-            Icon(Icons.cancel_outlined, size: 15, color: AppColors.danger),
-            SizedBox(width: 6),
+        decoration: BoxDecoration(
+          color: T.danger.withOpacity(.1),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: T.danger.withOpacity(.3)),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.cancel_outlined, size: 16, color: T.danger),
+            const SizedBox(width: 6),
             Text(
-              'تم إلغاء هذا الطلب',
+              'تم إلغاء الطلب',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: compact ? 11 : 12,
                 fontWeight: FontWeight.w800,
-                color: AppColors.danger,
+                color: T.danger,
               ),
             ),
           ],
@@ -67,14 +77,20 @@ class OrderStageBar extends StatelessWidget {
       );
     }
 
-    final nodeSize = compact ? 19.0 : 26.0;
+    final nodeSize = compact ? 18.0 : 24.0;
     final checkSize = compact ? 11.0 : 14.0;
-    final dotSize = compact ? 5.0 : 6.0;
-    final fontSize = compact ? 7.5 : 8.5;
+    final dotSize = compact ? 6.0 : 8.0;
+    final fontSize = compact ? 8.5 : 10.0;
+    final showSubShipping = status == OrderStatus.processing ||
+        status == OrderStatus.shipped ||
+        status == OrderStatus.outForDelivery ||
+        status == OrderStatus.delivered;
+    final activeMilestone =
+        milestone ?? ShippingMilestoneX.fromKey(null, fallbackStatus: status);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
+      children: [
         Row(
           children: List<Widget>.generate(_stages.length, (i) {
             final done = i <= _index;
@@ -148,6 +164,45 @@ class OrderStageBar extends StatelessWidget {
             );
           }),
         ),
+        if (showSubShipping) ...[
+          SizedBox(height: compact ? 5 : 7),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: T.cardHigh,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: T.border),
+            ),
+            child: Row(
+              children: [
+                for (final ms in const [
+                  ShippingMilestone.preparing,
+                  ShippingMilestone.chinaWarehouse,
+                  ShippingMilestone.uaeTransit,
+                  ShippingMilestone.saudiCustoms,
+                  ShippingMilestone.yemenArrival,
+                ])
+                  Expanded(
+                    child: Text(
+                      '${ms.emoji} ${ms.shortAr}',
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: compact ? 8.2 : 9.3,
+                        fontWeight: activeMilestone.stepIndex >= ms.stepIndex
+                            ? FontWeight.w900
+                            : FontWeight.w500,
+                        color: activeMilestone.stepIndex >= ms.stepIndex
+                            ? T.primary
+                            : T.muted,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
         if (stageHint.isNotEmpty ||
             (status == OrderStatus.unpaid && whatsappSent)) ...[
           SizedBox(height: compact ? 5 : 8),

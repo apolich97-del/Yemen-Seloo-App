@@ -622,6 +622,7 @@ class _OrdersTabState extends State<OrdersTab>
               const SizedBox(height: 8),
               OrderStageBar(
                 status: o.status,
+                milestone: o.milestone,
                 whatsappSent: o.hasWhatsAppSent,
                 compact: true,
                 stageHint: o.stageHintAr,

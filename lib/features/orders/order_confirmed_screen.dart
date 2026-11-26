@@ -2,6 +2,9 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -115,6 +118,21 @@ class _OrderConfirmedScreenState extends State<OrderConfirmedScreen> {
   }
 
 
+  Future<void> _uploadSummaryPngInBg(File png) async {
+    if (widget.orderId.isEmpty) return;
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid ?? 'guest';
+      final bytes = await png.readAsBytes();
+      final ref = FirebaseStorage.instance
+          .ref('order_summaries/$uid/${widget.orderId}_${DateTime.now().millisecondsSinceEpoch}.png');
+      await ref.putData(bytes, SettableMetadata(contentType: 'image/png'));
+      final url = await ref.getDownloadURL();
+      await FirebaseFirestore.instance.collection('orders').doc(widget.orderId).set({
+        'orderSummaryImageUrl': url,
+      }, SetOptions(merge: true));
+    } catch (_) {}
+  }
+
   Future<void> _persistWhatsAppSent(String label) async {
     if (widget.orderId.isEmpty) return;
     try {
@@ -132,6 +150,7 @@ class _OrderConfirmedScreenState extends State<OrderConfirmedScreen> {
       final png = await _captureSummaryPng();
       final shortDigits = waPhone.replaceAll(RegExp(r'[^0-9]'), '');
       if (png != null) {
+        _uploadSummaryPngInBg(png);
         Get.snackbar(
           'تم تجهيز لقطة الشاشة + الاستمارة ✓',
           'اختر واتساب ← محادثة $label (${shortDigits.replaceFirst('967', '')}) لإرسال الصورة مع الاستمارة',
@@ -188,6 +207,7 @@ class _OrderConfirmedScreenState extends State<OrderConfirmedScreen> {
     try {
       final png = await _captureSummaryPng();
       if (png != null) {
+        _uploadSummaryPngInBg(png);
         await Share.shareXFiles(
           [XFile(png.path)],
           text: widget.summary,
@@ -427,7 +447,7 @@ class _OrderConfirmedScreenState extends State<OrderConfirmedScreen> {
                                 border: Border.all(color: T.softBorder),
                               ),
                               child: Text(
-                                'مسجّل في مسار الطلبات الآجلة الإجباري (50%) ✓',
+                                'مسجّل في مسار الطلبات الآجلة الإجباري (50%) ✓ — سعر الصرف مثبت يوم الطلب',
                                 style: TextStyle(
                                     fontSize: 10.5,
                                     fontWeight: FontWeight.w800,
@@ -435,6 +455,28 @@ class _OrderConfirmedScreenState extends State<OrderConfirmedScreen> {
                               ),
                             ),
                           ],
+                          const SizedBox(height: 8),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: T.soft,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: T.softBorder),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.qr_code_2, size: 22, color: T.primary),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'مرجع الطلب والتتبع: ${widget.orderNo}\nhttps://yemen-seloo-app.web.app/order/${widget.orderId.isEmpty ? widget.orderNo : widget.orderId}',
+                                    style: TextStyle(fontSize: 9.5, color: T.muted, height: 1.4),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),

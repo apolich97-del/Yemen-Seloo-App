@@ -133,7 +133,7 @@ class HomeTab extends StatelessWidget {
                     child: _ServiceTile(
                       icon: Icons.currency_exchange,
                       title: 'تسعير شفاف',
-                      onTap: () => Get.toNamed(AppRoutes.profile),
+                      onTap: () => Get.find<MainTabController>().goToMe(),
                     ),
                   ),
                 ],

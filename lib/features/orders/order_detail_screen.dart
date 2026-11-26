@@ -21,7 +21,9 @@ import '../cart/presentation/cart_share_card.dart';
 import '../../core/widgets/brand_header.dart';
 import '../guide/interactive_guide.dart';
 import 'refunds_ui.dart';
+import '../../core/widgets/interactive_route_map.dart';
 import '../../core/widgets/order_stage_bar.dart';
+import '../../core/widgets/signature_pad_widget.dart';
 import '../receipts/presentation/my_receipts_screen.dart';
 import '../support/presentation/support_screen.dart';
 import '../../core/services/order_documents.dart';
@@ -114,10 +116,28 @@ class OrderDetailScreen extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: SectionCard(
-                  title: 'مراحل الطلب',
-                  child: OrderStageBar(status: o.status, whatsappSent: o.hasWhatsAppSent, stageHint: o.stageHintAr),
+                  title: 'مراحل الطلب والشحن',
+                  child: OrderStageBar(
+                    status: o.status,
+                    milestone: o.milestone,
+                    whatsappSent: o.hasWhatsAppSent,
+                    stageHint: o.stageHintAr,
+                  ),
                 ),
               ),
+              InteractiveRouteMap(order: o),
+              const SizedBox(height: 12),
+              if (o.replacementStatus.isNotEmpty) ...[
+                _replacementCard(context, o, svc),
+                const SizedBox(height: 12),
+              ],
+              if (o.deliverySigned ||
+                  o.status == OrderStatus.outForDelivery ||
+                  o.status == OrderStatus.shipped ||
+                  o.status == OrderStatus.processing) ...[
+                _deliverySignatureCard(context, o, svc),
+                const SizedBox(height: 12),
+              ],
               _receiptsCard(o),
               _balanceCard(o),
               if (o.hasRemaining) const SizedBox(height: 12),
@@ -244,13 +264,15 @@ class OrderDetailScreen extends StatelessWidget {
                         style: TextStyle(fontSize: 11.5)),
                   ),
                 ),
-                const SizedBox(width: 8),
-                OutlinedButton.icon(
-                  onPressed: () => _managerDelete(o),
-                  icon: const Icon(Icons.delete_outline, size: 16),
-                  label: const Text('حذف',
-                      style: TextStyle(fontSize: 11.5)),
-                ),
+                if (Get.isRegistered<AuthService>() && Get.find<AuthService>().isManager) ...[
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => _managerDelete(o),
+                    icon: Icon(Icons.delete_outline, size: 16, color: T.danger),
+                    label: Text('حذف وأرشفة',
+                        style: TextStyle(fontSize: 11.5, color: T.danger)),
+                  ),
+                ],
               ],
             ),
           ],
@@ -351,39 +373,410 @@ class OrderDetailScreen extends StatelessWidget {
   }
 
   Future<void> _managerDelete(Order o) async {
+    final reasonCtrl = TextEditingController();
     final ok = await Get.dialog<bool>(
       AlertDialog(
-        title: const Text('حذف الطلب؟'),
-        content: Text(
-            'سيُحذف الطلب ${o.orderNo} وإيصالاته نهائياً. لا يمكن التراجع.',
-            style: const TextStyle(fontSize: 12)),
+        title: const Text('أرشفة وحذف الطلب؟'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+                'سيُؤرشف الطلب ${o.orderNo} في سجل التدقيق والمحذوفات قبل إزالته نهائياً.',
+                style: const TextStyle(fontSize: 12)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: reasonCtrl,
+              decoration: const InputDecoration(
+                  labelText: 'سبب الحذف (اختياري)', isDense: true),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
               onPressed: () => Get.back(result: false),
               child: const Text('إلغاء')),
           ElevatedButton(
               onPressed: () => Get.back(result: true),
-              child: const Text('حذف')),
+              child: const Text('حذف وأرشفة')),
         ],
       ),
     );
     if (ok != true) return;
     try {
-      final db = FirebaseFirestore.instance;
-      final receipts = await db
-          .collection('orders')
-          .doc(o.id)
-          .collection('receipts')
-          .get();
-      for (final r in receipts.docs) {
-        await r.reference.delete();
-      }
-      await db.collection('orders').doc(o.id).delete();
-      Get.snackbar('تم الحذف', 'أُزيل الطلب ${o.orderNo}');
+      await Get.find<OrderService>().managerArchiveAndDeleteOrder(
+        o,
+        reason: reasonCtrl.text.trim(),
+      );
+      Get.snackbar('تم الحذف والأرشفة', 'أُزيل الطلب ${o.orderNo} وحُفظت نسخته');
       Get.back();
     } catch (e) {
       Get.snackbar('تعذر الحذف', '$e');
     }
+  }
+
+  Widget _replacementCard(BuildContext context, Order o, OrderService svc) {
+    final p = o.replacementProposal;
+    final oldTitle = (p['oldTitle'] ?? 'قطعة غير متوفرة').toString();
+    final oldTotalSar = (p['oldTotalSar'] as num?)?.toDouble() ?? 0.0;
+    final reason = (p['reason'] ?? 'نفدت القطعة من المخزون').toString();
+    final newTitle = (p['newTitle'] ?? '').toString();
+    final diffSar = (p['diffSar'] as num?)?.toDouble() ?? 0.0;
+    final isStaff = Get.isRegistered<AuthService>() && Get.find<AuthService>().isStaff;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: T.warning.withOpacity(.11),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: T.warning.withOpacity(.55)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.swap_horiz_rounded, color: T.warning, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'البديل الذكي لقطعة منتهية',
+                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900, color: T.text),
+                ),
+              ),
+              if (o.is24hElapsed)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: T.warning.withOpacity(.2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text('بعد 24 ساعة',
+                      style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: T.warning)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text('القطعة المنتهية: $oldTitle (${oldTotalSar.toStringAsFixed(2)} ر.س)',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: T.text)),
+          Text(reason, style: TextStyle(fontSize: 11, color: T.muted)),
+          const SizedBox(height: 8),
+          if (o.hasPendingReplacement) ...[
+            Text(
+              'أرسل بديلاً بنفس القيمة أو بسعر مختلف — أي زيادة تُضاف على المتبقي وأي نقص يُخصم لك أو يُضاف لمحفظتك.',
+              style: TextStyle(fontSize: 11, height: 1.5, color: T.text),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _openSubmitReplacementDialog(o, svc, oldTotalSar),
+                icon: const Icon(Icons.add_link, size: 18),
+                label: const Text('إرسال رابط / بيانات القطعة البديلة'),
+              ),
+            ),
+          ] else if (o.hasSubmittedReplacement) ...[
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: T.card,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: T.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('البديل المقترح: $newTitle',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: T.text)),
+                  const SizedBox(height: 3),
+                  Text(
+                    diffSar == 0
+                        ? 'بنفس القيمة تماماً (لا يوجد فارق)'
+                        : (diffSar > 0
+                            ? 'زيادة: +${diffSar.toStringAsFixed(2)} ر.س (تُضاف على المتبقي)'
+                            : 'وفر: -${(-diffSar).toStringAsFixed(2)} ر.س (تُخصم أو تضاف للمحفظة)'),
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      color: diffSar > 0 ? T.danger : T.success,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 6),
+            if (!isStaff)
+              Text('تم إرسال اقتراحك للإدارة — قيد الاعتماد ✓',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: T.primary))
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => svc.resolveCustomerReplacement(order: o, approved: false),
+                      child: const Text('رفض'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => svc.resolveCustomerReplacement(order: o, approved: true),
+                      child: const Text('اعتماد وتسوية'),
+                    ),
+                  ),
+                ],
+              ),
+          ] else if (o.replacementStatus == 'approved') ...[
+            Text('تم اعتماد البديل: $newTitle وتحديث الفاتورة ✓',
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: T.success)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openSubmitReplacementDialog(Order o, OrderService svc, double oldTotalSar) async {
+    final titleCtrl = TextEditingController();
+    final urlCtrl = TextEditingController();
+    final priceCtrl = TextEditingController(text: oldTotalSar.toStringAsFixed(2));
+    final colorCtrl = TextEditingController();
+    final sizeCtrl = TextEditingController();
+    final imgCtrl = TextEditingController();
+    double diff = 0.0;
+
+    final ok = await Get.dialog<bool>(
+      AlertDialog(
+        title: const Text('إرسال قطعة بديلة', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900)),
+        content: SizedBox(
+          width: 420,
+          child: StatefulBuilder(
+            builder: (ctx, setLocal) => SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: urlCtrl,
+                    textDirection: TextDirection.ltr,
+                    decoration: const InputDecoration(labelText: 'رابط القطعة من SHEIN أو الكتالوج', isDense: true),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: titleCtrl,
+                    decoration: const InputDecoration(labelText: 'اسم / وصف القطعة البديلة', isDense: true),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: priceCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'سعر القطعة البديلة (ر.س)', isDense: true),
+                    onChanged: (v) {
+                      final p = double.tryParse(v.trim()) ?? 0.0;
+                      setLocal(() => diff = p - oldTotalSar);
+                    },
+                  ),
+                  const SizedBox(height: 6),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      diff.abs() < 0.01
+                          ? 'بنفس قيمة القطعة الأصلية (0 ر.س فارق)'
+                          : (diff > 0
+                              ? 'فارق بالزيادة: +${diff.toStringAsFixed(2)} ر.س يُحتسب عليك'
+                              : 'فارق بالنقص: -${(-diff).toStringAsFixed(2)} ر.س يُحتسب لك'),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: diff > 0.01 ? T.danger : T.success,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: sizeCtrl,
+                          decoration: const InputDecoration(labelText: 'المقاس', isDense: true),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: colorCtrl,
+                          decoration: const InputDecoration(labelText: 'اللون', isDense: true),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: imgCtrl,
+                    textDirection: TextDirection.ltr,
+                    decoration: const InputDecoration(labelText: 'رابط الصورة (اختياري)', isDense: true),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(result: false), child: const Text('إلغاء')),
+          ElevatedButton(onPressed: () => Get.back(result: true), child: const Text('إرسال البديل')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final unitSar = double.tryParse(priceCtrl.text.trim()) ?? 0.0;
+    if (titleCtrl.text.trim().isEmpty || unitSar <= 0) {
+      Get.snackbar('بيانات ناقصة', 'أدخل اسم القطعة البديلة وسعرها بالريال السعودي');
+      return;
+    }
+    try {
+      await svc.submitCustomerReplacement(
+        order: o,
+        newTitle: titleCtrl.text.trim(),
+        newProductUrl: urlCtrl.text.trim(),
+        newImageUrl: imgCtrl.text.trim(),
+        newUnitPriceSar: unitSar,
+        color: colorCtrl.text.trim(),
+        size: sizeCtrl.text.trim(),
+      );
+      Get.snackbar('تم الإرسال ✓', 'تم تسجيل القطعة البديلة وإبلاغ الإدارة');
+    } catch (e) {
+      Get.snackbar('تعذر الإرسال', '$e');
+    }
+  }
+
+  Widget _deliverySignatureCard(BuildContext context, Order o, OrderService svc) {
+    return SectionCard(
+      title: 'التوقيع الإلكتروني واستلام الشحنة',
+      child: o.deliverySigned && o.customerSignatureUrl.isNotEmpty
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.verified_rounded, color: T.success, size: 19),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'تم توثيق الاستلام بالتوقيع الإلكتروني ✓',
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: T.success),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                if (o.signedByName.isNotEmpty)
+                  Text('الموقّع: ${o.signedByName}', style: TextStyle(fontSize: 11.5, color: T.text)),
+                const SizedBox(height: 8),
+                Container(
+                  height: 110,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: T.border),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(11),
+                    child: Image.network(o.customerSignatureUrl, fit: BoxFit.contain),
+                  ),
+                ),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (o.deliveryPin.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: T.soft,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: T.softBorder),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.pin_outlined, size: 17, color: T.primary),
+                        const SizedBox(width: 8),
+                        Text('رمز تأكيد التسليم الخاص بك: ${o.deliveryPin}',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: T.primary)),
+                      ],
+                    ),
+                  ),
+                Text(
+                  'عند استلام شحنتك، وقّع إلكترونياً بالإصبع لتأكيد الاستلام وتضمين توقيعك في بوليصة التسليم الرسمية.',
+                  style: TextStyle(fontSize: 11.5, height: 1.5, color: T.muted),
+                ),
+                const SizedBox(height: 10),
+                ElevatedButton.icon(
+                  onPressed: () => _openSignatureSheet(o, svc),
+                  icon: const Icon(Icons.draw_outlined, size: 18),
+                  label: const Text('التوقيع الإلكتروني لتأكيد الاستلام'),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Future<void> _openSignatureSheet(Order o, OrderService svc) async {
+    final nameCtrl = TextEditingController(text: o.address.receiverName);
+    final pinCtrl = TextEditingController();
+    await Get.bottomSheet(
+      Directionality(
+        textDirection: TextDirection.rtl,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+          decoration: BoxDecoration(
+            color: T.card,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('توثيق الاستلام بالتوقيع الإلكتروني',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: T.text)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'اسم المستلم الموقّع', isDense: true),
+                ),
+                if (o.deliveryPin.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: pinCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                        labelText: 'رمز التأكيد (4 أرقام — اختياري)', isDense: true),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                SignaturePadWidget(
+                  onConfirm: (bytes) async {
+                    try {
+                      await svc.submitElectronicSignature(
+                        order: o,
+                        pngBytes: bytes,
+                        signerName: nameCtrl.text.trim(),
+                        enteredPin: pinCtrl.text.trim(),
+                      );
+                      Get.back();
+                      Get.snackbar('تم التسليم ✓', 'تم حفظ توقيعك الإلكتروني بنجاح');
+                    } catch (e) {
+                      Get.snackbar('تعذر حفظ التوقيع', '$e');
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      isScrollControlled: true,
+    );
   }
 
   Widget _deferredBadge() => Container(
@@ -622,6 +1015,21 @@ class OrderDetailScreen extends StatelessWidget {
                             [if (it.size.isNotEmpty) 'مقاس ${it.size}',
                              if (it.color.isNotEmpty) 'لون ${it.color}'].join(' · '),
                             style: TextStyle(fontSize: 11, color: T.muted),
+                          ),
+                        if (it.isReplacement)
+                          Text(
+                            '🔄 بديل ذكي عن: ${it.replacedFromTitle}',
+                            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: T.primary),
+                          ),
+                        if (it.stockStatus == 'out_of_stock')
+                          Text(
+                            '⚠️ نفدت من المخزون',
+                            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: T.danger),
+                          ),
+                        if (it.stockStatus == 'replaced')
+                          Text(
+                            '✓ تم استبدالها: ${it.replacementNote}',
+                            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: T.muted),
                           ),
                       ],
                     ),

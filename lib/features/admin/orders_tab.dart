@@ -158,6 +158,21 @@ class _OrdersTabState extends State<OrdersTab> {
                             fontWeight: FontWeight.w700,
                             color: Color(o.status.colorValue))),
                   ),
+                  const SizedBox(width: 6),
+                  Text('${o.milestone.emoji} ${o.milestone.shortAr}',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: T.muted)),
+                  if (o.is24hElapsed && o.status == OrderStatus.processing) ...[
+                    const SizedBox(width: 5),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: T.warning.withOpacity(.16),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text('+24س',
+                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: T.warning)),
+                    ),
+                  ],
                   if (o.isDeferred) ...[
                     const SizedBox(width: 6),
                     Container(
@@ -207,10 +222,160 @@ class _OrdersTabState extends State<OrdersTab> {
                   ),
                 ],
               ),
+              if (!o.status.isTerminal) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    if (o.items.isNotEmpty)
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _requestReplacement(o),
+                          icon: const Icon(Icons.swap_horiz, size: 15),
+                          label: Text(
+                            o.hasPendingReplacement ? 'بانتظار بديل العميل' : 'نفاد / بديل ذكي',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                        ),
+                      ),
+                    if (o.hasSubmittedReplacement) ...[
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: () => _reviewReplacement(o),
+                          icon: const Icon(Icons.fact_check_outlined, size: 15),
+                          label: const Text('اعتماد البديل', style: TextStyle(fontSize: 11)),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
             ],
           ),
         ),
       );
+
+  Future<void> _requestReplacement(Order o) async {
+    int chosenIdx = 0;
+    final reasonCtrl = TextEditingController(text: 'نفدت القطعة من المخزون — يرجى اختيار بديل');
+    final ok = await Get.dialog<bool>(
+      AlertDialog(
+        title: Text('تنبيه نفاد قطعة — ${o.orderNo}',
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
+        content: StatefulBuilder(
+          builder: (ctx, setLocal) => SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  o.is24hElapsed
+                      ? 'تنبيه (+24 ساعة على الطلب): اختر القطعة المنتهية لإبلاغ العميل بإرسال بديل.'
+                      : 'اختر القطعة المنتهية لإشعار العميل فوراً بإرسال بديل بنفس القيمة أو بفارق يُسوى تلقائياً.',
+                  style: TextStyle(fontSize: 11.5, color: T.muted),
+                ),
+                const SizedBox(height: 8),
+                ...List.generate(o.items.length, (i) {
+                  final it = o.items[i];
+                  return RadioListTile<int>(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    value: i,
+                    groupValue: chosenIdx,
+                    onChanged: (v) => setLocal(() => chosenIdx = v ?? 0),
+                    title: Text(it.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12)),
+                    subtitle: Text('${it.unitPriceSar.toStringAsFixed(2)} ر.س × ${it.qty}',
+                        style: const TextStyle(fontSize: 10.5)),
+                  );
+                }),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: reasonCtrl,
+                  decoration: const InputDecoration(labelText: 'سبب التنبيه للعميل', isDense: true),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(result: false), child: const Text('إلغاء')),
+          ElevatedButton(onPressed: () => Get.back(result: true), child: const Text('إرسال التنبيه')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await _orders.requestItemReplacement(
+        order: o,
+        itemIndex: chosenIdx,
+        reason: reasonCtrl.text.trim(),
+      );
+      Get.snackbar('تم الإرسال ✓', 'تم إشعار العميل بطلب القطعة البديلة');
+    } catch (e) {
+      Get.snackbar('تعذر الإرسال', '$e');
+    }
+  }
+
+  Future<void> _reviewReplacement(Order o) async {
+    final p = o.replacementProposal;
+    final oldTitle = (p['oldTitle'] ?? '').toString();
+    final newTitle = (p['newTitle'] ?? '').toString();
+    final newUrl = (p['newProductUrl'] ?? '').toString();
+    final diffSar = (p['diffSar'] as num?)?.toDouble() ?? 0.0;
+    final noteCtrl = TextEditingController();
+    final decision = await Get.dialog<bool>(
+      AlertDialog(
+        title: const Text('مراجعة القطعة البديلة', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('الأصلية: $oldTitle', style: const TextStyle(fontSize: 12)),
+            const SizedBox(height: 4),
+            Text('البديلة: $newTitle', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
+            if (newUrl.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              SelectableText(newUrl, style: const TextStyle(fontSize: 10.5)),
+            ],
+            const SizedBox(height: 6),
+            Text(
+              diffSar == 0
+                  ? 'الفارق: لا يوجد (نفس السعر)'
+                  : (diffSar > 0
+                      ? 'الفارق: +${diffSar.toStringAsFixed(2)} ر.س (يُضاف على المتبقي)'
+                      : 'الفارق: ${diffSar.toStringAsFixed(2)} ر.س (يُخصم من المتبقي أو يُضاف للمحفظة)'),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: diffSar > 0 ? T.danger : (diffSar < 0 ? T.success : T.primary),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: noteCtrl,
+              decoration: const InputDecoration(labelText: 'ملاحظة (اختياري)', isDense: true),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(result: false), child: const Text('رفض')),
+          ElevatedButton(onPressed: () => Get.back(result: true), child: const Text('اعتماد وتحديث الفاتورة')),
+        ],
+      ),
+    );
+    if (decision == null) return;
+    try {
+      await _orders.resolveCustomerReplacement(
+        order: o,
+        approved: decision,
+        adminNote: noteCtrl.text.trim(),
+      );
+      Get.snackbar('تم ✓', decision ? 'تم اعتماد البديل وتسوية الفارق' : 'تم رفض البديل وطلب آخر');
+    } catch (e) {
+      Get.snackbar('تعذر التنفيذ', '$e');
+    }
+  }
 
   Future<void> _updateStatus(Order o) async {
     final next = o.status.nextStatuses;
@@ -424,37 +589,45 @@ extension _StaffOrderEditor on _OrdersTabState {
           ),
         ),
         actions: [
-          if (Get.find<AuthService>().role == 'manager')
+          if (Get.find<AuthService>().isManager)
             TextButton(
               onPressed: () async {
+                final reasonCtrl = TextEditingController();
                 final ok = await Get.dialog<bool>(
                   AlertDialog(
-                    title: const Text('حذف الطلب؟'),
-                    content: Text('سيُحذف الطلب ${o.orderNo} نهائياً. لا يمكن التراجع.',
-                        style: const TextStyle(fontSize: 12)),
+                    title: const Text('أرشفة وحذف الطلب؟'),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('سيُحفظ سجل الطلب ${o.orderNo} في أرشيف المحذوفات قبل حذفه.',
+                            style: const TextStyle(fontSize: 12)),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: reasonCtrl,
+                          decoration: const InputDecoration(labelText: 'سبب الحذف (اختياري)', isDense: true),
+                        ),
+                      ],
+                    ),
                     actions: [
                       TextButton(
                           onPressed: () => Get.back(result: false),
                           child: const Text('إلغاء')),
                       ElevatedButton(
                           onPressed: () => Get.back(result: true),
-                          child: const Text('حذف')),
+                          child: const Text('تأكيد الحذف')),
                     ],
                   ),
                 );
                 if (ok != true) return;
                 try {
-                  await FirebaseFirestore.instance
-                      .collection('orders')
-                      .doc(o.id)
-                      .delete();
+                  await _orders.managerArchiveAndDeleteOrder(o, reason: reasonCtrl.text.trim());
                   Get.back();
-                  Get.snackbar('تم الحذف', 'أُزيل الطلب ${o.orderNo}');
+                  Get.snackbar('تم الحذف والأرشفة', 'أُزيل الطلب ${o.orderNo}');
                 } catch (e) {
                   Get.snackbar('تعذر الحذف', '$e');
                 }
               },
-              child: const Text('حذف الطلب',
+              child: const Text('حذف وأرشفة',
                   style: TextStyle(color: AppColors.danger)),
             ),
           TextButton(onPressed: Get.back, child: const Text('إغلاق')),

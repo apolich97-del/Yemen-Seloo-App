@@ -5,6 +5,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get_storage/get_storage.dart';
+import 'saved_accounts_service.dart';
 import 'package:get/get.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
@@ -93,6 +94,17 @@ class AppUser {
   }
 
   bool get isStaff => role != 'customer';
+  bool get isManager => isMainManager || role == 'manager';
+
+  String get roleLabelAr => switch (role) {
+        'manager' => 'مدير',
+        'marketer' => 'مسوّق الكتالوج',
+        'accounting' => 'محاسب',
+        'shipping' => 'مسؤول الشحن',
+        'support' => 'دعم العملاء',
+        'courier' => 'مندوب التوصيل',
+        _ => 'عميل',
+      };
 
   AppUser copyWith({
     String? firstName,
@@ -223,19 +235,69 @@ class AuthService extends GetxService {
     }
   }
 
+  StreamSubscription? _userDocSub;
+  StreamSubscription? _inviteDocSub;
+  StreamSubscription? _authStateSub;
+
   @override
   void onInit() {
     super.onInit();
-    _auth.authStateChanges().listen(_onAuthChanged);
-    ever(user, (_) {});
+    _authStateSub = _auth.authStateChanges().listen(_onAuthChanged);
+  }
+
+  @override
+  void onClose() {
+    _authStateSub?.cancel();
+    _userDocSub?.cancel();
+    _inviteDocSub?.cancel();
+    super.onClose();
   }
 
   Future<void> _onAuthChanged(User? u) async {
+    _userDocSub?.cancel();
+    _inviteDocSub?.cancel();
     if (u == null) {
       user.value = null;
       return;
     }
-    user.value = AppUser(uid: u.uid, email: u.email, phone: u.phoneNumber);
+    // استرجاع فوري من الكاش لمنع اختفاء الدور أو الاسم أثناء التحميل
+    String cachedRole = 'customer';
+    String cachedFirst = '';
+    String cachedLast = '';
+    String cachedPhone = u.phoneNumber ?? '';
+    try {
+      final raw = GetStorage().read('seloo_customer_profile_${u.uid}');
+      if (raw is Map) {
+        cachedRole = (raw['role'] ?? 'customer').toString();
+        cachedFirst = (raw['firstName'] ?? '').toString();
+        cachedLast = (raw['lastName'] ?? '').toString();
+        if ((raw['phone'] ?? '').toString().isNotEmpty) {
+          cachedPhone = raw['phone'].toString();
+        }
+      }
+    } catch (_) {}
+    final emailLower = (u.email ?? '').trim().toLowerCase();
+    if (cachedRole == 'customer' && mainManagerEmails.contains(emailLower)) {
+      cachedRole = 'manager';
+    }
+    user.value = AppUser(
+      uid: u.uid,
+      email: u.email,
+      phone: cachedPhone,
+      firstName: cachedFirst,
+      lastName: cachedLast,
+      role: cachedRole,
+    );
+    _userDocSub = _db.collection('users').doc(u.uid).snapshots().listen(
+      (_) => refreshProfile(),
+      onError: (_) {},
+    );
+    if (emailLower.isNotEmpty) {
+      _inviteDocSub = _db.collection('staff_invites').doc(emailLower).snapshots().listen(
+        (_) => refreshProfile(),
+        onError: (_) {},
+      );
+    }
     await refreshProfile();
   }
 
@@ -247,54 +309,47 @@ class AuthService extends GetxService {
       final d = snap.data() ?? <String, dynamic>{};
       // الدور الرسمي يأتي من claims (لا يمكن للعميل تعديله بنفسه).
       String role = 'customer';
-      final token = await u.getIdTokenResult(true);
-      final claimRole = token.claims?['role'];
-      if (claimRole is String && claimRole.isNotEmpty) role = claimRole;
+      String? claimRole;
+      try {
+        final token = await u.getIdTokenResult(false);
+        final rawClaim = token.claims?['role'];
+        if (rawClaim is String && rawClaim.isNotEmpty) claimRole = rawClaim;
+      } catch (_) {}
 
-      // الدور قد يُضبط في users/{uid}.role من لوحة Firebase
-      final docRole = (d['role'] as String?) ?? '';
-      if (claimRole is! String || claimRole.isEmpty) {
-        if (docRole.isNotEmpty && docRole != 'customer') role = docRole;
-      }
-
-      // بريد الفريق يفتح لوحة الإدارة حتى لو لم يُضبط claim الدور بعد
-      // (نفس القائمة المعتمدة في firestore.rules).
       final email = (u.email ?? '').toLowerCase().trim();
-      if (role == 'customer' && mainManagerEmails.contains(email)) {
-        role = 'manager';
+      final docRole = (d['role'] as String?) ?? '';
+      if (claimRole != null && claimRole.isNotEmpty) {
+        role = claimRole;
+      } else if (docRole.isNotEmpty && docRole != 'customer') {
+        role = docRole;
       }
 
-      // ربط ديناميكي: دور الموظف من سجل الفريق staff_invites/{email}
-      if (email.isNotEmpty) {
+      if (mainManagerEmails.contains(email)) {
+        role = 'manager';
+      } else if (email.isNotEmpty) {
         try {
-          var inv = await FirebaseFirestore.instance
+          final inv = await FirebaseFirestore.instance
               .collection('staff_invites')
               .doc(email)
               .get();
-          if (!inv.exists) {
-            final qInv = await FirebaseFirestore.instance
-                .collection('staff_invites')
-                .where('email', isEqualTo: email)
-                .limit(1)
-                .get();
-            if (qInv.docs.isNotEmpty) inv = qInv.docs.first;
+          if (inv.exists && inv.data() != null) {
+            final invActive = (inv.data()?['active'] ?? true) == true;
+            final invRole = (inv.data()?['role'] ?? '').toString();
+            if (invActive && staffRoles.contains(invRole)) {
+              role = invRole;
+              if (docRole != invRole) {
+                try {
+                  await FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(u.uid)
+                      .set({'role': invRole, 'email': email}, SetOptions(merge: true));
+                } catch (_) {}
+              }
+            } else {
+              role = 'customer';
+            }
           }
-          final invRole = (inv.data()?['role'] ?? '') as String;
-          if (inv.data() != null &&
-              (inv.data()?['active'] ?? true) == true &&
-              staffRoles.contains(invRole)) {
-            role = invRole;
-            // تثبيت الدور في users/{uid} حتى تُقرأ به قواعد Firestore.
-            try {
-              await FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(u.uid)
-                  .set({'role': invRole}, SetOptions(merge: true));
-            } catch (_) {}
-          }
-        } catch (_) {
-          // تعذّر القراءة (قواعد/شبكة) — يبقى العميل عميلاً.
-        }
+        } catch (_) {}
       }
       // قراءة النسخة المحلية المخزنة لهذا الحساب (لكل Google UID سجل مستقل)
       Map<String, dynamic> cached = <String, dynamic>{};
@@ -376,18 +431,26 @@ class AuthService extends GetxService {
         createdAt: _parseAuthDate(d['createdAt']),
       );
       user.value = profile;
-      if (profile.hasCompleteCustomerProfile) {
-        try {
-          GetStorage().write('seloo_customer_profile_${u.uid}', {
-            'firstName': fName,
-            'lastName': lName,
-            'phone': resolvedPhone,
-            'city': city,
-            'district': district,
-            'addressLine': addrLine,
-            'customerCode': resolvedCode,
-          });
-        } catch (_) {}
+      try {
+        GetStorage().write('seloo_customer_profile_${u.uid}', {
+          'firstName': fName,
+          'lastName': lName,
+          'phone': resolvedPhone,
+          'city': city,
+          'district': district,
+          'addressLine': addrLine,
+          'customerCode': resolvedCode,
+          'role': role,
+        });
+      } catch (_) {}
+      if (Get.isRegistered<SavedAccountsService>()) {
+        Get.find<SavedAccountsService>().record(
+          uid: u.uid,
+          email: profile.email ?? '',
+          name: profile.displayName.isNotEmpty ? profile.displayName : (u.displayName ?? ''),
+          phone: resolvedPhone,
+          role: role,
+        );
       }
     } catch (e) {
       debugPrint('refreshProfile: $e');
@@ -528,6 +591,14 @@ class AuthService extends GetxService {
           ? user.value!.displayName
           : (user.value?.email ?? 'staff'),
     }, SetOptions(merge: true));
+  }
+
+  /// تبديل الحساب المسجل بجوجل: يفتح منتقي حسابات جوجل مباشرة مع حفظ بيانات كل حساب.
+  Future<void> switchGoogleAccount() async {
+    try {
+      await GoogleSignIn().signOut();
+    } catch (_) {}
+    await signInWithGoogle();
   }
 
   Future<void> signInWithGoogle() async {

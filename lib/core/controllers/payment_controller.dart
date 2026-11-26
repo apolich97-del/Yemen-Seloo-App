@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +15,8 @@ import '../models/currency.dart';
 import '../../features/orders/order_confirmed_screen.dart';
 import '../services/auth_service.dart';
 import '../models/cart.dart';
+import '../models/order.dart';
+import '../routes/app_routes.dart';
 import '../services/order_documents.dart';
 import '../services/order_service.dart';
 import '../services/wallet_service.dart';
@@ -48,6 +51,7 @@ class PaymentController extends GetxController {
   final accounts = <PaymentAccount>[].obs;
   final selected = Rxn<PaymentAccount>();
   final transfer = Rxn<TransferDraft>();
+  final deliveryAddress = Rxn<Address>();
   final busy = false.obs;
   final uploading = false.obs;
 
@@ -60,6 +64,7 @@ class PaymentController extends GetxController {
   void onInit() {
     super.onInit();
     payload = Get.arguments as CheckoutPayload;
+    deliveryAddress.value = payload.address;
     accounts.assignAll(accountsForCurrency(payload.currency));
     amountCtrl.text = requiredDueLocal
         .toStringAsFixed(payload.currency.decimals == 0 ? 0 : 2);
@@ -188,13 +193,23 @@ class PaymentController extends GetxController {
       if (x == null) return;
       uploading.value = true;
       final bytes = await x.readAsBytes();
-      if (bytes.length > 300 * 1024) {
-        Get.snackbar('الصورة كبيرة',
-            'اختر صورة أصغر (أقل من 300 ك.ب) أو قصّها ثم أعد المحاولة');
-        return;
-      }
       final mime = (x.path.toLowerCase().endsWith('.png')) ? 'image/png' : 'image/jpeg';
-      proofImage.value = 'data:$mime;base64,${base64Encode(bytes)}';
+      if (bytes.length > 260 * 1024) {
+        final uid = _auth.uid ?? 'anon';
+        final ext = mime == 'image/png' ? 'png' : 'jpg';
+        try {
+          final ref = FirebaseStorage.instance
+              .ref('proofs/$uid/proof_${DateTime.now().millisecondsSinceEpoch}.$ext');
+          await ref.putData(bytes, SettableMetadata(contentType: mime));
+          proofImage.value = await ref.getDownloadURL();
+        } catch (_) {
+          Get.snackbar('الصورة كبيرة',
+              'تعذر رفع الصورة الكبيرة — اختر صورة أصغر أو قصّها');
+          return;
+        }
+      } else {
+        proofImage.value = 'data:$mime;base64,${base64Encode(bytes)}';
+      }
       await _runOcr(x.path);
       if (!ocrDone.value) {
         Get.snackbar('تم الإرفاق', 'تعذر قراءة نص الصورة — ستُراجع يدوياً',
@@ -254,6 +269,16 @@ class PaymentController extends GetxController {
     Get.back();
   }
 
+  Future<void> editDeliveryAddress() async {
+    final res = await Get.toNamed<Address>(
+      AppRoutes.addressForm,
+      arguments: deliveryAddress.value ?? (deliveryAddress.value ?? payload.address),
+    );
+    if (res != null) {
+      deliveryAddress.value = res;
+    }
+  }
+
   Future<void> confirmPayment() async {
     final t = transfer.value;
     final acc = selected.value;
@@ -264,7 +289,7 @@ class PaymentController extends GetxController {
       final SubmittedOrderRef sub = await _orders.submitOrder(
         lines: payload.lines,
         currency: currency,
-        address: payload.address,
+        address: (deliveryAddress.value ?? payload.address),
         couponCode: payload.estimate.couponCode,
         estimate: payload.estimate,
         paymentPlan: payload.paymentPlan,
@@ -323,9 +348,9 @@ class PaymentController extends GetxController {
 
       final form = await OrderDocuments.officialWhatsAppFormAsync(
         orderNo: sub.orderNo,
-        customerName: payload.address.receiverName,
-        customerPhone: payload.address.phone,
-        addressAr: payload.address.fullAr,
+        customerName: (deliveryAddress.value ?? payload.address).receiverName,
+        customerPhone: (deliveryAddress.value ?? payload.address).phone,
+        addressAr: (deliveryAddress.value ?? payload.address).fullAr,
         shippingSummary: shippingText,
         lines: payload.lines,
         currency: currency,
@@ -349,9 +374,9 @@ class PaymentController extends GetxController {
             upfrontDueLocal: requiredDueLocal,
             paidLocal: t.amount,
             remainingLocal: remainingLocal,
-            customerName: payload.address.receiverName,
-            customerPhone: payload.address.phone,
-            addressAr: payload.address.fullAr,
+            customerName: (deliveryAddress.value ?? payload.address).receiverName,
+            customerPhone: (deliveryAddress.value ?? payload.address).phone,
+            addressAr: (deliveryAddress.value ?? payload.address).fullAr,
             itemsCount: pieces,
             thumbnails: payload.lines.map((l) => l.imageUrl).where((u) => u.isNotEmpty).take(6).toList(),
           ));

@@ -79,7 +79,7 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
         return;
       }
       final col = FirebaseFirestore.instance.collection('users').doc(uid).collection('addresses');
-      final doc = _existing == null ? col.doc() : col.doc(_existing.id);
+      final doc = (_existing == null || _existing.id.isEmpty || _existing.id == 'profile_default') ? col.doc() : col.doc(_existing.id);
       final data = {
         'label': _label,
         'city': _city.text.trim(),

@@ -11,7 +11,12 @@ import '../../core/services/customer_accounting_service.dart';
 import '../../core/services/review_service.dart';
 import '../../core/services/wallet_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/models/currency.dart';
+import '../../core/services/saved_accounts_service.dart';
+import '../../core/services/settings_service.dart';
 import '../../core/theme/theme_controller.dart';
+import '../cart/application/cart_counter.dart';
+import '../support/presentation/support_screen.dart';
 import '../../core/widgets/brand_header.dart';
 import '../../core/widgets/brand_logo.dart';
 import '../guide/interactive_guide.dart';
@@ -38,14 +43,18 @@ void _goMainTab(BuildContext context, int tab, {String? ordersFilter}) {
 /// المرحلة 4 — «حسابي» بنمط SHEIN:
 /// شريط 4 خانات (محفظة، إيصال، نقاط، كوبونات) + بانر المحفظة السريع
 /// + اختصارات «طلبي» (5 أيقونات مع عدادات حية منها «تعليق»).
-class ProfileScreen extends GetView<ProfileController> {
-  const ProfileScreen({super.key});
+class ProfileScreen extends StatelessWidget {
+  final bool embedded;
+  const ProfileScreen({super.key, this.embedded = false});
+
+  ProfileController get controller => Get.isRegistered<ProfileController>()
+      ? Get.find<ProfileController>()
+      : Get.put<ProfileController>(ProfileController(), permanent: false);
 
   @override
   Widget build(BuildContext context) {
     final auth = Get.find<AuthService>();
-    return Scaffold(
-      appBar: AppBar(
+    final content = Obx(() {
         centerTitle: true,
         title: Row(
           mainAxisSize: MainAxisSize.min,
@@ -56,7 +65,6 @@ class ProfileScreen extends GetView<ProfileController> {
           ],
         ),
       ),
-      body: Obx(() {
         final u = auth.user.value;
         if (u == null) {
           return Center(
@@ -90,6 +98,11 @@ class ProfileScreen extends GetView<ProfileController> {
                   const Text('سجّل الدخول لإدارة حسابك وطلباتك',
                       style: TextStyle(fontSize: 13.5)),
                   const SizedBox(height: 16),
+                  if (Get.isRegistered<SavedAccountsService>() &&
+                      Get.find<SavedAccountsService>().accounts.isNotEmpty) ...[
+                    _savedAccountsCard(context, auth, null),
+                    const SizedBox(height: 14),
+                  ],
                   SizedBox(
                     width: 240,
                     child: ElevatedButton(
@@ -113,7 +126,9 @@ class ProfileScreen extends GetView<ProfileController> {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _identity(u),
+            _identity(u, auth),
+            const SizedBox(height: 12),
+            _savedAccountsCard(context, auth, u),
             const SizedBox(height: 12),
             _sheinStatsBar(context),
             const SizedBox(height: 12),
@@ -197,11 +212,25 @@ class ProfileScreen extends GetView<ProfileController> {
             if (u.isStaff) ...[
               const SizedBox(height: 12),
               SectionCard(
-                title: 'لوحة الإدارة',
-                child: OutlinedButton.icon(
-                  onPressed: () => Get.toNamed(AppRoutes.admin),
-                  icon: const Icon(Icons.admin_panel_settings_outlined),
-                  label: Text('الدخول كـ ${u.role}'),
+                title: 'لوحة الإدارة والصلاحيات',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.verified_user_outlined, size: 17, color: T.primary),
+                        const SizedBox(width: 6),
+                        Text('الدور الحالي: ${auth.roleLabelAr}',
+                            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: T.primary)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ElevatedButton.icon(
+                      onPressed: () => Get.toNamed(AppRoutes.admin),
+                      icon: const Icon(Icons.admin_panel_settings_outlined),
+                      label: Text('فتح لوحة الإدارة (${auth.roleLabelAr})'),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -214,18 +243,161 @@ class ProfileScreen extends GetView<ProfileController> {
             const SizedBox(height: 24),
           ],
         );
-      }),
+      });
+    if (embedded) {
+      return Container(color: T.bg, child: content);
+    }
+    return Scaffold(
+      backgroundColor: T.bg,
+      appBar: AppBar(
+        centerTitle: true,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset('assets/images/logo.png', height: 26),
+            const SizedBox(width: 8),
+            Text('me_title'.tr),
+          ],
+        ),
+      ),
+      body: content,
     );
   }
 
-  Widget _identity(AppUser u) => Column(
+  Widget _savedAccountsCard(BuildContext context, AuthService auth, AppUser? current) {
+    if (!Get.isRegistered<SavedAccountsService>()) return const SizedBox.shrink();
+    final savedSvc = Get.find<SavedAccountsService>();
+    return Obx(() {
+      final list = savedSvc.accounts;
+      return SectionCard(
+        title: 'switch_account'.tr,
+        trailing: TextButton.icon(
+          onPressed: () async {
+            try {
+              await auth.switchGoogleAccount();
+            } catch (_) {
+              Get.toNamed(AppRoutes.login);
+            }
+          },
+          icon: const Icon(Icons.swap_horiz_rounded, size: 17),
+          label: const Text('تبديل / إضافة'),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (list.isEmpty)
+              Text(
+                'سجّل الدخول بحساباتك ليتم حفظها هنا والتنقل بينها بسهولة.',
+                style: TextStyle(fontSize: 11.5, color: T.muted),
+              )
+            else
+              ...list.map((acc) {
+                final isCurrent = current?.uid == acc.uid;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isCurrent ? T.soft : T.bg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isCurrent ? T.primary : T.border,
+                      width: isCurrent ? 1.4 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 17,
+                        backgroundColor: T.primary.withOpacity(.16),
+                        child: Text(
+                          acc.name.isEmpty ? '؟' : acc.name.characters.first,
+                          style: TextStyle(
+                              fontWeight: FontWeight.w900, color: T.primary),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    acc.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: T.text),
+                                  ),
+                                ),
+                                if (isCurrent) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: T.success.withOpacity(.15),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text('نشط',
+                                        style: TextStyle(
+                                            fontSize: 9.5,
+                                            fontWeight: FontWeight.w800,
+                                            color: T.success)),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            Text(
+                              [
+                                if (acc.email.isNotEmpty) acc.email,
+                                if (acc.phone.isNotEmpty) acc.phone,
+                                if (acc.role != 'customer') acc.role,
+                              ].join(' · '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 10.5, color: T.muted),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (!isCurrent) ...[
+                        TextButton(
+                          onPressed: () async {
+                            if (acc.email.isNotEmpty) {
+                              await auth.switchGoogleAccount();
+                            } else {
+                              Get.toNamed(AppRoutes.login);
+                            }
+                          },
+                          child: const Text('تبديل', style: TextStyle(fontSize: 11)),
+                        ),
+                        IconButton(
+                          tooltip: 'إزالة من القائمة',
+                          icon: Icon(Icons.close, size: 16, color: T.muted),
+                          onPressed: () => savedSvc.removeAccount(acc.uid),
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              }),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _identity(AppUser u, AuthService auth) => Column(
         children: [
           BrandHeader(
             title: u.displayName.isEmpty ? 'مستخدم جديد' : u.displayName,
             subtitle: u.phone ?? u.email ?? 'يمن سيلو · حسابك',
             badge: u.role == 'customer'
                 ? '${u.effectiveCode} · ${u.tier.labelAr}'
-                : u.role,
+                : auth.roleLabelAr,
           ),
           const SizedBox(height: 10),
           Container(
@@ -591,6 +763,8 @@ class ProfileScreen extends GetView<ProfileController> {
         ),
         child: Column(
           children: [
+            _tile(Icons.notifications_none_rounded, 'notifications'.tr,
+                () => Get.toNamed(AppRoutes.notifications)),
             _tile(Icons.shopping_cart_outlined, 'سلة التسوق',
                 () => Get.toNamed(AppRoutes.cart)),
             _tile(Icons.account_balance_wallet_outlined, 'محفظتي والسحب النقدي',
@@ -604,7 +778,7 @@ class ProfileScreen extends GetView<ProfileController> {
             _tile(Icons.request_quote_outlined, 'إيصالات السداد',
                 () => Get.toNamed(AppRoutes.myReceipts)),
             _tile(Icons.headset_mic_outlined, 'خدمة العملاء',
-                () => _goMainTab(context, 5)),
+                () => Get.to(() => const SupportScreen())),
             _appSettingsCard(),
           ],
         ),
@@ -668,6 +842,9 @@ Widget _appSettingsCard() {
   final gc = Get.isRegistered<InteractiveGuideController>()
       ? Get.find<InteractiveGuideController>()
       : null;
+  final ss =
+      Get.isRegistered<SettingsService>() ? Get.find<SettingsService>() : null;
+  final cc = Get.isRegistered<CartCounter>() ? Get.find<CartCounter>() : null;
   return Obx(() {
     final bool isDark = tc?.isDark.value ?? T.dark;
     return Container(
@@ -681,10 +858,51 @@ Widget _appSettingsCard() {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('إعدادات التطبيق',
+          Text('إعدادات الواجهة واللغة والعملة',
               style: TextStyle(
                   fontSize: 13.5, fontWeight: FontWeight.w900, color: T.text)),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
+          if (ss != null) ...[
+            Text('language'.tr,
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: T.muted)),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              children: [
+                ChoiceChip(
+                  label: const Text('العربية'),
+                  selected: ss.languageCode.value == 'ar',
+                  onSelected: (_) => ss.setLanguage('ar'),
+                ),
+                ChoiceChip(
+                  label: const Text('English'),
+                  selected: ss.languageCode.value == 'en',
+                  onSelected: (_) => ss.setLanguage('en'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text('currency'.tr,
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: T.muted)),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: AppCurrency.values.map((c) {
+                final on = ss.displayCurrency.value == c;
+                return ChoiceChip(
+                  label: Text(c.labelAr, style: const TextStyle(fontSize: 11)),
+                  selected: on,
+                  onSelected: (_) {
+                    ss.setCurrency(c);
+                    cc?.setRegion(c == AppCurrency.sar ? 'saudi' : c.key);
+                  },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 8),
+            Divider(color: T.border),
+          ],
           if (tc != null)
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
@@ -873,7 +1091,7 @@ class _OrderShortcuts extends StatelessWidget {
                           Expanded(
                             child: InkWell(
                               borderRadius: BorderRadius.circular(10),
-                              onTap: () => _goMainTab(context, 5),
+                              onTap: () => Get.to(() => const SupportScreen()),
                               child: Padding(
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 6),

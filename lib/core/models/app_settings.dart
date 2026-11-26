@@ -1,17 +1,16 @@
+import 'currency.dart';
+
 /// إعدادات الشركة — مستند واحد في Firestore: settings/app
-/// تُقرأ للعرض في التطبيق، ويُعاد التحقق منها على السيرفر عند حساب الطلب.
 class AppSettings {
   /// 1 ريال سعودي = rateNorth ريال يمني (شمال)
   final double rateNorth;
 
   /// 1 ريال سعودي = rateSouth ريال يمني (جنوب)
   final double rateSouth;
-
   final double shippingFeeSar;
   final double deliveryFeeSar;
 
-  /// رسوم التوصيل بالعملة المحلية — تُعدَّل من اللوحة حسب الاتفاق.
-  /// الافتراضي: 1500 ريال للشمال، 1000 ريال للجنوب، 0 للسعودي.
+  /// رسوم التوصيل المعتمدة بالعملة المحلية (تُدار من لوحة الإدارة).
   final double deliveryFeeNorthLocal;
   final double deliveryFeeSouthLocal;
   final double deliveryFeeSarLocal;
@@ -36,6 +35,9 @@ class AppSettings {
   /// 1 دولار أمريكي = usdRateNorth ريال يمني (شمال) / usdRateSouth (جنوب).
   final double usdRateNorth;
   final double usdRateSouth;
+
+  /// معامل التحويل القياسي من الدولار إلى السعودي (افتراضي 3.75).
+  final double sarPerUsd;
 
   /// مدة التوصيل المتوقعة بالأيام — تُعدَّل من لوحة الإدارة.
   final int deliveryMinDays;
@@ -68,6 +70,7 @@ class AppSettings {
     this.deferredUpfrontPercent = 50,
     this.usdRateNorth = 533,
     this.usdRateSouth = 1570,
+    this.sarPerUsd = kDefaultSarPerUsd,
     this.deliveryMinDays = 15,
     this.deliveryMaxDays = 20,
     this.senderName = 'يمن سيلو',
@@ -78,14 +81,25 @@ class AppSettings {
   double deliveryFeeLocalFor(String currencyKey) => switch (currencyKey) {
         'north' => deliveryFeeNorthLocal,
         'south' => deliveryFeeSouthLocal,
+        'usd' => deliveryFeeSarLocal / (sarPerUsd > 0 ? sarPerUsd : kDefaultSarPerUsd),
         _ => deliveryFeeSarLocal,
       };
 
   double rateFor(String currencyKey) => switch (currencyKey) {
         'north' => rateNorth,
         'south' => rateSouth,
+        'usd' => 1.0 / (sarPerUsd > 0 ? sarPerUsd : kDefaultSarPerUsd),
         _ => 1,
       };
+
+  CurrencyMatrix matrixForSar(double sarAmount) => CurrencyMatrix.fromSar(
+        sar: sarAmount,
+        rateNorth: rateNorth,
+        rateSouth: rateSouth,
+        usdRateNorth: usdRateNorth,
+        usdRateSouth: usdRateSouth,
+        sarPerUsd: sarPerUsd,
+      );
 
   AppSettings copyWith({
     double? rateNorth,
@@ -94,6 +108,7 @@ class AppSettings {
     double? deferredUpfrontPercent,
     double? usdRateNorth,
     double? usdRateSouth,
+    double? sarPerUsd,
     double? rateSouth,
     double? shippingFeeSar,
     double? deliveryFeeSar,
@@ -108,6 +123,10 @@ class AppSettings {
     bool? codEnabled,
     String? senderName,
     String? waybillCompanyPhone,
+    double? serviceFeeSar,
+    double? shippingPerPieceSar,
+    int? deliveryMinDays,
+    int? deliveryMaxDays,
   }) =>
       AppSettings(
         rateNorth: rateNorth ?? this.rateNorth,
@@ -118,6 +137,7 @@ class AppSettings {
             deferredUpfrontPercent ?? this.deferredUpfrontPercent,
         usdRateNorth: usdRateNorth ?? this.usdRateNorth,
         usdRateSouth: usdRateSouth ?? this.usdRateSouth,
+        sarPerUsd: sarPerUsd ?? this.sarPerUsd,
         rateSouth: rateSouth ?? this.rateSouth,
         shippingFeeSar: shippingFeeSar ?? this.shippingFeeSar,
         deliveryFeeSar: deliveryFeeSar ?? this.deliveryFeeSar,
@@ -134,6 +154,10 @@ class AppSettings {
         waybillCompanyPhone:
             waybillCompanyPhone ?? this.waybillCompanyPhone,
         codEnabled: codEnabled ?? this.codEnabled,
+        serviceFeeSar: serviceFeeSar ?? this.serviceFeeSar,
+        shippingPerPieceSar: shippingPerPieceSar ?? this.shippingPerPieceSar,
+        deliveryMinDays: deliveryMinDays ?? this.deliveryMinDays,
+        deliveryMaxDays: deliveryMaxDays ?? this.deliveryMaxDays,
       );
 
   factory AppSettings.fromMap(Map<String, dynamic>? m) {
@@ -146,6 +170,7 @@ class AppSettings {
       deferredUpfrontPercent: d(m['deferredUpfrontPercent'], 50),
       usdRateNorth: d(m['usdRateNorth'], 533),
       usdRateSouth: d(m['usdRateSouth'], 1570),
+      sarPerUsd: d(m['sarPerUsd'], kDefaultSarPerUsd),
       rateSouth: d(m['rateSouth'], 413),
       shippingFeeSar: d(m['shippingFeeSar'], 0),
       deliveryFeeSar: d(m['deliveryFeeSar'], 10),
@@ -183,6 +208,7 @@ class AppSettings {
         'deferredUpfrontPercent': deferredUpfrontPercent,
         'usdRateNorth': usdRateNorth,
         'usdRateSouth': usdRateSouth,
+        'sarPerUsd': sarPerUsd,
         'shippingFeeSar': shippingFeeSar,
         'deliveryFeeSar': deliveryFeeSar,
         'deliveryFeeNorthLocal': deliveryFeeNorthLocal,

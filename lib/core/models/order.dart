@@ -88,6 +88,94 @@ const List<TimelineStage> kTimelineStages = [
   TimelineStage('التسليم', [OrderStatus.delivered]),
 ];
 
+/// مراحل الشحن المفصلة من الصين إلى يد العميل.
+enum ShippingMilestone {
+  preparing,
+  chinaWarehouse,
+  uaeTransit,
+  saudiCustoms,
+  yemenArrival,
+  outForDelivery,
+  delivered,
+}
+
+extension ShippingMilestoneX on ShippingMilestone {
+  String get key => switch (this) {
+        ShippingMilestone.preparing => 'preparing',
+        ShippingMilestone.chinaWarehouse => 'china_warehouse',
+        ShippingMilestone.uaeTransit => 'uae_transit',
+        ShippingMilestone.saudiCustoms => 'saudi_customs',
+        ShippingMilestone.yemenArrival => 'yemen_arrival',
+        ShippingMilestone.outForDelivery => 'out_for_delivery',
+        ShippingMilestone.delivered => 'delivered',
+      };
+
+  String get labelAr => switch (this) {
+        ShippingMilestone.preparing => 'قيد التجهيز والشراء (شي إن)',
+        ShippingMilestone.chinaWarehouse => 'تم الشحن: مستودع الصين',
+        ShippingMilestone.uaeTransit => 'وصلت الإمارات / قيد الفرز',
+        ShippingMilestone.saudiCustoms => 'الجمارك السعودية / في العبور',
+        ShippingMilestone.yemenArrival => 'وصلت اليمن / شحن المحافظات',
+        ShippingMilestone.outForDelivery => 'جاري التوصيل مع المندوب',
+        ShippingMilestone.delivered => 'تم التسليم بنجاح',
+      };
+
+  String get shortAr => switch (this) {
+        ShippingMilestone.preparing => 'التجهيز',
+        ShippingMilestone.chinaWarehouse => 'الصين',
+        ShippingMilestone.uaeTransit => 'الإمارات',
+        ShippingMilestone.saudiCustoms => 'السعودية',
+        ShippingMilestone.yemenArrival => 'اليمن',
+        ShippingMilestone.outForDelivery => 'المندوب',
+        ShippingMilestone.delivered => 'التسليم',
+      };
+
+  String get emoji => switch (this) {
+        ShippingMilestone.preparing => '🛍️',
+        ShippingMilestone.chinaWarehouse => '🇨🇳',
+        ShippingMilestone.uaeTransit => '🇦🇪',
+        ShippingMilestone.saudiCustoms => '🇸🇦',
+        ShippingMilestone.yemenArrival => '🇾🇪',
+        ShippingMilestone.outForDelivery => '🛵',
+        ShippingMilestone.delivered => '✅',
+      };
+
+  double get progress => switch (this) {
+        ShippingMilestone.preparing => 0.14,
+        ShippingMilestone.chinaWarehouse => 0.28,
+        ShippingMilestone.uaeTransit => 0.45,
+        ShippingMilestone.saudiCustoms => 0.65,
+        ShippingMilestone.yemenArrival => 0.80,
+        ShippingMilestone.outForDelivery => 0.92,
+        ShippingMilestone.delivered => 1.0,
+      };
+
+  int get stepIndex => ShippingMilestone.values.indexOf(this);
+
+  OrderStatus get mappedOrderStatus => switch (this) {
+        ShippingMilestone.preparing => OrderStatus.processing,
+        ShippingMilestone.chinaWarehouse ||
+        ShippingMilestone.uaeTransit ||
+        ShippingMilestone.saudiCustoms ||
+        ShippingMilestone.yemenArrival =>
+          OrderStatus.shipped,
+        ShippingMilestone.outForDelivery => OrderStatus.outForDelivery,
+        ShippingMilestone.delivered => OrderStatus.delivered,
+      };
+
+  static ShippingMilestone fromKey(String? key, {OrderStatus? fallbackStatus}) {
+    for (final m in ShippingMilestone.values) {
+      if (m.key == key) return m;
+    }
+    return switch (fallbackStatus) {
+      OrderStatus.shipped => ShippingMilestone.chinaWarehouse,
+      OrderStatus.outForDelivery => ShippingMilestone.outForDelivery,
+      OrderStatus.delivered => ShippingMilestone.delivered,
+      _ => ShippingMilestone.preparing,
+    };
+  }
+}
+
 class Address {
   final String id;
   final String label;
@@ -153,6 +241,10 @@ class OrderItem {
   final String productUrl;
   final bool nonRefundable;
   final String nonRefundableReason;
+  final String stockStatus;
+  final bool isReplacement;
+  final String replacedFromTitle;
+  final String replacementNote;
 
   const OrderItem({
     required this.sku,
@@ -166,6 +258,10 @@ class OrderItem {
     this.productUrl = '',
     this.nonRefundable = false,
     this.nonRefundableReason = '',
+    this.stockStatus = 'ok',
+    this.isReplacement = false,
+    this.replacedFromTitle = '',
+    this.replacementNote = '',
   });
 
   bool get isNonRefundable =>
@@ -181,6 +277,10 @@ class OrderItem {
     double? unitPriceSar,
     bool? nonRefundable,
     String? nonRefundableReason,
+    String? stockStatus,
+    bool? isReplacement,
+    String? replacedFromTitle,
+    String? replacementNote,
   }) =>
       OrderItem(
         sku: sku,
@@ -194,6 +294,10 @@ class OrderItem {
         productUrl: productUrl,
         nonRefundable: nonRefundable ?? this.nonRefundable,
         nonRefundableReason: nonRefundableReason ?? this.nonRefundableReason,
+        stockStatus: stockStatus ?? this.stockStatus,
+        isReplacement: isReplacement ?? this.isReplacement,
+        replacedFromTitle: replacedFromTitle ?? this.replacedFromTitle,
+        replacementNote: replacementNote ?? this.replacementNote,
       );
 
   factory OrderItem.fromMap(Map<String, dynamic> m) => OrderItem(
@@ -208,6 +312,10 @@ class OrderItem {
         productUrl: (m['productUrl'] ?? '') as String,
         nonRefundable: (m['nonRefundable'] as bool?) ?? false,
         nonRefundableReason: (m['nonRefundableReason'] ?? '') as String,
+        stockStatus: (m['stockStatus'] ?? 'ok') as String,
+        isReplacement: (m['isReplacement'] as bool?) ?? false,
+        replacedFromTitle: (m['replacedFromTitle'] ?? '') as String,
+        replacementNote: (m['replacementNote'] ?? '') as String,
       );
 
   Map<String, dynamic> toMap() => {
@@ -222,6 +330,10 @@ class OrderItem {
         'productUrl': productUrl,
         'nonRefundable': isNonRefundable,
         'nonRefundableReason': effectiveNonRefundableReason,
+        'stockStatus': stockStatus,
+        'isReplacement': isReplacement,
+        'replacedFromTitle': replacedFromTitle,
+        'replacementNote': replacementNote,
       };
 }
 
@@ -401,6 +513,23 @@ class Order {
   final double proposedTotalSar;
   final double proposedTotalLocal;
   final List<OrderItem> proposedItems;
+  final String shippingStage;
+  final String shippingStageNote;
+  final DateTime? shippingStageUpdatedAt;
+  final String trackingUrl;
+  final String trackingImageUrl;
+  final String orderSummaryImageUrl;
+  final String customerSignatureUrl;
+  final DateTime? signedAt;
+  final String signedByName;
+  final String deliveryPin;
+  final bool deliverySigned;
+  final bool deliveryPinVerified;
+  final double usdRateNorth;
+  final double usdRateSouth;
+  final double sarPerUsd;
+  final String replacementStatus;
+  final Map<String, dynamic> replacementProposal;
 
   const Order({
     required this.id,
@@ -464,14 +593,42 @@ class Order {
     this.proposedTotalSar = 0,
     this.proposedTotalLocal = 0,
     this.proposedItems = const <OrderItem>[],
+    this.shippingStage = '',
+    this.shippingStageNote = '',
+    this.shippingStageUpdatedAt,
+    this.trackingUrl = '',
+    this.trackingImageUrl = '',
+    this.orderSummaryImageUrl = '',
+    this.customerSignatureUrl = '',
+    this.signedAt,
+    this.signedByName = '',
+    this.deliveryPin = '',
+    this.deliverySigned = false,
+    this.deliveryPinVerified = false,
+    this.usdRateNorth = 533,
+    this.usdRateSouth = 1570,
+    this.sarPerUsd = kDefaultSarPerUsd,
+    this.replacementStatus = '',
+    this.replacementProposal = const <String, dynamic>{},
   });
 
   bool get hasWhatsAppSent => whatsappSentAt != null;
   bool get hasNonRefundable => items.any((e) => e.isNonRefundable);
   bool get hasPendingPriceSync => priceSyncStatus == 'pending_customer';
+  bool get hasPendingReplacement => replacementStatus == 'pending_customer';
+  bool get hasSubmittedReplacement => replacementStatus == 'pending_admin';
+  bool get is24hElapsed => DateTime.now().difference(createdAt).inHours >= 24;
+  ShippingMilestone get milestone =>
+      ShippingMilestoneX.fromKey(shippingStage, fallbackStatus: status);
 
   String get stageHintAr {
     if (status == OrderStatus.cancelled) return 'تم إلغاء الطلب';
+    if (hasPendingReplacement) {
+      return 'تنبيه: نفدت قطعة من طلبك — يرجى إرسال قطعة بديلة من تفاصيل الطلب';
+    }
+    if (hasSubmittedReplacement) {
+      return 'تم استلام القطعة البديلة وبانتظار مراجعة واعتماد الإدارة';
+    }
     if (hasPendingPriceSync) {
       return 'يوجد تحديث في السعر أو التوفر بانتظار موافقتك';
     }
@@ -483,7 +640,7 @@ class Order {
     return switch (status) {
       OrderStatus.verifying => 'تم استلام بيانات التحويل — قيد المطابقة من المحاسبة',
       OrderStatus.processing => 'تم اعتماد الطلب وجاري الشراء والتجهيز',
-      OrderStatus.shipped => 'تم الشحن وفي الطريق إلى مكتب الاستلام في اليمن',
+      OrderStatus.shipped => '${milestone.emoji} ${milestone.labelAr}',
       OrderStatus.outForDelivery => 'الطلب مع المندوب في طريقه للتسليم',
       OrderStatus.delivered => 'تم تسليم الطلب بنجاح',
       _ => status.labelAr,
@@ -619,6 +776,24 @@ class Order {
       proposedItems: ((m['proposedItems'] as List?) ?? const [])
           .map((e) => OrderItem.fromMap(Map<String, dynamic>.from(e as Map)))
           .toList(),
+      shippingStage: (m['shippingStage'] ?? '').toString(),
+      shippingStageNote: (m['shippingStageNote'] ?? '').toString(),
+      shippingStageUpdatedAt: _ts(m['shippingStageUpdatedAt']),
+      trackingUrl: (m['trackingUrl'] ?? '').toString(),
+      trackingImageUrl: (m['trackingImageUrl'] ?? '').toString(),
+      orderSummaryImageUrl: (m['orderSummaryImageUrl'] ?? '').toString(),
+      customerSignatureUrl: (m['customerSignatureUrl'] ?? '').toString(),
+      signedAt: _ts(m['signedAt']),
+      signedByName: (m['signedByName'] ?? '').toString(),
+      deliveryPin: (m['deliveryPin'] ?? '').toString(),
+      deliverySigned: (m['deliverySigned'] as bool?) ?? false,
+      deliveryPinVerified: (m['deliveryPinVerified'] as bool?) ?? false,
+      usdRateNorth: (m['usdRateNorth'] as num?)?.toDouble() ?? 533,
+      usdRateSouth: (m['usdRateSouth'] as num?)?.toDouble() ?? 1570,
+      sarPerUsd: (m['sarPerUsd'] as num?)?.toDouble() ?? kDefaultSarPerUsd,
+      replacementStatus: (m['replacementStatus'] ?? '').toString(),
+      replacementProposal: Map<String, dynamic>.from(
+          (m['replacementProposal'] as Map?) ?? const <String, dynamic>{}),
     );
   }
 }

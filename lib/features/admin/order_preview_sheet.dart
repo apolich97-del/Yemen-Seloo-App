@@ -668,32 +668,37 @@ class _OrderPreview extends StatelessWidget {
   }
 
   Future<void> _deleteOrder(Order o) async {
+    final reasonCtrl = TextEditingController();
     final ok = await Get.dialog<bool>(
       AlertDialog(
-        title: const Text('حذف الطلب؟'),
-        content: Text(
-            'سيُحذف الطلب ${o.orderNo} وإيصالاته نهائياً. لا يمكن التراجع.',
-            style: const TextStyle(fontSize: 12)),
+        title: const Text('أرشفة وحذف الطلب؟'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+                'سيُؤرشف الطلب ${o.orderNo} في سجل المحذوفات قبل إزالته نهائياً.',
+                style: const TextStyle(fontSize: 12)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: reasonCtrl,
+              decoration: const InputDecoration(labelText: 'سبب الحذف (اختياري)', isDense: true),
+            ),
+          ],
+        ),
         actions: [
           TextButton(onPressed: () => Get.back(result: false), child: const Text('إلغاء')),
-          ElevatedButton(onPressed: () => Get.back(result: true), child: const Text('حذف')),
+          ElevatedButton(onPressed: () => Get.back(result: true), child: const Text('حذف وأرشفة')),
         ],
       ),
     );
     if (ok != true) return;
     try {
-      final db = FirebaseFirestore.instance;
-      final receipts = await db
-          .collection('orders')
-          .doc(o.id)
-          .collection('receipts')
-          .get();
-      for (final r in receipts.docs) {
-        await r.reference.delete();
-      }
-      await db.collection('orders').doc(o.id).delete();
+      await Get.find<OrderService>().managerArchiveAndDeleteOrder(
+        o,
+        reason: reasonCtrl.text.trim(),
+      );
       Get.back();
-      Get.snackbar('تم الحذف', 'أُزيل الطلب ${o.orderNo} وإيصالاته');
+      Get.snackbar('تم الحذف والأرشفة', 'أُزيل الطلب ${o.orderNo} وحُفظت نسخته');
     } catch (e) {
       Get.snackbar('تعذر الحذف', '$e');
     }

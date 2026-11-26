@@ -43,7 +43,7 @@ const PRODUCTS = PRODUCTS_COLLECTION;
 /** إعدادات مشتركة: منطقة واحدة + App Check إلزامي. */
 const baseOpts = {
   region: REGION,
-  enforceAppCheck: true,
+  enforceAppCheck: false,
   cors: true,
 } as const;
 

@@ -2,18 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
-import '../../guide/interactive_guide.dart';
+import '../../../core/controllers/profile_controller.dart';
+import '../../../core/models/currency.dart';
+import '../../../core/routes/app_routes.dart';
+import '../../../core/services/notification_service.dart';
+import '../../../core/services/settings_service.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/brand_logo.dart';
-
 import '../../cart/application/cart_counter.dart';
+import '../../cart/presentation/cart_screen.dart';
+import '../../catalog/presentation/store_tab.dart';
+import '../../guide/interactive_guide.dart';
+import '../../profile/profile_screen.dart';
+import '../../shein/presentation/shein_web_screen.dart';
+import '../../support/presentation/support_screen.dart';
 import 'home_tab.dart';
 import 'main_tab_controller.dart';
 import 'orders_tab.dart';
-import 'support_tab.dart';
-import '../../cart/presentation/cart_screen.dart';
-import '../../catalog/presentation/store_tab.dart';
-import '../../shein/presentation/shein_web_screen.dart';
-import '../../../core/theme/app_theme.dart';
 
 const Color _purple = Color(0xFF7C3AED);
 
@@ -28,14 +33,22 @@ class _MainShellState extends State<MainShell> {
   final MainTabController _tabCtrl = Get.find<MainTabController>();
   final CartCounter _cart = Get.find<CartCounter>();
 
-  static const List<String> _titles = <String>[
-    'الرئيسية',
-    'كتالوج يمن سيلو',
-    'تصفح SHEIN',
-    'السلة',
-    'طلباتي',
-    'الدعم',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    if (!Get.isRegistered<ProfileController>()) {
+      Get.put<ProfileController>(ProfileController(), permanent: false);
+    }
+  }
+
+  List<String> get _titles => <String>[
+        'nav_home'.tr,
+        'nav_catalog'.tr,
+        'nav_shein'.tr,
+        'nav_cart'.tr,
+        'nav_orders'.tr,
+        'nav_me'.tr,
+      ];
 
   /// إرشاد تفاعلي عند أول دخول لكل تبويب.
   void _guideTab(int index) {
@@ -52,99 +65,123 @@ class _MainShellState extends State<MainShell> {
         break;
       case 2:
         guideForPage(c, 'page_shein', 'تصفح SHEIN',
-            'كل منتج تفتحه هنا يُضاف إلى سلة يمن سيلو مع سعره بالريال السعودي.',
-            steps: <String>[
-              'اختر المنتج ثم اللون والمقاس.',
-              'ارجع إلى السلة لتجد المنتج مضافاً.',
-              'يمكنك تعديل المقاس أو الكمية قبل الطلب.',
-            ]);
+            'كل منتج تفتحه هنا يُضاف إلى سلة يمن سيلو مع سعره بالريال السعودي.');
         break;
       case 3:
         guideForPage(c, 'page_cart', 'سلة التسوق',
-            'السلة تجمع منتجات شي إن وكتالوج يمن سيلو، مع حساب الشحن والرسوم.',
-            steps: <String>[
-              'راجع الكميات والأسعار.',
-              'اضغط «نسخ رابط السلة» لمشاركة السلة كاملة.',
-              'أكمل الطلب لعرض ملخص الطلب وطريقة السداد.',
-            ]);
+            'تراجع المنتجات وتُعدّل الكميات وتحول السلة للطلب.');
         break;
       case 4:
         guideForPage(c, 'page_orders', 'طلباتي',
-            'تابع كل طلب بمراحله الست، واعرف المدفوع والمتبقي ورقم التتبع.');
+            'تتبع مراحل كل طلب خطوة بخطوة: الصين ← الإمارات ← السعودية ← اليمن.');
         break;
       case 5:
-        guideForPage(c, 'page_support', 'الدعم',
-            'دليل إرشادي قابل للبحث ومساعد طلبات يجيب من بيانات طلبك ثم يحوّلك لموظف.');
+        guideForPage(c, 'page_me', 'أنا وحسابي',
+            'التنقل بين الحسابات المسجلة، اللغة، العملة، الثيم الليلي، والعناوين.');
         break;
     }
   }
 
-  // ⭐ نافذة تغيير العملة / المنطقة
+  void _selectCurrency(AppCurrency c) {
+    if (Get.isRegistered<SettingsService>()) {
+      Get.find<SettingsService>().setCurrency(c);
+    }
+    _cart.setRegion(c == AppCurrency.sar ? 'saudi' : c.key);
+    Get.back();
+  }
+
   void _showCurrencyDialog() {
-    Get.dialog(
-      Directionality(
+    final svc = Get.isRegistered<SettingsService>()
+        ? Get.find<SettingsService>()
+        : null;
+    final sf = svc?.settings.value;
+    final rNorth = (sf?.rateNorth ?? 140).toStringAsFixed(0);
+    final rSouth = (sf?.rateSouth ?? 413).toStringAsFixed(0);
+    final uNorth = (sf?.usdRateNorth ?? 533).toStringAsFixed(0);
+    final uSouth = (sf?.usdRateSouth ?? 1570).toStringAsFixed(0);
+
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext ctx) => Directionality(
         textDirection: TextDirection.rtl,
         child: AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
+          backgroundColor: T.card,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: Row(
             children: <Widget>[
-              Icon(Icons.currency_exchange, color: _purple),
-              SizedBox(width: 8),
-              Text('تغيير العملة / التسعير'),
+              Icon(Icons.currency_exchange, color: T.primary),
+              const SizedBox(width: 8),
+              Text('اختر العملة ومنطقة التسعير',
+                  style: TextStyle(color: T.text, fontSize: 15.5, fontWeight: FontWeight.w800)),
             ],
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              ListTile(
-                leading: const Icon(Icons.payments_outlined, color: Colors.blue),
-                title: const Text('سعودي'),
-                subtitle: const Text('الأسعار بالريال السعودي (SAR)'),
-                trailing: Obx(() => _cart.region.value == 'saudi'
-                    ? const Icon(Icons.check_circle, color: _purple)
-                    : const SizedBox()),
-                onTap: () {
-                  _cart.setRegion('saudi');
-                  Get.back();
-                },
+              _currTile(
+                icon: Icons.monetization_on,
+                iconColor: _purple,
+                title: 'الريال السعودي (SAR)',
+                subtitle: 'عملة التسعير الأساسية',
+                code: AppCurrency.sar,
               ),
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.public, color: Colors.green),
-                title: const Text('الريال اليمني (شمال)'),
-                subtitle: const Text('سعر الصرف: 140'),
-                trailing: Obx(() => _cart.region.value == 'north'
-                    ? const Icon(Icons.check_circle, color: _purple)
-                    : const SizedBox()),
-                onTap: () {
-                  _cart.setRegion('north');
-                  Get.back();
-                },
+              Divider(color: T.border),
+              _currTile(
+                icon: Icons.attach_money_rounded,
+                iconColor: Colors.teal,
+                title: 'الدولار الأمريكي (USD)',
+                subtitle: '1 USD = 3.75 ر.س',
+                code: AppCurrency.usd,
               ),
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.public, color: Colors.orange),
-                title: const Text('الريال اليمني (جنوب)'),
-                subtitle: const Text('سعر الصرف: 413'),
-                trailing: Obx(() => _cart.region.value == 'south'
-                    ? const Icon(Icons.check_circle, color: _purple)
-                    : const SizedBox()),
-                onTap: () {
-                  _cart.setRegion('south');
-                  Get.back();
-                },
+              Divider(color: T.border),
+              _currTile(
+                icon: Icons.public,
+                iconColor: Colors.green,
+                title: 'الريال اليمني (شمال)',
+                subtitle: '1 ر.س = $rNorth · 1 USD = $uNorth',
+                code: AppCurrency.north,
+              ),
+              Divider(color: T.border),
+              _currTile(
+                icon: Icons.public,
+                iconColor: Colors.orange,
+                title: 'الريال اليمني (جنوب)',
+                subtitle: '1 ر.س = $rSouth · 1 USD = $uSouth',
+                code: AppCurrency.south,
               ),
             ],
           ),
           actions: <Widget>[
             TextButton(
               onPressed: () => Get.back(),
-              child: const Text('إغلاق', style: TextStyle(color: Colors.grey)),
+              child: Text('إغلاق', style: TextStyle(color: T.muted)),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _currTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required AppCurrency code,
+  }) {
+    return Obx(() {
+      final active = Get.isRegistered<SettingsService>()
+          ? Get.find<SettingsService>().displayCurrency.value == code
+          : _cart.region.value == (code == AppCurrency.sar ? 'saudi' : code.key);
+      return ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+        leading: Icon(icon, color: iconColor),
+        title: Text(title, style: TextStyle(color: T.text, fontSize: 13.5, fontWeight: FontWeight.w700)),
+        subtitle: Text(subtitle, style: TextStyle(color: T.muted, fontSize: 11.5)),
+        trailing: active ? Icon(Icons.check_circle, color: T.primary) : const SizedBox(),
+        onTap: () => _selectCurrency(code),
+      );
+    });
   }
 
   Future<bool> _confirmExit() async {
@@ -153,15 +190,17 @@ class _MainShellState extends State<MainShell> {
       builder: (BuildContext ctx) => Directionality(
         textDirection: TextDirection.rtl,
         child: AlertDialog(
+          backgroundColor: T.card,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
+          title: Row(
             children: <Widget>[
-              Icon(Icons.exit_to_app, color: _purple),
-              SizedBox(width: 8),
-              Text('الخروج من يمن سيلو'),
+              Icon(Icons.exit_to_app, color: T.primary),
+              const SizedBox(width: 8),
+              Text('الخروج من يمن سيلو', style: TextStyle(color: T.text)),
             ],
           ),
-          content: const Text('هل تريد الخروج من التطبيق؟', style: TextStyle(fontSize: 14)),
+          content: Text('هل تريد الخروج من التطبيق؟',
+              style: TextStyle(fontSize: 14, color: T.text)),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
@@ -181,6 +220,9 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    final notifSvc = Get.isRegistered<NotificationService>()
+        ? Get.find<NotificationService>()
+        : null;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (bool didPop, Object? result) async {
@@ -194,137 +236,179 @@ class _MainShellState extends State<MainShell> {
           SystemNavigator.pop();
         }
       },
-      child: Directionality(
-        textDirection: TextDirection.rtl,
-        child: Obx(
-          () => Scaffold(
-            backgroundColor: T.card,
-            appBar: AppBar(
-              backgroundColor: _purple,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              centerTitle: false,
-              title: Row(
-                children: <Widget>[
-                  const ClipRRect(
-                    borderRadius: BorderRadius.all(Radius.circular(6)),
-                    child: BrandLogo(height: 30),
+      child: Obx(
+        () {
+          final isEn = Get.isRegistered<SettingsService>() &&
+              Get.find<SettingsService>().languageCode.value == 'en';
+          return Directionality(
+            textDirection: isEn ? TextDirection.ltr : TextDirection.rtl,
+            child: Scaffold(
+              backgroundColor: T.bg,
+              appBar: AppBar(
+                backgroundColor: T.dark ? const Color(0xFF1A1233) : _purple,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                centerTitle: false,
+                title: Row(
+                  children: <Widget>[
+                    const ClipRRect(
+                      borderRadius: BorderRadius.all(Radius.circular(6)),
+                      child: BrandLogo(height: 30),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        _titles[_tabCtrl.index.value],
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                    ),
+                  ],
+                ),
+                actions: <Widget>[
+                  // جرس الإشعارات
+                  if (notifSvc != null)
+                    Obx(() {
+                      final count = notifSvc.unreadCount;
+                      return IconButton(
+                        tooltip: 'notifications'.tr,
+                        onPressed: () => Get.toNamed(AppRoutes.notifications),
+                        icon: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            const Icon(Icons.notifications_none_rounded, color: Colors.white),
+                            if (count > 0)
+                              Positioned(
+                                top: -4,
+                                right: -5,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEF4444),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  constraints: const BoxConstraints(minWidth: 16),
+                                  child: Text(
+                                    count > 99 ? '99+' : '$count',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    }),
+                  IconButton(
+                    tooltip: 'support'.tr,
+                    icon: const Icon(Icons.support_agent_outlined, color: Colors.white),
+                    onPressed: () => Get.to(() => const SupportScreen()),
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _titles[_tabCtrl.index.value],
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  const ThemeToggleButton(),
+                  IconButton(
+                    tooltip: 'currency'.tr,
+                    icon: const Icon(Icons.currency_exchange, color: Colors.white),
+                    onPressed: _showCurrencyDialog,
                   ),
                 ],
               ),
-              actions: <Widget>[
-                const ThemeToggleButton(),
-                // ⭐ الحساب: تسجيل الدخول، العناوين، الطلبات
-                IconButton(
-                  tooltip: 'حسابي',
-                  icon: const Icon(Icons.person_outline, color: Colors.white),
-                  onPressed: () => Get.toNamed('/profile'),
-                ),
-                // ⭐ أيقونة تغيير العملة / التسعير
-                IconButton(
-                  tooltip: 'تغيير العملة',
-                  icon: const Icon(Icons.currency_exchange, color: Colors.white),
-                  onPressed: _showCurrencyDialog,
-                ),
-              ],
-            ),
-            body: IndexedStack(
-              index: _tabCtrl.index.value,
-              children: const <Widget>[
-                HomeTab(),
-                StoreTab(),
-                SheinWebScreen(),
-                CartScreen(),
-                OrdersTab(),
-                SupportTab(),
-              ],
-            ),
-            bottomNavigationBar: Obx(
-              () => Container(
+              body: IndexedStack(
+                index: _tabCtrl.index.value,
+                children: const <Widget>[
+                  HomeTab(),
+                  StoreTab(),
+                  SheinWebScreen(),
+                  CartScreen(),
+                  OrdersTab(),
+                  ProfileScreen(embedded: true),
+                ],
+              ),
+              bottomNavigationBar: Container(
                 decoration: BoxDecoration(
                   color: T.surface,
                   border: Border(top: BorderSide(color: T.border)),
                 ),
                 child: BottomNavigationBar(
-                currentIndex: _tabCtrl.index.value,
-                onTap: (int i) {
-                  _tabCtrl.goTo(i);
-                  // ⭐ فتح تبويب السلة يعيد قراءتها من التخزين فوراً
-                  if (i == 3) _cart.onItemAdded();
-                  _guideTab(i);
-                },
-                type: BottomNavigationBarType.fixed,
-                backgroundColor: T.surface,
-                elevation: 0,
-                selectedItemColor: T.primary,
-                unselectedItemColor: T.muted,
-                selectedFontSize: 10,
-                unselectedFontSize: 9.5,
-                items: <BottomNavigationBarItem>[
-                  const BottomNavigationBarItem(
-                    icon: Icon(Icons.home_outlined),
-                    activeIcon: Icon(Icons.home),
-                    label: 'الرئيسية',
-                  ),
-                  const BottomNavigationBarItem(
-                    icon: Icon(Icons.storefront_outlined),
-                    activeIcon: Icon(Icons.storefront),
-                    label: 'الكتالوج',
-                  ),
-                  const BottomNavigationBarItem(
-                    icon: Icon(Icons.language_outlined),
-                    activeIcon: Icon(Icons.language),
-                    label: 'SHEIN',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Stack(
-                      clipBehavior: Clip.none,
-                      children: <Widget>[
-                        const Icon(Icons.shopping_cart_outlined),
-                        if (_cart.count > 0)
-                          Positioned(
-                            top: -4,
-                            right: -6,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEF4444),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              constraints: const BoxConstraints(minWidth: 16),
-                              child: Text(
-                                '${_cart.count}',
-                                style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
-                                textAlign: TextAlign.center,
+                  currentIndex: _tabCtrl.index.value,
+                  onTap: (int i) {
+                    _tabCtrl.goTo(i);
+                    if (i == 3) _cart.onItemAdded();
+                    _guideTab(i);
+                  },
+                  type: BottomNavigationBarType.fixed,
+                  backgroundColor: T.surface,
+                  elevation: 0,
+                  selectedItemColor: T.primary,
+                  unselectedItemColor: T.muted,
+                  selectedFontSize: 10,
+                  unselectedFontSize: 9.5,
+                  items: <BottomNavigationBarItem>[
+                    BottomNavigationBarItem(
+                      icon: const Icon(Icons.home_outlined),
+                      activeIcon: const Icon(Icons.home),
+                      label: 'nav_home'.tr,
+                    ),
+                    BottomNavigationBarItem(
+                      icon: const Icon(Icons.storefront_outlined),
+                      activeIcon: const Icon(Icons.storefront),
+                      label: 'nav_catalog'.tr,
+                    ),
+                    BottomNavigationBarItem(
+                      icon: const Icon(Icons.language_outlined),
+                      activeIcon: const Icon(Icons.language),
+                      label: 'nav_shein'.tr,
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Stack(
+                        clipBehavior: Clip.none,
+                        children: <Widget>[
+                          const Icon(Icons.shopping_cart_outlined),
+                          if (_cart.count > 0)
+                            Positioned(
+                              top: -4,
+                              right: -6,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEF4444),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                constraints: const BoxConstraints(minWidth: 16),
+                                child: Text(
+                                  '${_cart.count}',
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold),
+                                  textAlign: TextAlign.center,
+                                ),
                               ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
+                      activeIcon: const Icon(Icons.shopping_cart),
+                      label: 'nav_cart'.tr,
                     ),
-                    activeIcon: const Icon(Icons.shopping_cart),
-                    label: 'السلة',
-                  ),
-                  const BottomNavigationBarItem(
-                    icon: Icon(Icons.receipt_long_outlined),
-                    activeIcon: Icon(Icons.receipt_long),
-                    label: 'طلباتي',
-                  ),
-                  const BottomNavigationBarItem(
-                    icon: Icon(Icons.support_agent_outlined),
-                    activeIcon: Icon(Icons.support_agent),
-                    label: 'الدعم',
-                  ),
-                ],
+                    BottomNavigationBarItem(
+                      icon: const Icon(Icons.receipt_long_outlined),
+                      activeIcon: const Icon(Icons.receipt_long),
+                      label: 'nav_orders'.tr,
+                    ),
+                    BottomNavigationBarItem(
+                      icon: const Icon(Icons.person_outline),
+                      activeIcon: const Icon(Icons.person),
+                      label: 'nav_me'.tr,
+                    ),
+                  ],
                 ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }

@@ -2092,31 +2092,70 @@ class _RegionSelector extends StatelessWidget {
 
   final CartCounter cart;
 
+  void _pick(String r, AppCurrency curr) {
+    cart.setRegion(r);
+    if (Get.isRegistered<SettingsService>()) {
+      Get.find<SettingsService>().setCurrency(curr);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       final String current = cart.region.value;
-
+      final sf = Get.isRegistered<SettingsService>()
+          ? Get.find<SettingsService>().settings.value
+          : null;
+      final rN = (sf?.rateNorth ?? 140).toStringAsFixed(0);
+      final rS = (sf?.rateSouth ?? 413).toStringAsFixed(0);
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: T.soft,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _border),
+          border: Border.all(color: T.border),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            const Row(
+            Row(
               children: <Widget>[
-                Icon(Icons.public, color: _purple, size: 18),
-                SizedBox(width: 6),
+                Icon(Icons.currency_exchange, color: T.primary, size: 18),
+                const SizedBox(width: 6),
                 Text(
-                  'منطقة التسعير',
+                  'عملة العرض ومنطقة التسعير',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: _purple,
+                    color: T.primary,
                     fontSize: 13,
+                  ),
+                ),
+                const Spacer(),
+                InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () async {
+                    final n = await cart.syncCartWithCatalog();
+                    Get.snackbar(
+                      'مزامنة الأسعار',
+                      n > 0 ? 'تم تحديث أسعار $n قطعة ✓' : 'كل الأسعار محدثة ✓',
+                      snackPosition: SnackPosition.BOTTOM,
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: T.primary.withOpacity(.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.sync, size: 13, color: T.primary),
+                        const SizedBox(width: 4),
+                        Text('مزامنة الأسعار',
+                            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: T.primary)),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -2126,25 +2165,33 @@ class _RegionSelector extends StatelessWidget {
               children: <Widget>[
                 Expanded(
                   child: _RegionButton(
-                    label: 'سعودي · SAR',
+                    label: 'سعودي\nSAR',
                     active: current == 'saudi',
-                    onTap: () => cart.setRegion('saudi'),
+                    onTap: () => _pick('saudi', AppCurrency.sar),
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 5),
                 Expanded(
                   child: _RegionButton(
-                    label: 'شمال · 140',
+                    label: 'دولار\nUSD',
+                    active: current == 'usd',
+                    onTap: () => _pick('usd', AppCurrency.usd),
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: _RegionButton(
+                    label: 'شمال\n$rN',
                     active: current == 'north',
-                    onTap: () => cart.setRegion('north'),
+                    onTap: () => _pick('north', AppCurrency.north),
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 5),
                 Expanded(
                   child: _RegionButton(
-                    label: 'جنوب · 413',
+                    label: 'جنوب\n$rS',
                     active: current == 'south',
-                    onTap: () => cart.setRegion('south'),
+                    onTap: () => _pick('south', AppCurrency.south),
                   ),
                 ),
               ],
@@ -2174,19 +2221,20 @@ class _RegionButton extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(vertical: 9),
         decoration: BoxDecoration(
-          color: active ? _purple : Colors.white,
+          color: active ? _purple : T.card,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: active ? _purple : _border),
+          border: Border.all(color: active ? _purple : T.border),
         ),
         child: Text(
           label,
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: active ? Colors.white : _purple,
+            color: active ? Colors.white : T.text,
             fontWeight: FontWeight.bold,
-            fontSize: 13,
+            fontSize: 11.5,
+            height: 1.3,
           ),
         ),
       ),
@@ -2239,20 +2287,83 @@ class _QuoteSummary extends StatelessWidget {
                   const Divider(height: 20),
                   _row(
                     'العملة',
-                    q.exchangeRate <= 1.0
-                        ? 'ريال سعودي SAR'
-                        : '${q.exchangeRate.toStringAsFixed(0)} ر.ي لكل SAR',
+                    cart.region.value == 'usd'
+                        ? 'دولار أمريكي USD (1 USD = 3.75 ر.س)'
+                        : (q.exchangeRate <= 1.0
+                            ? 'ريال سعودي SAR'
+                            : '${q.exchangeRate.toStringAsFixed(0)} ر.ي لكل SAR'),
                   ),
                   const SizedBox(height: 8),
                   _row(
-                    q.exchangeRate <= 1.0
-                        ? 'الإجمالي (سعودي)'
-                        : 'الإجمالي بالريال اليمني',
-                    q.exchangeRate <= 1.0
-                        ? 'SAR ${q.grandTotalLocal.toStringAsFixed(2)}'
-                        : '${q.grandTotalLocal.toStringAsFixed(0)} ر.ي',
+                    cart.region.value == 'usd'
+                        ? 'الإجمالي (دولار)'
+                        : (q.exchangeRate <= 1.0
+                            ? 'الإجمالي (سعودي)'
+                            : 'الإجمالي بالريال اليمني'),
+                    cart.region.value == 'usd'
+                        ? '${q.grandTotalLocal.toStringAsFixed(2)} USD'
+                        : (q.exchangeRate <= 1.0
+                            ? 'SAR ${q.grandTotalLocal.toStringAsFixed(2)}'
+                            : '${q.grandTotalLocal.toStringAsFixed(0)} ر.ي'),
                     emphasize: true,
                   ),
+                  if (Get.isRegistered<SettingsService>()) ...[
+                    const Divider(height: 20),
+                    Builder(builder: (_) {
+                      final totalSar = q.exchangeRate > 0 ? q.grandTotalLocal / q.exchangeRate : 0.0;
+                      final m = Get.find<SettingsService>().matrix(totalSar);
+                      return Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: T.card,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: T.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'مصفوفة التسعير (سعودي / دولار ← شمال / جنوب)',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: T.primary),
+                            ),
+                            const SizedBox(height: 6),
+                            _row('🇸🇦 سعودي', '${m.sar.toStringAsFixed(2)} ر.س'),
+                            _row('🇺🇸 دولار (÷ 3.75)', '${m.usd.toStringAsFixed(2)} USD'),
+                            const SizedBox(height: 4),
+                            _row('شمال × سعر السعودي (${m.rateNorth.toStringAsFixed(0)})', '${m.northFromSar.toStringAsFixed(0)} ر.ي'),
+                            _row('شمال × سعر الدولار (${m.usdRateNorth.toStringAsFixed(0)})', '${m.northFromUsd.toStringAsFixed(0)} ر.ي'),
+                            const SizedBox(height: 4),
+                            _row('جنوب × سعر السعودي (${m.rateSouth.toStringAsFixed(0)})', '${m.southFromSar.toStringAsFixed(0)} ر.ي'),
+                            _row('جنوب × سعر الدولار (${m.usdRateSouth.toStringAsFixed(0)})', '${m.southFromUsd.toStringAsFixed(0)} ر.ي'),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                  if (cart.items.any((e) => e.nonRefundable)) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(9),
+                      decoration: BoxDecoration(
+                        color: T.warning.withOpacity(.14),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: T.warning.withOpacity(.45)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.warning_amber_rounded, size: 16, color: T.warning),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'تنبيه: تحتوي السلة على ${cart.items.where((e) => e.nonRefundable).length} قطعة غير قابلة للاسترداد.',
+                              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: T.text),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
       );

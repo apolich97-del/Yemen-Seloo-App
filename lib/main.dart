@@ -12,6 +12,10 @@ import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'core/config/seloo_config.dart';
 import 'core/controllers/checkout_controller.dart';
 import 'core/routes/app_routes.dart';
+import 'core/l10n/app_translations.dart';
+import 'core/services/audit_service.dart';
+import 'core/services/notification_service.dart';
+import 'core/services/saved_accounts_service.dart';
 import 'core/services/settings_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
@@ -46,7 +50,10 @@ Future<void> main() async {
   }
 
   // 2.5) سجّل SettingsService و ThemeController قبل CartCounter
+  Get.put<SavedAccountsService>(SavedAccountsService(), permanent: true);
   Get.put<SettingsService>(SettingsService(), permanent: true);
+  Get.put<NotificationService>(NotificationService(), permanent: true);
+  Get.put<AuditService>(AuditService(), permanent: true);
   Get.put<ThemeController>(ThemeController(), permanent: true);
 
   // 3) سجّل CartCounter قبل أي شاشة
@@ -315,7 +322,7 @@ class SelooApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget buildApp(ThemeMode mode) => GetMaterialApp(
+    Widget buildApp(ThemeMode mode, Locale loc) => GetMaterialApp(
       title: SelooConfig.appName,
       debugShowCheckedModeBanner: false,
       localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
@@ -327,7 +334,8 @@ class SelooApp extends StatelessWidget {
         Locale('ar'),
         Locale('en'),
       ],
-      locale: const Locale('ar'),
+      translations: AppTranslations(),
+      locale: loc,
       fallbackLocale: const Locale('en'),
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
@@ -352,8 +360,13 @@ class SelooApp extends StatelessWidget {
     );
     if (Get.isRegistered<ThemeController>()) {
       final tc = Get.find<ThemeController>();
-      return Obx(() => buildApp(tc.mode));
+      return Obx(() {
+        final lang = Get.isRegistered<SettingsService>()
+            ? Get.find<SettingsService>().languageCode.value
+            : 'ar';
+        return buildApp(tc.mode, Locale(lang));
+      });
     }
-    return buildApp(ThemeMode.light);
+    return buildApp(ThemeMode.light, const Locale('ar'));
   }
 }
