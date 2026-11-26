@@ -593,7 +593,7 @@ class CheckoutScreen extends GetView<CheckoutController> {
               title: 'طلب آجل — السداد بالنصف $pct%',
               subtitle: eligible
                   ? 'الدفعة الأولى ${formatMoney(upfront, est.currency)} · المتبقي ${formatMoney(est.totalLocal - upfront, est.currency)} (متاح لك: ${controller.availableDeferredCreditSar.toStringAsFixed(0)} ر.س)'
-                  : (restriction ?? 'الآجل غير متاح'),
+                  : restriction,
               enabled: eligible,
             ),
             if (controller.paymentPlan.value == 'half_deferred' && eligible) ...[

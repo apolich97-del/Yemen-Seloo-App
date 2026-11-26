@@ -35,9 +35,7 @@ class OrderStageBar extends StatelessWidget {
 
   String _labelAt(int i) {
     if (i == 0 && status == OrderStatus.unpaid) {
-      return whatsappSent ? 'أُرسلت
-واتساب' : 'رفع
-الطلب';
+      return whatsappSent ? 'أُرسلت\nواتساب' : 'رفع\nالطلب';
     }
     return _stages[i].labelAr;
   }
