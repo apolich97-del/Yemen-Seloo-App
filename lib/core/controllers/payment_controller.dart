@@ -329,9 +329,7 @@ class PaymentController extends GetxController {
           amountSar: payload.walletUseSar,
           amountLocal: payload.walletUseSar *
               (Get.isRegistered<SettingsService>()
-                  ? (currency == AppCurrency.north
-                      ? Get.find<SettingsService>().settings.value.rateNorth
-                      : Get.find<SettingsService>().settings.value.rateSouth)
+                  ? Get.find<SettingsService>().settings.value.rateFor(currency.key)
                   : 1),
           note: 'خصم من المحفظة — طلب ${sub.orderNo}',
         );
@@ -379,6 +377,7 @@ class PaymentController extends GetxController {
             addressAr: (deliveryAddress.value ?? payload.address).fullAr,
             itemsCount: pieces,
             thumbnails: payload.lines.map((l) => l.imageUrl).where((u) => u.isNotEmpty).take(6).toList(),
+            proofUrl: t.proofUrl,
           ));
     } catch (e) {
       final msg = '$e';

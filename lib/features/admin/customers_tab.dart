@@ -72,6 +72,16 @@ class _CustomersTabState extends State<CustomersTab> {
             return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: db.collectionGroup('receipts').limit(300).snapshots(),
               builder: (context, rSnap) {
+                if (uSnap.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text('تعذر تحميل العملاء: ${uSnap.error}',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 11.5, color: T.muted)),
+                    ),
+                  );
+                }
                 if (uSnap.connectionState == ConnectionState.waiting &&
                     !uSnap.hasData) {
                   return const Center(child: CircularProgressIndicator());

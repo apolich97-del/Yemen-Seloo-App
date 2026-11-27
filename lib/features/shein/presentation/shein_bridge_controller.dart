@@ -18,6 +18,7 @@ class SheinBridgeController {
   InAppWebViewController? _webView;
   Function(int total)? onStartClickCrawl;
   Function()? onCrawlStepFailed;
+  Future<Map<String, dynamic>> Function(SheinDraft draft)? onAddToCatalog;
 
   Future<void> attach(InAppWebViewController controller) async {
     _webView = controller;
@@ -30,6 +31,7 @@ class SheinBridgeController {
 
         switch (envelope.action) {
           case 'addToCart': return await _handleAddToCart(envelope.payload);
+          case 'addToCatalog': return await _handleAddToCatalog(envelope.payload);
           case 'startClickCrawl': onStartClickCrawl?.call(envelope.payload['total'] ?? 0); return _reply('ok', 'بدأ الزحف');
           case 'crawlStepFailed': onCrawlStepFailed?.call(); return _reply('ok', 'تخطي');
           default: return _reply('invalid', 'إجراء غير معروف');
@@ -74,6 +76,24 @@ class SheinBridgeController {
     } catch (e) {
       onCrawlStepFailed?.call();
       return _reply('error', 'تعذّرت الإضافة: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> _handleAddToCatalog(Map<String, dynamic> payload) async {
+    final Map<String, dynamic> safePayload = Map<String, dynamic>.from(payload);
+    final SheinDraft draft;
+    try {
+      draft = SheinDraft.fromBridgePayload(safePayload);
+    } on DraftValidationException {
+      return _reply('invalid', 'بيانات المنتج غير مكتملة');
+    }
+    if (onAddToCatalog == null) {
+      return _reply('error', 'وضع النشر للكتالوج غير متاح');
+    }
+    try {
+      return await onAddToCatalog!(draft);
+    } catch (e) {
+      return _reply('error', 'تعذّر فتح النشر للكتالوج: $e');
     }
   }
 

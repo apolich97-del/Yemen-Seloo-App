@@ -54,6 +54,26 @@ class _OrdersTabState extends State<OrdersTab> {
             child: StreamBuilder<List<Order>>(
               stream: allOrdersStream(status: _filter),
               builder: (context, snap) {
+                if (snap.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.cloud_off, size: 42, color: T.muted),
+                          const SizedBox(height: 8),
+                          const Text('تعذر تحميل الطلبات',
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 4),
+                          Text('${snap.error}',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 10.5, color: T.muted)),
+                        ],
+                      ),
+                    ),
+                  );
+                }
                 if (!snap.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }

@@ -115,6 +115,8 @@ class SelooCartService {
 
           currentItems[existingIndex] = oldItem.copyWith(
             quantity: newQuantity,
+            sourcePrice: draft.sourcePrice > 0 ? draft.sourcePrice : oldItem.sourcePrice,
+            options: draft.options.isNotEmpty ? draft.options : oldItem.options,
             imageUrl: oldItem.imageUrl.trim().isEmpty ? _cleanImage(draft.imageUrl) : oldItem.imageUrl,
           );
         } else {

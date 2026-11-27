@@ -236,7 +236,13 @@ class OrderDocuments {
       ..writeln()
       ..writeln('*المنتجات (${o.items.length})*');
     for (final it in o.items) {
+      final sUrl = it.productUrl.trim().isNotEmpty
+          ? it.productUrl.trim()
+          : (it.goodsId.trim().isNotEmpty
+              ? 'https://m.shein.com/ar/pdsearch/${it.goodsId.trim()}/'
+              : '');
       b.writeln('▫️ ${it.title} × ${it.qty}${it.isNonRefundable ? ' [غير قابل للاسترداد]' : ''}');
+      if (sUrl.isNotEmpty) b.writeln('   🔗 شي إن: $sUrl');
     }
     b
       ..writeln()
@@ -617,15 +623,31 @@ class OrderDocuments {
     if (refNo.isNotEmpty) {
       b.writeln('• رقم مرجع الحوالة: $refNo');
     }
-    if (shareLink.isNotEmpty) {
-      b
-        ..writeln('──────────────────────────────')
-        ..writeln('🛒 *رابط السلة كاملة (استيراد فوري):*')
-        ..writeln(shareLink);
+    final sheinLinks = <String>[];
+    for (final l in lines) {
+      final gid = l.goodsId.trim();
+      if (gid.isEmpty) continue;
+      final url = 'https://m.shein.com/ar/pdsearch/$gid/';
+      if (!sheinLinks.contains(url)) sheinLinks.add(url);
+      if (sheinLinks.length >= 6) break;
+    }
+    if (shareLink.isNotEmpty || sheinLinks.isNotEmpty) {
+      b.writeln('──────────────────────────────');
+      if (shareLink.isNotEmpty) {
+        b
+          ..writeln('🛒 *رابط سلة يمن سيلو كاملة (استيراد فوري):*')
+          ..writeln(shareLink);
+      }
+      if (sheinLinks.isNotEmpty) {
+        b.writeln('🔗 *روابط SHEIN للقطع:*');
+        for (var i = 0; i < sheinLinks.length; i++) {
+          b.writeln('${i + 1}. ${sheinLinks[i]}');
+        }
+      }
     }
     b
       ..writeln('──────────────────────────────')
-      ..writeln('📸 *ملاحظة:* مرفق مع هذه الاستمارة لقطة شاشة من ملخص الطلب الكامل.')
+      ..writeln('📸 *ملاحظة:* مرفق مع هذه الاستمارة لقطة شاشة تضم صور القطع وإثبات الحوالة.')
       ..writeln('📞 *أرقام يمن سيلو الرسمية:*')
       ..writeln('• الرئيسي: 770518757')
       ..writeln('• الثانوي: 737383637')

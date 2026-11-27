@@ -37,18 +37,20 @@ class CartCounter extends GetxService {
 
   /// تغيير اللون أو المقاس داخل السلة دون مغادرتها.
   Future<void> updateVariant(CartItem item,
-      {String? color, String? size}) async {
+      {String? color, String? size, double? sourcePrice}) async {
     final list = _service.loadItems();
     final i = list.indexWhere((e) => e.lineId == item.lineId);
     if (i < 0) return;
     final old = list[i];
+    final nextPrice =
+        (sourcePrice != null && sourcePrice > 0) ? sourcePrice : old.sourcePrice;
     list[i] = CartItem(
       lineId: old.lineId,
       goodsId: old.goodsId,
       title: old.title,
       imageUrl: old.imageUrl,
       sourceUrl: old.sourceUrl,
-      sourcePrice: old.sourcePrice,
+      sourcePrice: nextPrice,
       sourceCurrency: old.sourceCurrency,
       exchangeRate: old.exchangeRate,
       quantity: old.quantity,

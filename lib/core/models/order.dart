@@ -111,21 +111,21 @@ extension ShippingMilestoneX on ShippingMilestone {
       };
 
   String get labelAr => switch (this) {
-        ShippingMilestone.preparing => 'قيد التجهيز والشراء (شي إن)',
-        ShippingMilestone.chinaWarehouse => 'تم الشحن: مستودع الصين',
-        ShippingMilestone.uaeTransit => 'وصلت الإمارات / قيد الفرز',
-        ShippingMilestone.saudiCustoms => 'الجمارك السعودية / في العبور',
-        ShippingMilestone.yemenArrival => 'وصلت اليمن / شحن المحافظات',
+        ShippingMilestone.preparing => 'قيد التجهيز — مستودعات شي إن',
+        ShippingMilestone.chinaWarehouse => 'تم الشحن — المطار في الصين',
+        ShippingMilestone.uaeTransit => 'قيد التجهيز — مستودعات الإمارات',
+        ShippingMilestone.saudiCustoms => 'جمارك السعودية — الرياض / جدة',
+        ShippingMilestone.yemenArrival => 'الشحن لليمن — مقر الشركة في تعز',
         ShippingMilestone.outForDelivery => 'جاري التوصيل مع المندوب',
         ShippingMilestone.delivered => 'تم التسليم بنجاح',
       };
 
   String get shortAr => switch (this) {
-        ShippingMilestone.preparing => 'التجهيز',
-        ShippingMilestone.chinaWarehouse => 'الصين',
+        ShippingMilestone.preparing => 'مستودعات شي إن',
+        ShippingMilestone.chinaWarehouse => 'مطار الصين',
         ShippingMilestone.uaeTransit => 'الإمارات',
-        ShippingMilestone.saudiCustoms => 'السعودية',
-        ShippingMilestone.yemenArrival => 'اليمن',
+        ShippingMilestone.saudiCustoms => 'الرياض/جدة',
+        ShippingMilestone.yemenArrival => 'مقر تعز',
         ShippingMilestone.outForDelivery => 'المندوب',
         ShippingMilestone.delivered => 'التسليم',
       };

@@ -74,48 +74,186 @@ class _CartScreenState extends State<CartScreen> {
 
   List<CartItem> get _selectedItems => _cart.selectedItems;
 
-  /// نافذة سريعة لتغيير اللون أو المقاس دون مغادرة السلة.
+  List<String> _decodeOptList(CartItem item, String key) {
+    final raw = item.options[key];
+    if (raw == null || raw.trim().isEmpty) return const <String>[];
+    try {
+      final dec = jsonDecode(raw);
+      if (dec is List) {
+        return dec.map((e) => '$e'.trim()).where((e) => e.isNotEmpty).toList();
+      }
+    } catch (_) {}
+    return const <String>[];
+  }
+
+  Map<String, double> _decodeSizePrices(CartItem item) {
+    final raw = item.options['_sizePrices'];
+    final out = <String, double>{};
+    if (raw == null || raw.trim().isEmpty) return out;
+    try {
+      final dec = jsonDecode(raw);
+      if (dec is Map) {
+        dec.forEach((k, v) {
+          final p = double.tryParse('$v');
+          if (p != null && p > 0) out['$k'.trim()] = p;
+        });
+      }
+    } catch (_) {}
+    return out;
+  }
+
+  /// نافذة بصرية لاختيار اللون والمقاس على طريقة SHEIN مع مزامنة سعر المقاس.
   Future<void> _editVariant(CartItem item) async {
     final colorCtrl = TextEditingController(text: item.color);
     final sizeCtrl = TextEditingController(text: item.size);
+    final presetColors = <String>[
+      ..._decodeOptList(item, '_colors'),
+      if (item.color.trim().isNotEmpty) item.color.trim(),
+      'أسود', 'أبيض', 'أحمر', 'أزرق', 'كحلي', 'وردي', 'بيج', 'بني', 'رمادي', 'أخضر',
+    ].toSet().toList();
+    final presetSizes = <String>[
+      ..._decodeOptList(item, '_sizes'),
+      if (item.size.trim().isNotEmpty) item.size.trim(),
+      'XS', 'S', 'M', 'L', 'XL', 'XXL',
+    ].toSet().toList();
+    final sizePrices = _decodeSizePrices(item);
+    double? selectedPrice;
+
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: T.card,
-        title: Text('تعديل اللون والمقاس',
-            style: TextStyle(fontSize: 14, color: T.text)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            TextField(
-              controller: colorCtrl,
-              style: TextStyle(color: T.text),
-              decoration: const InputDecoration(labelText: 'اللون'),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          backgroundColor: T.card,
+          title: Text('تعديل اللون والمقاس',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: T.text)),
+          content: SizedBox(
+            width: 340,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text('اللون',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: T.text)),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: presetColors.map((c) {
+                      final active = colorCtrl.text.trim() == c;
+                      final dot = _cartColorFromName(c);
+                      return ChoiceChip(
+                        selected: active,
+                        selectedColor: _purple.withOpacity(0.16),
+                        label: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            if (dot != null) ...[
+                              Container(
+                                width: 11,
+                                height: 11,
+                                decoration: BoxDecoration(
+                                  color: dot,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.black26, width: 0.8),
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                            ],
+                            Text(c, style: TextStyle(fontSize: 11, color: T.text)),
+                          ],
+                        ),
+                        onSelected: (_) => setLocal(() => colorCtrl.text = c),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: colorCtrl,
+                    style: TextStyle(fontSize: 12.5, color: T.text),
+                    onChanged: (_) => setLocal(() {}),
+                    decoration: const InputDecoration(
+                      labelText: 'أو اكتب اللون يدوياً',
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text('المقاس',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: T.text)),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: presetSizes.map((s) {
+                      final active = sizeCtrl.text.trim() == s;
+                      final sp = sizePrices[s];
+                      return ChoiceChip(
+                        selected: active,
+                        selectedColor: _orange.withOpacity(0.16),
+                        label: Text(
+                          sp != null ? '$s · ${sp.toStringAsFixed(1)} ر.س' : s,
+                          style: TextStyle(fontSize: 11, color: T.text),
+                        ),
+                        onSelected: (_) => setLocal(() {
+                          sizeCtrl.text = s;
+                          if (sp != null) selectedPrice = sp;
+                        }),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: sizeCtrl,
+                    style: TextStyle(fontSize: 12.5, color: T.text),
+                    onChanged: (v) => setLocal(() {
+                      selectedPrice = sizePrices[v.trim()];
+                    }),
+                    decoration: const InputDecoration(
+                      labelText: 'أو اكتب المقاس يدوياً',
+                      isDense: true,
+                    ),
+                  ),
+                  if (selectedPrice != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'سعر المقاس المحدد: ${selectedPrice!.toStringAsFixed(2)} ر.س',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF059669),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: sizeCtrl,
-              style: TextStyle(color: T.text),
-              decoration: const InputDecoration(labelText: 'المقاس'),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('إلغاء'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('حفظ التعديل'),
             ),
           ],
         ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('حفظ'),
-          ),
-        ],
       ),
     );
     if (ok != true) return;
-    await _cart.updateVariant(item,
-        color: colorCtrl.text.trim(), size: sizeCtrl.text.trim());
-    _snack('تم تحديث اللون والمقاس');
+    final nextColor = colorCtrl.text.trim();
+    final nextSize = sizeCtrl.text.trim();
+    final nextPrice = sizePrices[nextSize] ?? selectedPrice;
+    await _cart.updateVariant(
+      item,
+      color: nextColor,
+      size: nextSize,
+      sourcePrice: nextPrice,
+    );
+    _snack(nextPrice != null
+        ? 'تم تحديث اللون والمقاس ومزامنة السعر'
+        : 'تم تحديث اللون والمقاس');
   }
 
   /// منتجات مقاربة من كتالوج يمن سيلو + بحث مباشر في SHEIN.
@@ -1764,6 +1902,7 @@ class _CartLineTile extends StatelessWidget {
                                   label: 'اللون',
                                   value: item.color,
                                   color: _purple,
+                                  swatchColor: _cartColorFromName(item.color),
                                 ),
                               ),
                             if (item.size.isNotEmpty)
@@ -1788,13 +1927,14 @@ class _CartLineTile extends StatelessWidget {
                           ],
                         ),
                       ),
-                    if (item.options.isNotEmpty)
+                    if (item.options.entries.any((e) => !e.key.startsWith('_')))
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Wrap(
                           spacing: 6,
                           runSpacing: 4,
                           children: item.options.entries
+                              .where((MapEntry<String, String> e) => !e.key.startsWith('_'))
                               .map(
                                 (MapEntry<String, String> e) => _InfoChip(
                                   label: e.key,
@@ -1863,16 +2003,42 @@ class _CartLineTile extends StatelessWidget {
   }
 }
 
+Color? _cartColorFromName(String raw) {
+  final s = raw.trim().toLowerCase();
+  if (s.isEmpty) return null;
+  if (s.contains('أسود') || s.contains('اسود') || s.contains('black')) return const Color(0xFF111827);
+  if (s.contains('أبيض') || s.contains('ابيض') || s.contains('white')) return const Color(0xFFF9FAFB);
+  if (s.contains('أحمر') || s.contains('احمر') || s.contains('red')) return const Color(0xFFDC2626);
+  if (s.contains('عنابي') || s.contains('burgundy') || s.contains('maroon')) return const Color(0xFF881337);
+  if (s.contains('أزرق') || s.contains('ازرق') || s.contains('blue')) return const Color(0xFF2563EB);
+  if (s.contains('كحلي') || s.contains('navy')) return const Color(0xFF1E3A8A);
+  if (s.contains('سماوي') || s.contains('sky')) return const Color(0xFF38BDF8);
+  if (s.contains('أخضر') || s.contains('اخضر') || s.contains('green')) return const Color(0xFF16A34A);
+  if (s.contains('زيتي') || s.contains('olive') || s.contains('khaki')) return const Color(0xFF65A30D);
+  if (s.contains('أصفر') || s.contains('اصفر') || s.contains('yellow')) return const Color(0xFFEAB308);
+  if (s.contains('برتقالي') || s.contains('orange')) return const Color(0xFFF97316);
+  if (s.contains('وردي') || s.contains('زهري') || s.contains('pink')) return const Color(0xFFEC4899);
+  if (s.contains('بنفسجي') || s.contains('موف') || s.contains('purple')) return const Color(0xFF7C3AED);
+  if (s.contains('بيج') || s.contains('كريمي') || s.contains('beige') || s.contains('cream')) return const Color(0xFFD6C29F);
+  if (s.contains('بني') || s.contains('brown') || s.contains('coffee')) return const Color(0xFF78350F);
+  if (s.contains('رمادي') || s.contains('رصاصي') || s.contains('grey') || s.contains('gray')) return const Color(0xFF6B7280);
+  if (s.contains('ذهبي') || s.contains('gold')) return const Color(0xFFD4AF37);
+  if (s.contains('فضي') || s.contains('silver')) return const Color(0xFFCBD5E1);
+  return null;
+}
+
 class _InfoChip extends StatelessWidget {
   const _InfoChip({
     required this.label,
     required this.value,
     required this.color,
+    this.swatchColor,
   });
 
   final String label;
   final String value;
   final Color color;
+  final Color? swatchColor;
 
   @override
   Widget build(BuildContext context) {
@@ -1886,6 +2052,18 @@ class _InfoChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
+          if (swatchColor != null) ...[
+            Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: swatchColor,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.black26, width: 0.7),
+              ),
+            ),
+            const SizedBox(width: 4),
+          ],
           Text(
             '$label: ',
             style: TextStyle(

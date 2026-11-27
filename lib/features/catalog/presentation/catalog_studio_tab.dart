@@ -544,6 +544,12 @@ class _CatalogStudioTabState extends State<CatalogStudioTab> {
         title: const Text('استوديو كتالوج يمن سيلو'),
         actions: [
           IconButton(
+            tooltip: 'تصفح SHEIN بوضع المسوّق',
+            icon: Icon(Icons.storefront_outlined, color: T.primary),
+            onPressed: () => Get.toNamed('/shein',
+                arguments: const <String, dynamic>{'marketerMode': true}),
+          ),
+          IconButton(
             tooltip: 'استيراد جماعي (عدة روابط)',
             icon: Icon(Icons.playlist_add, color: T.primary),
             onPressed: _openBatchImport,

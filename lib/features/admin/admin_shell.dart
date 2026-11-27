@@ -5,6 +5,7 @@ import '../../core/services/auth_service.dart';
 import '../../core/theme/app_theme.dart';
 import 'customers_tab.dart';
 import 'dashboard_tab.dart';
+import 'financial_reports_tab.dart';
 import 'orders_tab.dart';
 import 'payments_tab.dart';
 import 'receipts_tab.dart';
@@ -42,6 +43,7 @@ class _AdminShellState extends State<AdminShell> {
     const customers = _TabDef('العملاء', Icons.people_outline);
     const orders = _TabDef('الطلبات', Icons.receipt_long_outlined);
     const pays = _TabDef('المدفوعات', Icons.account_balance_wallet_outlined);
+    const reports = _TabDef('التقارير المالية', Icons.analytics_outlined);
     const receipts = _TabDef('إيصال', Icons.qr_code_2_outlined);
     const support = _TabDef('دعم العملاء', Icons.support_agent);
     const ship = _TabDef('الشحن', Icons.local_shipping_outlined);
@@ -53,7 +55,7 @@ class _AdminShellState extends State<AdminShell> {
     const audit = _TabDef('سجل المحذوفات', Icons.history_edu_outlined);
     switch (role) {
       case 'accounting':
-        return [pays, receipts, orders, customers];
+        return [pays, reports, receipts, orders, customers];
       case 'shipping':
         return [ship, orders, alerts];
       case 'courier':
@@ -64,7 +66,7 @@ class _AdminShellState extends State<AdminShell> {
         // مسوّق الكتالوج: الاستوديو والطلبات فقط — بلا مدفوعات أو إعدادات أو فريق.
         return [catalog, orders];
       default:
-        return [dash, orders, customers, catalog, pays, receipts, withdrawals, reviews, support, alerts, ship, audit, settings];
+        return [dash, orders, customers, catalog, pays, reports, receipts, withdrawals, reviews, support, alerts, ship, audit, settings];
     }
   }
 
@@ -91,6 +93,7 @@ class _AdminShellState extends State<AdminShell> {
         'العملاء' => const CustomersTab(),
         'الطلبات' => const OrdersTab(),
         'المدفوعات' => const PaymentsTab(),
+        'التقارير المالية' => const FinancialReportsTab(),
         'إيصال' => const ReceiptsTab(),
         'دعم العملاء' => const AdminSupportTab(),
         'الشحن' => const ShippingTab(),

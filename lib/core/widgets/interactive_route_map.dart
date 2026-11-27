@@ -61,8 +61,8 @@ class _InteractiveRouteMapState extends State<InteractiveRouteMap> {
                       style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900, color: T.text),
                     ),
                     Text(
-                      'الصين ← الإمارات ← السعودية ← ${o.shippingGovernorate.isNotEmpty ? o.shippingGovernorate : o.address.city}',
-                      style: TextStyle(fontSize: 10.5, color: T.muted),
+                      'مستودعات شي إن ← مطار الصين ← الإمارات ← الرياض/جدة ← مقر تعز ← ${o.shippingGovernorate.isNotEmpty ? o.shippingGovernorate : o.address.city}',
+                      style: TextStyle(fontSize: 10, color: T.muted),
                     ),
                   ],
                 ),
@@ -152,6 +152,28 @@ class _InteractiveRouteMapState extends State<InteractiveRouteMap> {
                         Text('رقم التتبع: ${o.trackingNo}',
                             style: TextStyle(fontSize: 10.5, color: T.primary, fontWeight: FontWeight.w700)),
                     ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              color: T.primary.withOpacity(.06),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: T.primary.withOpacity(.2)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline, size: 15, color: T.primary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'تتحدث هذه الخريطة التفاعلية تلقائياً حسب البيانات التي يدخلها موظف الشحن (المرحلة، رقم التتبع، والملاحظات) حتى وصول الشحنة إلى مقر الشركة في تعز وتسليمها للعميل.',
+                    style: TextStyle(fontSize: 10, height: 1.45, color: T.muted),
                   ),
                 ),
               ],

@@ -106,6 +106,9 @@ class _LoginScreenState extends State<LoginScreen> {
     final u = _auth.user.value;
     if (u != null && (u.hasCompleteCustomerProfile || u.isStaff)) {
       Get.offAllNamed('/orders');
+      if (u.isStaff) {
+        Get.toNamed('/admin');
+      }
       return;
     }
     // أول مرة لهذا الحساب فقط: نُعبّئ الاسم من Google إن وُجد ونفتح نموذج التسجيل لمرة واحدة

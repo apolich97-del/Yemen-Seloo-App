@@ -46,6 +46,7 @@ class OrderConfirmedScreen extends StatefulWidget {
     this.addressAr = '',
     this.itemsCount = 0,
     this.thumbnails = const <String>[],
+    this.proofUrl = '',
   });
 
   final String orderNo;
@@ -62,6 +63,7 @@ class OrderConfirmedScreen extends StatefulWidget {
   final String addressAr;
   final int itemsCount;
   final List<String> thumbnails;
+  final String proofUrl;
 
   @override
   State<OrderConfirmedScreen> createState() => _OrderConfirmedScreenState();
@@ -410,22 +412,48 @@ class _OrderConfirmedScreenState extends State<OrderConfirmedScreen> {
                                 scrollDirection: Axis.horizontal,
                                 itemCount: widget.thumbnails.length,
                                 separatorBuilder: (_, __) => const SizedBox(width: 6),
-                                itemBuilder: (_, i) => ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.network(
-                                    widget.thumbnails[i],
-                                    width: 50,
-                                    height: 50,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Container(
-                                      width: 50,
-                                      height: 50,
-                                      color: T.soft,
-                                      child: Icon(Icons.shopping_bag_outlined,
-                                          size: 18, color: T.muted),
+                                itemBuilder: (_, i) {
+                                  final img = widget.thumbnails[i];
+                                  return ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: _summaryImg(img, 50, 50),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                          ],
+                          if (widget.proofUrl.isNotEmpty) ...[
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: T.soft,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: T.softBorder),
+                              ),
+                              child: Row(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: _summaryImg(widget.proofUrl, 46, 46),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text('إثبات الحوالة مرفق ✓',
+                                            style: TextStyle(
+                                                fontSize: 11.5,
+                                                fontWeight: FontWeight.w800,
+                                                color: T.success)),
+                                        Text('مضمّن مع لقطة شاشة الاستمارة',
+                                            style: TextStyle(
+                                                fontSize: 10, color: T.muted)),
+                                      ],
                                     ),
                                   ),
-                                ),
+                                ],
                               ),
                             ),
                             const SizedBox(height: 10),
@@ -767,6 +795,28 @@ class _OrderConfirmedScreenState extends State<OrderConfirmedScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _summaryImg(String src, double w, double h) {
+    if (src.startsWith('data:')) {
+      try {
+        final idx = src.indexOf(',');
+        final bytes = base64Decode(idx >= 0 ? src.substring(idx + 1) : src);
+        return Image.memory(bytes, width: w, height: h, fit: BoxFit.cover);
+      } catch (_) {}
+    }
+    return Image.network(
+      src,
+      width: w,
+      height: h,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => Container(
+        width: w,
+        height: h,
+        color: T.soft,
+        child: Icon(Icons.shopping_bag_outlined, size: 18, color: T.muted),
       ),
     );
   }

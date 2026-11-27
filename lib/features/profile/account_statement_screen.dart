@@ -33,6 +33,26 @@ class _AccountStatementScreenState extends State<AccountStatementScreen> {
   DateTime? _toDate;
   String _tab = 'ledger'; // ledger | photos | refunds | orders | deferred
   bool _exportingPdf = false;
+  late AppCurrency _currency;
+
+  @override
+  void initState() {
+    super.initState();
+    _currency = Get.isRegistered<SettingsService>()
+        ? Get.find<SettingsService>().displayCurrency.value
+        : AppCurrency.south;
+  }
+
+  double _convertSar(double sar) {
+    final s = Get.isRegistered<SettingsService>()
+        ? Get.find<SettingsService>().settings.value
+        : null;
+    final rate = s?.rateFor(_currency.key) ?? 1.0;
+    return sar * rate;
+  }
+
+  String _fmt(double sar) =>
+      formatMoney(roundMoney(_convertSar(sar), _currency), _currency);
 
   String _fmtDate(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -112,13 +132,13 @@ class _AccountStatementScreenState extends State<AccountStatementScreen> {
       ..writeln('• *العميل:* ${u?.displayName ?? 'عميل'} (${u?.effectiveCode ?? ''})')
       ..writeln('• *الهاتف:* ${u?.phone ?? ''}')
       ..writeln('• *المدة:* $periodText')
+      ..writeln('• العملة المختارة: ${_currency.labelAr}')
       ..writeln('──────────────────────────────')
-      ..writeln('• الرصيد الافتتاحي: ${report.openingBalanceSar.toStringAsFixed(2)} SAR')
-      ..writeln('• إجمالي المدين: ${report.periodDebitSar.toStringAsFixed(2)} SAR')
-      ..writeln('• إجمالي الدائن: ${report.periodCreditSar.toStringAsFixed(2)} SAR')
-      ..writeln('• إجمالي الاستردادات: ${report.totalRefundedSar.toStringAsFixed(2)} SAR')
-      ..writeln('• *الرصيد الختامي:* ${report.closingBalanceSar.toStringAsFixed(2)} SAR')
-      ..writeln('• رصيد المحفظة: ${walletBalSar.toStringAsFixed(2)} SAR')
+      ..writeln('• عليه (المطلوب): ${_fmt((report.openingBalanceSar > 0 ? report.openingBalanceSar : 0) + report.periodDebitSar)}')
+      ..writeln('• له (المدفوع والمسترد): ${_fmt((report.openingBalanceSar < 0 ? -report.openingBalanceSar : 0) + report.periodCreditSar)}')
+      ..writeln('• *الصافي (الرصيد الختامي):* ${_fmt(report.closingBalanceSar)}')
+      ..writeln('• مستردات الفترة: ${_fmt(report.totalRefundedSar)}')
+      ..writeln('• رصيد المحفظة: ${_fmt(walletBalSar)}')
       ..writeln('• عدد القيود: ${report.entries.length} | صور الحوالات: ${report.transferPhotos.length}');
 
     final phone = Get.isRegistered<SettingsService>()
@@ -226,6 +246,10 @@ class _AccountStatementScreenState extends State<AccountStatementScreen> {
                               _headerCard(u, creditLimit, availCredit),
                               const SizedBox(height: 12),
                               _dateFilterCard(),
+                              const SizedBox(height: 12),
+                              _currencySelectorCard(),
+                              const SizedBox(height: 12),
+                              _simpleSummaryCard(report),
                               const SizedBox(height: 12),
                               _kpiGrid(report, walletBal),
                               const SizedBox(height: 12),
@@ -412,6 +436,105 @@ class _AccountStatementScreenState extends State<AccountStatementScreen> {
         onPressed: () => _applyPreset(key),
       );
 
+  Widget _currencySelectorCard() {
+    const options = <AppCurrency>[
+      AppCurrency.south,
+      AppCurrency.north,
+      AppCurrency.sar,
+      AppCurrency.usd,
+    ];
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: T.card,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: T.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.currency_exchange, size: 16, color: T.primary),
+              const SizedBox(width: 6),
+              Text('عملة عرض كشف الحساب',
+                  style: TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w900, color: T.text)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: options.map((c) {
+              final active = _currency == c;
+              return ChoiceChip(
+                selected: active,
+                selectedColor: AppColors.primary.withOpacity(.16),
+                label: Text(
+                  c.labelAr,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                    color: active ? AppColors.primary : T.text,
+                  ),
+                ),
+                onSelected: (_) => setState(() => _currency = c),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _simpleSummaryCard(AccountingStatementReport report) {
+    final owedSar = (report.openingBalanceSar > 0 ? report.openingBalanceSar : 0.0) +
+        report.periodDebitSar;
+    final paidSar = (report.openingBalanceSar < 0 ? -report.openingBalanceSar : 0.0) +
+        report.periodCreditSar;
+    final netSar = report.closingBalanceSar;
+    final netLabel = netSar > 0.05
+        ? 'متبقي عليه'
+        : (netSar < -0.05 ? 'رصيد له' : 'مسدّد بالكامل');
+    final netColor = netSar > 0.05 ? T.danger : T.success;
+
+    Widget box(String title, String val, String sub, Color c) => Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: c.withOpacity(.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: c.withOpacity(.28)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: TextStyle(
+                        fontSize: 10.5, fontWeight: FontWeight.w800, color: c)),
+                const SizedBox(height: 4),
+                Text(val,
+                    style: TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w900, color: T.text)),
+                const SizedBox(height: 2),
+                Text(sub, style: TextStyle(fontSize: 9.5, color: T.muted)),
+              ],
+            ),
+          ),
+        );
+
+    return Row(
+      children: [
+        box('عليه (المطلوب)', _fmt(owedSar), 'إجمالي الفواتير', T.danger),
+        const SizedBox(width: 6),
+        box('له (المدفوع)', _fmt(paidSar), 'سداد + استرداد', T.success),
+        const SizedBox(width: 6),
+        box('الصافي', _fmt(netSar.abs()), netLabel, netColor),
+      ],
+    );
+  }
+
   Widget _kpiGrid(AccountingStatementReport report, double walletBal) {
     Widget cell(String title, String value, Color color) => Expanded(
           child: Container(
@@ -440,19 +563,19 @@ class _AccountStatementScreenState extends State<AccountStatementScreen> {
       children: [
         Row(
           children: [
-            cell('الرصيد الافتتاحي', '${report.openingBalanceSar.toStringAsFixed(2)} SAR', T.text),
+            cell('الرصيد الافتتاحي', _fmt(report.openingBalanceSar), T.text),
             const SizedBox(width: 8),
-            cell('إجمالي المدين', '${report.periodDebitSar.toStringAsFixed(2)} SAR', T.danger),
+            cell('إجمالي المدين (عليه)', _fmt(report.periodDebitSar), T.danger),
           ],
         ),
         const SizedBox(height: 8),
         Row(
           children: [
-            cell('إجمالي الدائن', '${report.periodCreditSar.toStringAsFixed(2)} SAR', T.success),
+            cell('إجمالي الدائن (له)', _fmt(report.periodCreditSar), T.success),
             const SizedBox(width: 8),
             cell(
-              'الرصيد الختامي',
-              '${report.closingBalanceSar.toStringAsFixed(2)} SAR',
+              'الصافي الختامي',
+              _fmt(report.closingBalanceSar),
               report.closingBalanceSar > 0.5 ? T.danger : T.success,
             ),
           ],
@@ -460,9 +583,9 @@ class _AccountStatementScreenState extends State<AccountStatementScreen> {
         const SizedBox(height: 8),
         Row(
           children: [
-            cell('مستردات الفترة', '${report.totalRefundedSar.toStringAsFixed(2)} SAR', T.primary),
+            cell('مستردات الفترة', _fmt(report.totalRefundedSar), T.primary),
             const SizedBox(width: 8),
-            cell('رصيد المحفظة', '${walletBal.toStringAsFixed(2)} SAR', T.info),
+            cell('رصيد المحفظة', _fmt(walletBal), T.info),
           ],
         ),
       ],
@@ -560,7 +683,7 @@ class _AccountStatementScreenState extends State<AccountStatementScreen> {
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700))),
                 const DataCell(Text('—', style: TextStyle(fontSize: 11))),
                 const DataCell(Text('—', style: TextStyle(fontSize: 11))),
-                DataCell(Text('${report.openingBalanceSar.toStringAsFixed(2)} SAR',
+                DataCell(Text(_fmt(report.openingBalanceSar),
                     style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900))),
                 const DataCell(Text('—')),
               ],
@@ -584,21 +707,21 @@ class _AccountStatementScreenState extends State<AccountStatementScreen> {
                         style: const TextStyle(fontSize: 10.5)),
                   )),
                   DataCell(Text(
-                    e.debitSar > 0 ? e.debitSar.toStringAsFixed(2) : '—',
+                    e.debitSar > 0 ? _fmt(e.debitSar) : '—',
                     style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                         color: e.debitSar > 0 ? T.danger : T.muted),
                   )),
                   DataCell(Text(
-                    e.creditSar > 0 ? e.creditSar.toStringAsFixed(2) : '—',
+                    e.creditSar > 0 ? _fmt(e.creditSar) : '—',
                     style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                         color: e.creditSar > 0 ? T.success : T.muted),
                   )),
                   DataCell(Text(
-                    '${e.runningBalanceSar.toStringAsFixed(2)} SAR',
+                    _fmt(e.runningBalanceSar),
                     style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
                   )),
                   DataCell(e.proofUrl.isEmpty
@@ -653,7 +776,7 @@ class _AccountStatementScreenState extends State<AccountStatementScreen> {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
                       Text(
-                        '${p.amountSar.toStringAsFixed(2)} SAR · ${p.statusAr}',
+                        '${_fmt(p.amountSar)} · ${p.statusAr}',
                         style: TextStyle(fontSize: 10, color: T.primary),
                       ),
                       if (p.refNo.isNotEmpty)
@@ -715,7 +838,7 @@ class _AccountStatementScreenState extends State<AccountStatementScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('${r.amountSar.toStringAsFixed(2)} SAR · ${_fmtDate(r.date)}',
+                        Text('${_fmt(r.amountSar)} · ${_fmtDate(r.date)}',
                             style: TextStyle(
                                 fontSize: 11.5, fontWeight: FontWeight.w800, color: T.primary)),
                         if (r.transferProofUrl.isNotEmpty)

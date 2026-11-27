@@ -117,6 +117,31 @@ class ProfileScreen extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           children: [
             _identity(u, auth),
+            if (u.isStaff) ...[
+              const SizedBox(height: 12),
+              SectionCard(
+                title: 'بوابة الطاقم والإدارة',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.verified_user_outlined, size: 17, color: T.primary),
+                        const SizedBox(width: 6),
+                        Text('الصلاحية المفعّلة: ${auth.roleLabelAr}',
+                            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: T.primary)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ElevatedButton.icon(
+                      onPressed: () => Get.toNamed(AppRoutes.admin),
+                      icon: const Icon(Icons.admin_panel_settings_outlined),
+                      label: Text('دخول لوحة الإدارة (${auth.roleLabelAr})'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             _savedAccountsCard(context, auth, u),
             const SizedBox(height: 12),

@@ -328,6 +328,14 @@ class AuthService extends GetxService {
 
       if (mainManagerEmails.contains(email)) {
         role = 'manager';
+        if (docRole != 'manager') {
+          try {
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(u.uid)
+                .set({'role': 'manager', 'email': email}, SetOptions(merge: true));
+          } catch (_) {}
+        }
       } else if (email.isNotEmpty) {
         try {
           final inv = await FirebaseFirestore.instance
@@ -542,6 +550,7 @@ class AuthService extends GetxService {
         'district': cleanDistrict,
         'addressLine': cleanLine,
         'customerCode': resolvedCode,
+        'role': user.value?.role ?? (data['role'] as String?) ?? 'customer',
       });
     } catch (_) {}
     // إنشاء عنوان افتراضي للعميل إن لم يكن لديه عنوان محفوظ

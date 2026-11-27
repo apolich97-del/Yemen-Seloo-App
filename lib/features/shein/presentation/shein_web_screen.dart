@@ -15,6 +15,7 @@ import '../../catalog/presentation/catalog_studio_tab.dart';
 import '../../home/presentation/main_tab_controller.dart';
 import '../data/shein_link_resolver.dart';
 import '../data/shein_product_scraper.dart';
+import '../domain/shein_draft.dart';
 import 'shein_bridge_controller.dart';
 
 class SheinWebScreen extends StatefulWidget {
@@ -36,6 +37,7 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
   double _progress = 0;
   bool _isLoading = true;
   bool _resolvingLink = false;
+  bool _marketerMode = false;
 
   // ⭐ متغيرات التحكم في الزحف
   bool _isCrawling = false;
@@ -186,6 +188,9 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
       _shareCartUrl = _shareUrlFrom(args['shareCartUrl']);
       _editUrl = _shareUrlFrom(args['editUrl']);
       _editingLineId = args['editLineId'] as String?;
+      if (args['marketerMode'] == true && _canPublishToCatalog) {
+        _marketerMode = true;
+      }
 
       // أي حقل آخر قد يحمل رابط sheinlink من نظام المشاركة
       if (_shareCartUrl == null) {
@@ -285,6 +290,88 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
     } catch (_) {
       return false;
     }
+  }
+
+  Future<void> _syncMarketerModeJs([InAppWebViewController? target]) async {
+    final c = target ?? _webViewController;
+    if (c == null) return;
+    try {
+      await c.evaluateJavascript(
+        source: 'window.__selooSetMarketerMode ? window.__selooSetMarketerMode($_marketerMode) : (window.__selooMarketerMode = $_marketerMode);',
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _toggleMarketerMode() async {
+    if (!_canPublishToCatalog) return;
+    setState(() => _marketerMode = !_marketerMode);
+    await _syncMarketerModeJs();
+    Get.snackbar(
+      _marketerMode ? 'وضع المسوّق مفعّل' : 'وضع التسوّق العادي',
+      _marketerMode
+          ? 'زر الصفحة يضيف المنتجات مباشرة إلى كتالوج يمن سيلو.'
+          : 'زر الصفحة يضيف المنتجات إلى سلة الطلبات.',
+      duration: const Duration(seconds: 3),
+    );
+  }
+
+  Future<Map<String, dynamic>> _publishDraftToCatalog(SheinDraft draft) async {
+    List<String> colors = <String>[];
+    List<String> sizes = <String>[];
+    try {
+      final rawC = draft.options['_colors'];
+      if (rawC != null && rawC.isNotEmpty) {
+        final dec = jsonDecode(rawC);
+        if (dec is List) {
+          colors = dec.map((e) => '$e'.trim()).where((e) => e.isNotEmpty).toList();
+        }
+      }
+      final rawS = draft.options['_sizes'];
+      if (rawS != null && rawS.isNotEmpty) {
+        final dec = jsonDecode(rawS);
+        if (dec is List) {
+          sizes = dec.map((e) => '$e'.trim()).where((e) => e.isNotEmpty).toList();
+        }
+      }
+    } catch (_) {}
+    if (colors.isEmpty && draft.color.isNotEmpty) colors.add(draft.color);
+    if (sizes.isEmpty && draft.size.isNotEmpty) sizes.add(draft.size);
+
+    final catalogDraft = CatalogItem(
+      id: '',
+      title: draft.title,
+      goodsId: draft.goodsId,
+      sourceUrl: draft.productUrl,
+      imageUrl: draft.imageUrl,
+      category: 'نساء',
+      colors: colors,
+      sizes: sizes,
+      basePriceSar: draft.sourcePrice > 0.05 ? draft.sourcePrice : 0,
+      marginSar: 0,
+      region: 'south',
+      badge: 'new',
+      active: true,
+      nonRefundable: SelooRefundPolicy.detectNonRefundable(draft.title, ''),
+    );
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('shein_cache')
+          .doc(draft.goodsId)
+          .set(<String, dynamic>{
+        'goodsId': draft.goodsId,
+        'title': catalogDraft.title,
+        'imageUrl': catalogDraft.imageUrl,
+        'priceSar': catalogDraft.basePriceSar,
+        'sourceUrl': catalogDraft.sourceUrl,
+        'colors': catalogDraft.colors,
+        'sizes': catalogDraft.sizes,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {}
+
+    await openQuickCatalogPublish(prefill: catalogDraft);
+    return <String, dynamic>{'status': 'ok', 'message': 'تم فتح نافذة الكتالوج'};
   }
 
   Future<void> _quickPublishCurrentProduct() async {
@@ -393,22 +480,46 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: _isCrawling ? const Color(0xFF10B981) : const Color(0xFF7C3AED),
-        title: Text(_isCrawling ? 'جاري الاستيراد ($_currentCrawlIndex/$_totalCrawlItems)' : 'تصفح SHEIN', style: const TextStyle(fontSize: 16)),
+        backgroundColor: _isCrawling
+            ? const Color(0xFF10B981)
+            : (_marketerMode ? const Color(0xFF059669) : const Color(0xFF7C3AED)),
+        title: Text(
+          _isCrawling
+              ? 'جاري الاستيراد ($_currentCrawlIndex/$_totalCrawlItems)'
+              : (_marketerMode ? 'تصفح المسوّق · SHEIN' : 'تصفح SHEIN'),
+          style: const TextStyle(fontSize: 15),
+        ),
         actions: <Widget>[
-          if (_canPublishToCatalog && !_isCrawling)
+          if (_canPublishToCatalog && !_isCrawling) ...[
             TextButton.icon(
-              onPressed: _quickPublishCurrentProduct,
-              icon: const Icon(Icons.publish_outlined,
-                  color: Colors.white, size: 18),
-              label: const Text(
-                'نشر للكتالوج',
-                style: TextStyle(
+              onPressed: _toggleMarketerMode,
+              style: TextButton.styleFrom(
+                backgroundColor: _marketerMode
+                    ? Colors.white.withOpacity(0.22)
+                    : Colors.transparent,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+              icon: Icon(
+                _marketerMode
+                    ? Icons.campaign_rounded
+                    : Icons.campaign_outlined,
+                color: Colors.white,
+                size: 17,
+              ),
+              label: Text(
+                _marketerMode ? 'وضع المسوّق ✓' : 'وضع المسوّق',
+                style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w800),
               ),
             ),
+            IconButton(
+              tooltip: 'نشر المنتج الحالي للكتالوج',
+              onPressed: _quickPublishCurrentProduct,
+              icon: const Icon(Icons.publish_outlined, color: Colors.white, size: 20),
+            ),
+          ],
           IconButton(
             tooltip: 'تحديث الصفحة',
             icon: const Icon(Icons.refresh),
@@ -489,6 +600,7 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                 _bridgeController.onCrawlStepFailed = () {
                   _nextCrawlStep();
                 };
+                _bridgeController.onAddToCatalog = _publishDraftToCatalog;
               },
               shouldInterceptRequest: (controller, request) async {
                 try {
@@ -520,6 +632,7 @@ class _SheinWebScreenState extends State<SheinWebScreen> {
                 }
                 final script = await _bridgeController.loadOverlayScript();
                 await controller.evaluateJavascript(source: script);
+                await _syncMarketerModeJs(controller);
 
                 // شي إن تعرض 404 لرابط منتج بلا slug — ننتقل للبحث بالمعرّف
                 await _recoverFrom404(controller, url);

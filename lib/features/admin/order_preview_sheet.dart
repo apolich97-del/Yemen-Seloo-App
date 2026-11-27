@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart'
     show FirebaseFirestore, FieldValue, Timestamp;
 import 'package:flutter/material.dart';
@@ -20,13 +22,13 @@ import '../orders/refunds_ui.dart';
 Future<void> showOrderPreview(Order o) async {
   await Get.dialog(
     Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 14),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       backgroundColor: T.card,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Builder(
         builder: (ctx) => SizedBox(
-          width: MediaQuery.of(ctx).size.width * 0.96,
-          height: MediaQuery.of(ctx).size.height * 0.91,
+          width: MediaQuery.of(ctx).size.width * 0.98,
+          height: MediaQuery.of(ctx).size.height * 0.95,
           child: _OrderPreview(order: o),
         ),
       ),
@@ -70,7 +72,46 @@ class _OrderPreview extends StatelessWidget {
               children: [
                 _block('بيانات العميل والعنوان', [
                   _kv('العميل', o.address.receiverName),
-                  _kv('الهاتف', o.address.phone),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 110,
+                          child: Text('الهاتف',
+                              style: TextStyle(fontSize: 11, color: T.muted)),
+                        ),
+                        Expanded(
+                          child: InkWell(
+                            onTap: o.address.phone.trim().isEmpty
+                                ? null
+                                : () => launchUrl(
+                                    Uri.parse('tel:${o.address.phone.trim()}')),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  o.address.phone.isEmpty ? '—' : o.address.phone,
+                                  style: TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: o.address.phone.isEmpty
+                                          ? T.text
+                                          : T.primary),
+                                ),
+                                if (o.address.phone.isNotEmpty) ...[
+                                  const SizedBox(width: 6),
+                                  Icon(Icons.call_outlined,
+                                      size: 14, color: T.primary),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   _kv('العنوان', o.address.fullAr),
                 ]),
                 const SizedBox(height: 10),
@@ -99,6 +140,51 @@ class _OrderPreview extends StatelessWidget {
                       '${o.remainingLocal.toStringAsFixed(2)} ${o.currency.name.toUpperCase()}'),
                 ]),
                 const SizedBox(height: 10),
+                if (!o.payment.isEmpty || o.payment.proofUrl.isNotEmpty) ...[
+                  _block('بيانات وصورة الحوالة', [
+                    if (o.payment.accountTitleAr.isNotEmpty)
+                      _kv('الحساب المستلم',
+                          '${o.payment.accountTitleAr} (${o.payment.accountNumber})'),
+                    if (o.payment.senderName.isNotEmpty)
+                      _kv('اسم المرسل', o.payment.senderName),
+                    if (o.payment.refNo.isNotEmpty)
+                      _kv('رقم العملية', o.payment.refNo),
+                    if (o.payment.amount > 0)
+                      _kv('المبلغ المحوّل',
+                          '${o.payment.amount.toStringAsFixed(2)} ${o.currency.name.toUpperCase()}'),
+                    if (o.payment.note.isNotEmpty)
+                      _kv('ملاحظة الحوالة', o.payment.note),
+                    if (o.payment.proofUrl.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Text('صورة إثبات الحوالة:',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: T.primary)),
+                          const Spacer(),
+                          TextButton.icon(
+                            onPressed: () => _zoomPreviewImage(
+                                context, o.payment.proofUrl, 'صورة الحوالة · ${o.orderNo}'),
+                            icon: const Icon(Icons.zoom_in, size: 16),
+                            label: const Text('تكبير', style: TextStyle(fontSize: 11)),
+                          ),
+                        ],
+                      ),
+                      InkWell(
+                        onTap: () => _zoomPreviewImage(
+                            context, o.payment.proofUrl, 'صورة الحوالة · ${o.orderNo}'),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: _PreviewImg(
+                              url: o.payment.proofUrl, height: 190, fit: BoxFit.contain),
+                        ),
+                      ),
+                    ],
+                  ]),
+                  const SizedBox(height: 10),
+                ],
                 _receipts(o),
                 const SizedBox(height: 10),
                 _block('التتبع والمندوب', [
@@ -152,12 +238,14 @@ class _OrderPreview extends StatelessWidget {
                         )),
                   if (o.proofImageUrl.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Image.network(o.proofImageUrl,
-                          height: 120,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const SizedBox()),
+                    InkWell(
+                      onTap: () => _zoomPreviewImage(
+                          context, o.proofImageUrl, 'إثبات التسليم · ${o.orderNo}'),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: _PreviewImg(
+                            url: o.proofImageUrl, height: 150, fit: BoxFit.cover),
+                      ),
                     ),
                   ],
                 ]),
@@ -341,67 +429,132 @@ class _OrderPreview extends StatelessWidget {
         ),
       );
 
-  Widget _item(OrderItem it) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  void _zoomPreviewImage(BuildContext ctx, String url, String title) {
+    showDialog<void>(
+      context: ctx,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: const EdgeInsets.all(10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: it.imageUrl.isEmpty
-                  ? Container(
-                      width: 62,
-                      height: 62,
-                      color: T.soft,
-                      child: Icon(Icons.image_outlined,
-                          size: 18, color: T.muted),
-                    )
-                  : Image.network(it.imageUrl,
-                      width: 62,
-                      height: 62,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                            width: 62,
-                            height: 62,
-                            color: T.soft,
-                            child: Icon(Icons.image_outlined,
-                                size: 18, color: T.muted),
-                          )),
+            AppBar(
+              backgroundColor: Colors.black,
+              foregroundColor: Colors.white,
+              title: Text(title, style: const TextStyle(fontSize: 13)),
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.of(ctx).pop(),
+              ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(it.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                          color: T.text)),
-                  const SizedBox(height: 2),
-                  Text(
-                    '× ${it.qty}'
-                    '${it.color.isNotEmpty ? ' · ${it.color}' : ''}'
-                    '${it.size.isNotEmpty ? ' · ${it.size}' : ''}'
-                    ' · ${it.lineTotalSar.toStringAsFixed(2)} ر.س',
-                    style: TextStyle(fontSize: 10.5, color: T.muted),
-                  ),
-                  if (it.isNonRefundable)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 3),
-                      child: Text(
-                        'غير قابل للاسترداد (${it.effectiveNonRefundableReason})',
-                        style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: T.warning),
-                      ),
-                    ),
-                ],
+            SizedBox(
+              height: MediaQuery.of(ctx).size.height * 0.72,
+              width: double.infinity,
+              child: InteractiveViewer(
+                minScale: 0.7,
+                maxScale: 5.0,
+                child: _PreviewImg(url: url, fit: BoxFit.contain),
               ),
             ),
           ],
         ),
-      );
+      ),
+    );
+  }
+
+  Widget _item(OrderItem it) {
+    final sheinUrl = it.productUrl.trim().isNotEmpty
+        ? it.productUrl.trim()
+        : (it.goodsId.trim().isNotEmpty
+            ? 'https://m.shein.com/ar/pdsearch/${it.goodsId.trim()}/'
+            : '');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Builder(
+            builder: (ctx) => InkWell(
+              onTap: it.imageUrl.isEmpty
+                  ? null
+                  : () => _zoomPreviewImage(ctx, it.imageUrl, it.title),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: it.imageUrl.isEmpty
+                    ? Container(
+                        width: 66,
+                        height: 66,
+                        color: T.soft,
+                        child: Icon(Icons.image_outlined, size: 18, color: T.muted),
+                      )
+                    : _PreviewImg(
+                        url: it.imageUrl, width: 66, height: 66, fit: BoxFit.cover),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(it.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: T.text)),
+                const SizedBox(height: 2),
+                Text(
+                  '× ${it.qty}'
+                  '${it.color.isNotEmpty ? ' · ${it.color}' : ''}'
+                  '${it.size.isNotEmpty ? ' · ${it.size}' : ''}'
+                  ' · ${it.lineTotalSar.toStringAsFixed(2)} ر.س',
+                  style: TextStyle(fontSize: 10.5, color: T.muted),
+                ),
+                if (sheinUrl.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: InkWell(
+                      onTap: () async {
+                        final uri = Uri.tryParse(sheinUrl);
+                        if (uri != null) {
+                          await launchUrl(uri,
+                              mode: LaunchMode.externalApplication);
+                        }
+                      },
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.open_in_new, size: 13, color: T.primary),
+                          const SizedBox(width: 4),
+                          Text('رابط SHEIN المباشر',
+                              style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: T.primary)),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (it.isNonRefundable)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text(
+                      'غير قابل للاسترداد (${it.effectiveNonRefundableReason})',
+                      style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          color: T.warning),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _receipts(Order o) => Container(
         padding: const EdgeInsets.all(12),
@@ -747,4 +900,56 @@ String _waPhone(String raw) {
   if (digits.startsWith('0')) return '967${digits.substring(1)}';
   if (digits.length == 9) return '967$digits';
   return digits;
+}
+
+
+class _PreviewImg extends StatelessWidget {
+  final String url;
+  final double? width;
+  final double? height;
+  final BoxFit fit;
+  const _PreviewImg({
+    required this.url,
+    this.width,
+    this.height,
+    this.fit = BoxFit.cover,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (url.startsWith('data:')) {
+      try {
+        final idx = url.indexOf(',');
+        final bytes = base64Decode(idx >= 0 ? url.substring(idx + 1) : url);
+        return Image.memory(
+          bytes,
+          width: width,
+          height: height,
+          fit: fit,
+          errorBuilder: (_, __, ___) => SizedBox(
+            width: width,
+            height: height ?? 100,
+            child: const Center(child: Icon(Icons.broken_image_outlined)),
+          ),
+        );
+      } catch (_) {
+        return SizedBox(
+          width: width,
+          height: height ?? 100,
+          child: const Center(child: Icon(Icons.broken_image_outlined)),
+        );
+      }
+    }
+    return Image.network(
+      url,
+      width: width,
+      height: height,
+      fit: fit,
+      errorBuilder: (_, __, ___) => SizedBox(
+        width: width,
+        height: height ?? 100,
+        child: const Center(child: Icon(Icons.broken_image_outlined)),
+      ),
+    );
+  }
 }

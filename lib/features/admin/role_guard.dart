@@ -15,7 +15,10 @@ class RoleGuard extends StatelessWidget {
     final auth = Get.find<AuthService>();
     return Obx(() {
       final role = auth.user.value?.role ?? 'customer';
-      if (!allow.contains(role) && role != 'manager') {
+      if (!allow.contains(role) &&
+          role != 'manager' &&
+          role != 'owner' &&
+          !auth.isMainManager) {
         return Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
