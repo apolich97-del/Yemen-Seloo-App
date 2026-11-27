@@ -12,7 +12,7 @@ class SignaturePadWidget extends StatefulWidget {
   const SignaturePadWidget({
     super.key,
     required this.onConfirm,
-    this.confirmLabel = 'اعتماد التوقيع وتأكيد الاستلام',
+    this.confirmLabel = 'تأكيد التوقيع',
   });
 
   @override
@@ -49,6 +49,19 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: T.primary.withOpacity(.06),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: T.primary.withOpacity(.2)),
+          ),
+          child: Text(
+            'متى وكيف يُستخدم: عند استلام الشحنة من المندوب أو مكتب الشحن، ارسم توقيعك ثم اضغط «تأكيد التوقيع» (أو «مسح» لإعادة الرسم).',
+            style: TextStyle(fontSize: 11, color: T.muted, height: 1.4),
+          ),
+        ),
+        const SizedBox(height: 8),
         Container(
           height: 185,
           decoration: BoxDecoration(
@@ -97,7 +110,7 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
                         _current.clear();
                       }),
               icon: const Icon(Icons.refresh, size: 16),
-              label: const Text('مسح التوقيع', style: TextStyle(fontSize: 12)),
+              label: const Text('مسح', style: TextStyle(fontSize: 12)),
             ),
             const SizedBox(width: 8),
             Expanded(
